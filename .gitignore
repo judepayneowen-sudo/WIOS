@@ -3,4 +3,6 @@ ios/
 www/app.js
 *.ipa
 dist/
+.whoop.env
+.whoop-tokens.json
 .DS_Store

@@ -9,6 +9,7 @@
     "test": "node test/scores.test.mjs",
     "icon": "node tools/make-icon.mjs dist/icon.png",
     "altstore": "node tools/make-altstore-source.mjs --ipa dist/WHOOP-Core.ipa --out dist/apps.json",
+    "whoop:api": "node tools/whoop-api.mjs",
     "add:ios": "npm run build:web && cap add ios",
     "sync": "npm run build:web && cap sync ios",
     "open": "cap open ios"
