@@ -1,6 +1,6 @@
 {
   "name": "whoop-core-ios",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "private": true,
   "type": "module",
   "description": "Standalone iOS app that reads a WHOOP 5.0 directly over Bluetooth (CoreBluetooth via Capacitor). Independent of ARC Home.",

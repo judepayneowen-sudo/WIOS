@@ -85,82 +85,115 @@
   .ln{margin:0 0 2px} .cmd{color:#bfe0ff}.rx{color:var(--strain)}.evt{color:var(--rec-yellow)}
   .ok{color:var(--rec-green)}.err{color:var(--rec-red)}.dim{color:var(--dim)}
   .banner{background:#14233a;border:1px solid #244;border-radius:10px;padding:10px 12px;font-size:12px;color:#bcd;margin-bottom:14px}
+
+  /* ---- faithful WHOOP detail components ---- */
+  :root{ --st-awake:#9aa0a8; --st-rem:#9b8cff; --st-light:#4a78d6; --st-sws:#27408b; }
+  .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+  .hd .t{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);font-weight:600}
+  .preview{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#0a0b0e;background:var(--strain);border-radius:4px;padding:3px 7px;font-weight:700}
+  .vow{color:var(--text);font-size:13px;line-height:1.5;margin:12px 4px 0;text-align:left}
+  .chart{width:100%;display:block}
+  .card.go{cursor:pointer}
+  /* metric breakdown row with 30-day baseline range */
+  .mrow{padding:13px 0;border-bottom:1px solid var(--line)}
+  .mrow:last-child{border-bottom:0}
+  .mrow .top{display:flex;justify-content:space-between;align-items:baseline}
+  .mrow .nm{color:var(--text);font-size:14px}
+  .mrow .vv{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+  .mrow .vv small{font-size:11px;color:var(--dim);font-weight:500}
+  .mrow .rng{position:relative;height:6px;background:#1f2228;border-radius:3px;margin-top:10px}
+  .mrow .rng .band{position:absolute;top:0;bottom:0;background:#333c49;border-radius:3px}
+  .mrow .rng .mk{position:absolute;top:-3px;width:12px;height:12px;border-radius:50%;border:2px solid var(--card);transform:translateX(-50%)}
+  .mrow .sub{display:flex;justify-content:space-between;color:var(--dimmer);font-size:10px;margin-top:6px}
+  .flag{width:8px;height:8px;border-radius:50%;display:inline-block;margin-left:8px;vertical-align:middle}
+  /* strain 0-21 scale */
+  .scale{position:relative;height:10px;border-radius:6px;margin:18px 0 7px;background:linear-gradient(90deg,#1d6fae,#3aa0ff,#7c5cff,#ff3b5c)}
+  .scale .mk{position:absolute;top:-5px;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--strain);transform:translateX(-50%);box-shadow:0 0 8px rgba(58,160,255,.6)}
+  .scaleticks{display:flex;justify-content:space-between;color:var(--dimmer);font-size:10px}
+  /* sleep stage legend */
+  .stg{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+  .stg:last-child{border-bottom:0}
+  .stg .sw{width:12px;height:12px;border-radius:3px;flex:none}
+  .stg .nm{flex:1;font-size:13px} .stg .tm{font-variant-numeric:tabular-nums;font-weight:600;font-size:14px}
+  .stg .pc{color:var(--dim);font-size:11px;width:40px;text-align:right}
+  .statgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center}
+  .statgrid .v{font-size:22px;font-weight:700} .statgrid .k{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-top:3px}
 </style>
 </head>
 <body>
 
   <!-- ===================== WHOOP-STYLE APP (permanent) ===================== -->
   <section class="screen on" id="s-overview">
-    <h2>Today</h2>
-    <div class="card" style="text-align:center">
-      <div class="ringwrap"><svg class="ring" viewBox="0 0 200 200">
-        <circle class="ring-bg" cx="100" cy="100" r="88"></circle>
-        <circle class="ring-fg" id="ov-arc" cx="100" cy="100" r="88"></circle></svg>
-        <div class="ringtxt"><div class="big" id="ov-rec">—</div><div class="lbl">Recovery</div></div>
-      </div>
-      <div class="await" id="ov-rec-note">awaiting overnight data</div>
+    <div class="hd"><div class="t">Today</div><span class="preview" id="ov-badge">preview · sample</span></div>
+    <div class="card go" data-go="recovery" style="display:flex;align-items:center;gap:16px">
+      <div class="ringwrap sm" style="width:92px;height:92px;margin:0;flex:none">
+        <svg class="ring" viewBox="0 0 200 200"><circle class="ring-bg" cx="100" cy="100" r="88"></circle>
+          <circle class="ring-fg" id="ov-arc" cx="100" cy="100" r="88"></circle></svg>
+        <div class="ringtxt"><div class="big" id="ov-rec" style="font-size:25px">—</div></div></div>
+      <div style="flex:1"><div class="muted" style="letter-spacing:1.5px;text-transform:uppercase">Recovery</div>
+        <div id="ov-rec-state" style="font-size:22px;font-weight:700;margin-top:2px">—</div>
+        <div class="await" id="ov-rec-sub">HRV · resting HR · respiratory</div></div>
     </div>
     <div class="tiles">
-      <div class="tile"><div class="k">Day Strain</div><div class="v" id="ov-strain" style="color:var(--strain)">—</div><div class="await">live since connect</div></div>
-      <div class="tile"><div class="k">Sleep</div><div class="v" id="ov-sleep" style="color:var(--sleep)">—<small>%</small></div><div class="await">awaiting sleep data</div></div>
-      <div class="tile"><div class="k">Heart Rate</div><div class="v" id="ov-hr">—<small>bpm</small></div></div>
-      <div class="tile"><div class="k">HRV</div><div class="v" id="ov-hrv">—<small>ms</small></div></div>
+      <div class="tile go" data-go="sleep"><div class="k">Sleep</div><div class="v" id="ov-sleep" style="color:var(--sleep)">—<small>%</small></div><div class="await" id="ov-sleep-sub">—</div></div>
+      <div class="tile go" data-go="strain"><div class="k">Day Strain</div><div class="v" id="ov-strain" style="color:var(--strain)">—</div><div class="await">0–21 scale</div></div>
+      <div class="tile"><div class="k">Heart rate</div><div class="v" id="ov-hr">—<small>bpm</small></div><div class="await">live</div></div>
+      <div class="tile"><div class="k">HRV</div><div class="v" id="ov-hrv">—<small>ms</small></div><div class="await">rmssd</div></div>
     </div>
   </section>
 
   <section class="screen" id="s-recovery">
-    <h2>Recovery</h2>
+    <div class="hd"><div class="t">Recovery</div><span class="preview">preview · sample</span></div>
     <div class="card" style="text-align:center">
       <div class="ringwrap"><svg class="ring" viewBox="0 0 200 200">
         <circle class="ring-bg" cx="100" cy="100" r="88"></circle>
         <circle class="ring-fg" id="rec-arc" cx="100" cy="100" r="88"></circle></svg>
         <div class="ringtxt"><div class="big" id="rec-pct">—</div><div class="lbl" id="rec-state">Recovery</div></div>
       </div>
-      <div class="await" id="rec-note">Recovery is computed from overnight HRV &amp; resting HR — available once we've extracted a night of data.</div>
+      <p class="vow" id="rec-vow"></p>
     </div>
-    <div class="card">
-      <div class="metric"><span class="k">HRV (RMSSD)</span><span class="v" id="rec-hrv">—</span></div>
-      <div class="metric"><span class="k">Resting heart rate</span><span class="v" id="rec-rhr">—</span></div>
-      <div class="metric"><span class="k">Respiratory rate</span><span class="v" id="rec-resp">—</span></div>
-    </div>
+    <div class="card" id="rec-metrics"></div>
+    <div class="card"><div class="hd"><div class="t">Recovery · 14 days</div><span class="muted" id="rec-trend-avg"></span></div>
+      <div id="rec-trend"></div></div>
   </section>
 
   <section class="screen" id="s-strain">
-    <h2>Strain</h2>
+    <div class="hd"><div class="t">Strain</div><span class="preview">preview · sample</span></div>
     <div class="card" style="text-align:center">
-      <div id="str-val" style="font-size:64px;font-weight:700;color:var(--strain);line-height:1">—</div>
-      <div class="muted" style="letter-spacing:2px">DAY STRAIN · 0–21</div>
-      <div class="bar"><i id="str-bar"></i></div>
-      <div class="await" id="str-note">live estimate since connect — full-day strain needs historical sync</div>
+      <div id="str-val" style="font-size:58px;font-weight:700;color:var(--strain);line-height:1">—</div>
+      <div class="muted" style="letter-spacing:2px">DAY STRAIN</div>
+      <div class="scale"><div class="mk" id="str-mk"></div></div>
+      <div class="scaleticks"><span>0</span><span>7</span><span>14</span><span>21</span></div>
+      <p class="vow" id="str-vow"></p>
     </div>
-    <div class="card">
-      <div class="metric"><span class="k">Live heart rate</span><span class="v" id="str-hr">—</span></div>
-      <div class="metric"><span class="k">Average heart rate</span><span class="v" id="str-avg">—</span></div>
-    </div>
-    <div class="card">
-      <div class="muted" style="margin-bottom:8px">Time in HR zones</div>
-      <div id="str-zones"></div>
+    <div class="card"><div class="hd"><div class="t">Heart rate · today</div><span class="muted" id="str-hrnow">live —</span></div>
+      <div id="str-hrcurve"></div></div>
+    <div class="card"><div class="t" style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Time in heart-rate zones</div>
+      <div id="str-zones"></div></div>
+    <div class="card statgrid">
+      <div><div class="v" id="str-cal">—</div><div class="k">calories</div></div>
+      <div><div class="v" id="str-avg">—</div><div class="k">avg hr</div></div>
+      <div><div class="v" id="str-max">—</div><div class="k">max hr</div></div>
     </div>
   </section>
 
   <section class="screen" id="s-sleep">
-    <h2>Sleep</h2>
+    <div class="hd"><div class="t">Sleep</div><span class="preview">preview · sample</span></div>
     <div class="card" style="text-align:center">
       <div class="ringwrap sm"><svg class="ring" viewBox="0 0 200 200">
         <circle class="ring-bg" cx="100" cy="100" r="88"></circle>
         <circle class="ring-fg" id="slp-arc" cx="100" cy="100" r="88" style="stroke:var(--sleep)"></circle></svg>
         <div class="ringtxt"><div class="big" id="slp-pct">—</div><div class="lbl">Performance</div></div>
       </div>
-      <div class="await" id="slp-note">Sleep performance needs decoded sleep data — coming after historical sync.</div>
+      <div class="muted" id="slp-hours" style="margin-top:4px"></div>
     </div>
-    <div class="card">
-      <div class="metric"><span class="k">Time asleep</span><span class="v" id="slp-got">—</span></div>
-      <div class="metric"><span class="k">Sleep need</span><span class="v" id="slp-need">—</span></div>
-    </div>
-    <div class="card">
-      <div class="muted" style="margin-bottom:2px">Stages</div>
-      <div class="stagebar" id="slp-stages"><i style="flex:1;background:#1f2228"></i></div>
-      <div class="muted">awaiting stage data</div>
+    <div class="card"><div class="t" style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Sleep stages</div>
+      <div id="slp-hypno"></div>
+      <div id="slp-stages" style="margin-top:8px"></div></div>
+    <div class="card statgrid">
+      <div><div class="v" id="slp-need">—</div><div class="k">need</div></div>
+      <div><div class="v" id="slp-debt">—</div><div class="k">debt</div></div>
+      <div><div class="v" id="slp-eff">—</div><div class="k">efficiency</div></div>
     </div>
   </section>
 

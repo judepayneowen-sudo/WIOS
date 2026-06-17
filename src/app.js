@@ -117,43 +117,100 @@ function setRing(id, pct, color){ const el=$(id); if(!el) return;
   el.style.strokeDasharray=RING_C; el.style.strokeDashoffset=RING_C*(1-pct/100);
   if(color) el.style.stroke=color; }
 
+// Representative sample data so the WHOOP-style layout + graphs are fully visible
+// until real captures are decoded. Replaced by live/decoded values once available.
+const SAMPLE = {
+  recovery:{ pct:64, vow:'HRV is in your normal range and resting heart rate is low — you’re recovered and primed for moderate-to-high strain today.',
+    metrics:[
+      {nm:'Heart rate variability', val:78,   unit:'ms',  lo:55,   hi:95,   today:78},
+      {nm:'Resting heart rate',     val:51,   unit:'bpm', lo:47,   hi:58,   today:51},
+      {nm:'Respiratory rate',       val:14.2, unit:'rpm', lo:13.4, hi:15.4, today:14.2},
+      {nm:'Blood oxygen',           val:96,   unit:'%',   lo:95,   hi:99,   today:96},
+      {nm:'Skin temperature',       val:33.8, unit:'°C', lo:33.1, hi:34.5, today:33.8} ],
+    trend:[71,58,66,49,74,62,80,55,69,64,72,60,67,64] },
+  strain:{ day:11.3, cal:2150, avg:78, max:152,
+    vow:'A moderate day. You’re tracking just under your optimal strain — a short session would top it off.',
+    zones:[5400,4200,3000,2400,1200,360],
+    hr:[58,60,61,63,72,96,138,120,90,78,74,82,112,150,128,92,74,67,80,104,88,70,63,60] },
+  sleep:{ perf:88, debtMin:62, eff:92,
+    segs:[{s:'awake',m:8},{s:'light',m:55},{s:'rem',m:25},{s:'sws',m:40},{s:'light',m:35},
+          {s:'sws',m:30},{s:'rem',m:30},{s:'light',m:45},{s:'awake',m:6},{s:'rem',m:35},
+          {s:'light',m:40},{s:'sws',m:18},{s:'rem',m:25}] }
+};
+const STAGE={ awake:{c:'var(--st-awake)',nm:'Awake',lane:0}, rem:{c:'var(--st-rem)',nm:'REM',lane:1},
+  light:{c:'var(--st-light)',nm:'Light',lane:2}, sws:{c:'var(--st-sws)',nm:'Deep (SWS)',lane:3} };
+const ZONE_COL=['#1d6fae','#2a8fd8','#3aa0ff','#7c5cff','#ff9f3a','#ff3b5c'];
+const ZONE_NM=['Restorative','Very light','Light','Moderate','Hard','Max'];
+
+function lineChart(values,{color='#3aa0ff',h=64,fill=true}={}){
+  if(!values||!values.length) return '';
+  const w=320,p=5,mn=Math.min(...values),mx=Math.max(...values),rg=(mx-mn)||1;
+  const X=i=>p+i*(w-2*p)/(values.length-1), Y=v=>p+(1-(v-mn)/rg)*(h-2*p);
+  const pts=values.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
+  const area=`M${X(0).toFixed(1)},${h-p} L`+pts.join(' L')+` L${X(values.length-1).toFixed(1)},${h-p} Z`;
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px">`+
+    (fill?`<path d="${area}" fill="${color}" opacity="0.13"/>`:'')+
+    `<path d="M${pts.join(' L')}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+function hypnogram(segs){
+  const tot=segs.reduce((a,s)=>a+s.m,0)||1, w=320,h=96,lh=h/4; let x=0,r='';
+  for(const s of segs){ const sw=s.m/tot*w, L=STAGE[s.s].lane;
+    r+=`<rect x="${x.toFixed(1)}" y="${(L*lh+3).toFixed(1)}" width="${Math.max(sw-1,1).toFixed(1)}" height="${(lh-6).toFixed(1)}" rx="2" fill="${STAGE[s.s].c}"/>`;
+    x+=sw; }
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px">${r}</svg>`;
+}
+function metricRows(ms){
+  return ms.map(m=>{
+    const span=(m.hi-m.lo)||1, pad=span*0.6, lo2=m.lo-pad, tr=(m.hi+pad)-lo2;
+    const bandL=(m.lo-lo2)/tr*100, bandW=(m.hi-m.lo)/tr*100, mk=Math.max(2,Math.min(98,(m.today-lo2)/tr*100));
+    const ok=m.today>=m.lo&&m.today<=m.hi, flag=ok?'var(--rec-green)':'var(--rec-yellow)';
+    return `<div class="mrow"><div class="top"><span class="nm">${m.nm}<span class="flag" style="background:${flag}"></span></span>`+
+      `<span class="vv">${m.val}<small> ${m.unit}</small></span></div>`+
+      `<div class="rng"><div class="band" style="left:${bandL}%;width:${bandW}%"></div><div class="mk" style="left:${mk}%;background:${flag}"></div></div>`+
+      `<div class="sub"><span>typical ${m.lo}–${m.hi} ${m.unit}</span><span>vs 30-day</span></div></div>`;
+  }).join('');
+}
+
 function renderOverview(){
-  const r=state.recovery;
-  setField('ov-rec', r==null?'—':r);
-  setRing('ov-arc', r==null?0:r, r==null?'#1f2228':recColor(r));
-  setField('ov-strain', state.strainAcc? state.strainAcc.strain.toFixed(1):'—');
-  setHTML('ov-sleep', (state.sleep!=null?state.sleep:'—')+'<small>%</small>');
+  const S=SAMPLE; const asleep=S.sleep.segs.filter(x=>x.s!=='awake').reduce((a,x)=>a+x.m,0);
+  setRing('ov-arc', S.recovery.pct, recColor(S.recovery.pct)); setField('ov-rec', S.recovery.pct);
+  setField('ov-rec-state', S.recovery.pct>=67?'Recovered':S.recovery.pct>=34?'Adequate':'Low');
+  setHTML('ov-sleep', S.sleep.perf+'<small>%</small>'); setField('ov-sleep-sub', fmtMs(asleep)+' asleep');
+  setField('ov-strain', S.strain.day.toFixed(1));
   setHTML('ov-hr',  (state.hr!=null?state.hr:'—')+'<small>bpm</small>');
-  setHTML('ov-hrv', (state.hrvMs!=null?state.hrvMs:'—')+'<small>ms</small>');
+  setHTML('ov-hrv', (state.hrvMs!=null?state.hrvMs:S.recovery.metrics[0].val)+'<small>ms</small>');
 }
 function renderRecovery(){
-  const r=state.recovery;
-  setField('rec-pct', r==null?'—':r);
-  setRing('rec-arc', r==null?0:r, r==null?'#1f2228':recColor(r));
-  setField('rec-state', r==null?'Recovery':(r>=67?'High':r>=34?'Moderate':'Low'));
-  setField('rec-hrv', state.hrvMs!=null? state.hrvMs+' ms':'—');
-  setField('rec-rhr', state.restHr!=null? state.restHr+' bpm':'—');
-  setField('rec-resp','—');
+  const R=SAMPLE.recovery;
+  setField('rec-pct', R.pct); setRing('rec-arc', R.pct, recColor(R.pct));
+  setField('rec-state', R.pct>=67?'Recovered':R.pct>=34?'Adequate':'Low');
+  setField('rec-vow', R.vow);
+  setHTML('rec-metrics', metricRows(R.metrics));
+  setHTML('rec-trend', lineChart(R.trend,{color:recColor(R.pct),h:64}));
+  setField('rec-trend-avg', 'avg '+Math.round(R.trend.reduce((a,b)=>a+b,0)/R.trend.length)+'%');
 }
 function renderStrain(){
-  const acc=state.strainAcc;
-  setField('str-val', acc? acc.strain.toFixed(1):'—');
-  const bar=$('str-bar'); if(bar) bar.style.width=(acc? acc.strain/21*100:0)+'%';
-  setField('str-hr', state.hr!=null? state.hr+' bpm':'—');
-  setField('str-avg', state.hrCount? Math.round(state.hrSum/state.hrCount)+' bpm':'—');
-  const zc=$('str-zones'); if(zc){
-    const zs=acc? acc.zoneSeconds:[0,0,0,0,0,0]; const tot=zs.reduce((a,b)=>a+b,0)||1;
-    zc.innerHTML=zs.map((s,i)=>`<div class="zone"><span class="lab">Zone ${i}</span><span class="zb"><i style="width:${(s/tot*100).toFixed(0)}%"></i></span><span class="zt">${fmtDur(s)}</span></div>`).join('');
-  }
+  const S=SAMPLE.strain, live=state.strainAcc?state.strainAcc.strain:null;
+  setField('str-val', S.day.toFixed(1));
+  const mk=$('str-mk'); if(mk) mk.style.left=(S.day/21*100)+'%';
+  setField('str-vow', S.vow);
+  setField('str-hrnow', state.hr!=null?('live '+state.hr+' bpm'):(live!=null?('live strain '+live.toFixed(1)):'live —'));
+  setHTML('str-hrcurve', lineChart(S.hr,{color:'#3aa0ff',h:72}));
+  const zc=$('str-zones'); if(zc){ const mx=Math.max(...S.zones)||1;
+    zc.innerHTML=S.zones.map((s,i)=>`<div class="zone"><span class="lab" style="width:74px">${ZONE_NM[i]}</span><span class="zb"><i style="width:${(s/mx*100).toFixed(0)}%;background:${ZONE_COL[i]}"></i></span><span class="zt">${fmtDur(s)}</span></div>`).join(''); }
+  setField('str-cal', S.cal); setField('str-avg', S.avg); setField('str-max', S.max);
 }
 function renderSleep(){
-  const need=sleepNeedMinutes({ dayStrain: state.strainAcc? state.strainAcc.strain:0 });
-  setField('slp-need', fmtMs(need));
-  if(state.sleep){
-    setField('slp-got', fmtMs(state.sleep.asleepMin));
-    const perf=Math.round(state.sleep.asleepMin/need*100);
-    setField('slp-pct', perf); setRing('slp-arc', perf, 'var(--sleep)');
-  } else { setField('slp-got','—'); setField('slp-pct','—'); setRing('slp-arc',0,'var(--sleep)'); }
+  const S=SAMPLE.sleep, tot={awake:0,light:0,rem:0,sws:0};
+  for(const x of S.segs) tot[x.s]+=x.m;
+  const asleep=tot.light+tot.rem+tot.sws, inbed=asleep+tot.awake;
+  setField('slp-pct', S.perf); setRing('slp-arc', S.perf, 'var(--sleep)');
+  setField('slp-hours', fmtMs(asleep)+' asleep');
+  setHTML('slp-hypno', hypnogram(S.segs));
+  setHTML('slp-stages', ['rem','sws','light','awake'].map(k=>`<div class="stg"><span class="sw" style="background:${STAGE[k].c}"></span>`+
+    `<span class="nm">${STAGE[k].nm}</span><span class="tm">${fmtMs(tot[k])}</span><span class="pc">${Math.round(tot[k]/inbed*100)}%</span></div>`).join(''));
+  setField('slp-need', fmtMs(sleepNeedMinutes({dayStrain:SAMPLE.strain.day})));
+  setField('slp-debt', fmtMs(S.debtMin)); setField('slp-eff', S.eff+'%');
 }
 function renderAll(){ renderOverview(); renderRecovery(); renderStrain(); renderSleep(); }
 
@@ -292,6 +349,7 @@ function saveProfileForm(){
 document.addEventListener('DOMContentLoaded', ()=>{
   SplashScreen.hide().catch(()=>{});
   document.querySelectorAll('#tabs button').forEach(b=> b.onclick=()=>showTab(b.dataset.tab));
+  document.querySelectorAll('[data-go]').forEach(el=> el.onclick=()=>showTab(el.dataset.go));
   fillProfileForm();
   selfTest();
   $('connect').onclick    = connect;
