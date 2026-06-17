@@ -101,6 +101,16 @@ jobs:
             --ipa dist/WHOOP-Core.ipa --out dist/apps.json --notes "$REL_NOTES"
           echo "----- dist/apps.json -----" && cat dist/apps.json
 
+      - name: Debug — Cloudflare token scopes (whoami)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          # Prints accounts the token can access + its permission scopes.
+          # Look for an "Account › Cloudflare Pages › Edit"-equivalent scope and that
+          # the listed account matches CLOUDFLARE_ACCOUNT_ID. Non-fatal.
+          npx --yes wrangler@3 whoami || true
+
       - name: Ensure Cloudflare Pages project exists
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
