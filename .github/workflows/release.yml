@@ -8,13 +8,13 @@ on:
   workflow_dispatch:
     inputs:
       pages_project:
-        description: "Cloudflare Pages project name (served at https://<project>.pages.dev)"
+        description: "Cloudflare Pages project name (the wrangler --project-name)"
         required: true
-        default: "whoop-core"
+        default: "wios"
       base_url:
-        description: "Override public base URL (only if using a custom domain). Blank = https://<project>.pages.dev"
+        description: "Public base URL that actually serves the project (its real .pages.dev subdomain or a custom domain)"
         required: false
-        default: ""
+        default: "https://wios-awe.pages.dev"
       version:
         description: "Version (default: package.json version). Must increase for AltStore to offer an update."
         required: false
