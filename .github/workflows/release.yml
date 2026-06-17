@@ -1,18 +1,22 @@
-name: Release WHOOP Core (AltStore bundle)
+name: Release WHOOP Core (AltStore → Cloudflare Pages)
 
-# Builds the unsigned .ipa AND the AltStore source bundle (apps.json + icon.png) in one go.
-# Run from the Actions tab: provide the public base URL where you'll host the files, then
-# download the "WHOOP-Core-altstore-dist" artifact and upload its 3 files to that URL.
-# AltStore polls apps.json and offers OTA updates whenever the version bumps.
+# Builds the unsigned .ipa + AltStore source bundle (apps.json + icon.png) and deploys all
+# three to Cloudflare Pages, so AltStore can fetch them over HTTPS and offer OTA updates.
+# Run from the Actions tab. Requires repo secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID.
 
 on:
   workflow_dispatch:
     inputs:
-      base_url:
-        description: "Public base URL you will host the files under (e.g. https://dl.example.com/whoop)"
+      pages_project:
+        description: "Cloudflare Pages project name (served at https://<project>.pages.dev)"
         required: true
+        default: "whoop-core"
+      base_url:
+        description: "Override public base URL (only if using a custom domain). Blank = https://<project>.pages.dev"
+        required: false
+        default: ""
       version:
-        description: "Version (default: package.json version)"
+        description: "Version (default: package.json version). Must increase for AltStore to offer an update."
         required: false
       notes:
         description: "What's-new / changelog for this version"
@@ -28,13 +32,19 @@ jobs:
         with:
           node-version: 20
 
-      - name: Resolve version
-        id: ver
+      - name: Resolve version + base URL
+        id: cfg
+        env:
+          IN_VERSION: ${{ inputs.version }}
+          IN_BASE: ${{ inputs.base_url }}
+          IN_PROJECT: ${{ inputs.pages_project }}
         run: |
-          V="${{ inputs.version }}"
-          [ -z "$V" ] && V="$(node -p "require('./package.json').version")"
-          echo "version=$V" >> "$GITHUB_OUTPUT"
-          echo "Building version $V"
+          V="$IN_VERSION"; [ -z "$V" ] && V="$(node -p "require('./package.json').version")"
+          BASE="$IN_BASE"; [ -z "$BASE" ] && BASE="https://${IN_PROJECT}.pages.dev"
+          BASE="${BASE%/}"
+          echo "version=$V"   >> "$GITHUB_OUTPUT"
+          echo "base=$BASE"   >> "$GITHUB_OUTPUT"
+          echo "Version $V → base $BASE"
 
       - name: Install JS dependencies
         run: npm install
@@ -61,7 +71,7 @@ jobs:
             -archivePath "$PWD/build/App.xcarchive" \
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
-            MARKETING_VERSION=${{ steps.ver.outputs.version }} \
+            MARKETING_VERSION=${{ steps.cfg.outputs.version }} \
             CURRENT_PROJECT_VERSION=1 \
             archive
 
@@ -79,21 +89,38 @@ jobs:
 
       - name: Assemble AltStore dist bundle
         env:
-          BASE_URL: ${{ inputs.base_url }}
-          REL_VERSION: ${{ steps.ver.outputs.version }}
+          BASE_URL: ${{ steps.cfg.outputs.base }}
+          REL_VERSION: ${{ steps.cfg.outputs.version }}
           REL_NOTES: ${{ inputs.notes }}
         run: |
           mkdir -p dist
           cp ios/App/build/WHOOP-Core.ipa dist/WHOOP-Core.ipa
           node tools/make-icon.mjs dist/icon.png
           node tools/make-altstore-source.mjs \
-            --base "$BASE_URL" \
-            --version "$REL_VERSION" \
-            --ipa dist/WHOOP-Core.ipa \
-            --out dist/apps.json \
-            --notes "$REL_NOTES"
+            --base "$BASE_URL" --version "$REL_VERSION" \
+            --ipa dist/WHOOP-Core.ipa --out dist/apps.json --notes "$REL_NOTES"
           echo "----- dist/apps.json -----" && cat dist/apps.json
 
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ inputs.pages_project }} --branch=main
+
+      - name: Summary
+        env:
+          BASE_URL: ${{ steps.cfg.outputs.base }}
+        run: |
+          {
+            echo "### WHOOP Core ${{ steps.cfg.outputs.version }} deployed"
+            echo ""
+            echo "Add this AltStore source URL on your phone:"
+            echo ""
+            echo "    ${BASE_URL}/apps.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Keep a downloadable copy too (handy for one-off Sideloadly installs / debugging).
       - uses: actions/upload-artifact@v4
         with:
           name: WHOOP-Core-altstore-dist
