@@ -101,6 +101,19 @@ jobs:
             --ipa dist/WHOOP-Core.ipa --out dist/apps.json --notes "$REL_NOTES"
           echo "----- dist/apps.json -----" && cat dist/apps.json
 
+      - name: Ensure Cloudflare Pages project exists
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ inputs.pages_project }}
+        run: |
+          # Idempotent: create the project if missing, ignore "already exists".
+          # A real auth/account error still surfaces at the deploy step below.
+          npx --yes wrangler@3 pages project create "$PROJECT" --production-branch=main 2>&1 | tee /tmp/cf.log || true
+          if grep -qiE "already (exists|taken)|in use by another project" /tmp/cf.log; then
+            echo "Project '$PROJECT' already exists — continuing."
+          fi
+
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
         with:
