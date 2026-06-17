@@ -5,9 +5,15 @@
  * fd4b command service (unreachable on Windows) works here. Protocol is an independent
  * clean-room implementation of the GOOSE/Gen5 frame format, verified byte-identical to the
  * known get_hello fixture (aa0108000001e67123019101363e5c8d).
+ *
+ * Two halves:
+ *   - WHOOP-style screens (Overview / Recovery / Strain / Sleep) — the permanent app.
+ *   - A DEV / SETUP block (clearly fenced below) — connection + capture + command tooling
+ *     used to extract & decode the data. Delete that block + the Setup tab to retire it.
  */
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
 import { SplashScreen } from '@capacitor/splash-screen';
+import { makeStrainAccumulator, maxHeartRate, sleepNeedMinutes } from './scores.js';
 
 /* ----------------------------- GATT map ----------------------------------- */
 const SVC    = 'fd4b0001-cce1-4033-93ce-002d5875f58a';   // custom command service
@@ -84,148 +90,219 @@ function parseHeartRate(dv){
   return hr;
 }
 
-/* ----------------------------- UI ----------------------------------------- */
+/* ----------------------------- small UI helpers --------------------------- */
 const $ = (id)=>document.getElementById(id);
-function setStatus(t, on){ $('status').textContent=t; $('dot').classList.toggle('on', !!on); }
-function setField(id, v){ const el=$(id); if(el) el.textContent=v; }
-function log(msg, cls='dim'){ const d=document.createElement('div'); d.className='ln '+cls;
-  d.textContent='['+new Date().toLocaleTimeString()+'] '+msg; $('log').appendChild(d);
-  $('log').scrollTop=$('log').scrollHeight; }
+const setField = (id,v)=>{ const el=$(id); if(el) el.textContent=v; };
+const setHTML  = (id,h)=>{ const el=$(id); if(el) el.innerHTML=h; };
+function fmtMs(min){ min=Math.round(min); return Math.floor(min/60)+'h '+String(min%60).padStart(2,'0')+'m'; }
+function fmtDur(s){ s=Math.round(s); const m=Math.floor(s/60); return m+':'+String(s%60).padStart(2,'0'); }
+
+/* ----------------------------- profile ------------------------------------ */
+const PKEY='whoopcore.profile';
+const DEF_PROFILE={age:30,sex:'m',restingHr:50,maxHr:0};
+function loadProfile(){ try{ return {...DEF_PROFILE, ...JSON.parse(localStorage.getItem(PKEY)||'{}')}; }catch(e){ return {...DEF_PROFILE}; } }
+let profile=loadProfile();
+const effMaxHr = ()=> profile.maxHr>0 ? profile.maxHr : maxHeartRate(profile.age||30);
+const newStrainAcc = ()=> makeStrainAccumulator({ restingHr:profile.restingHr||50, maxHr:effMaxHr(), sex:profile.sex||'m' });
+
+/* ----------------------------- live state --------------------------------- */
+const state = { hr:null, hrvMs:null, restHr:null, hrCount:0, hrSum:0, strainAcc:null, recovery:null, sleep:null };
+let lastHrTs=0;
+
+/* ----------------------------- rings + renders ---------------------------- */
+const RING_C = 2*Math.PI*88;
+const recColor = (p)=> p>=67 ? 'var(--rec-green)' : p>=34 ? 'var(--rec-yellow)' : 'var(--rec-red)';
+function setRing(id, pct, color){ const el=$(id); if(!el) return;
+  pct=Math.max(0,Math.min(100,pct||0));
+  el.style.strokeDasharray=RING_C; el.style.strokeDashoffset=RING_C*(1-pct/100);
+  if(color) el.style.stroke=color; }
+
+function renderOverview(){
+  const r=state.recovery;
+  setField('ov-rec', r==null?'—':r);
+  setRing('ov-arc', r==null?0:r, r==null?'#1f2228':recColor(r));
+  setField('ov-strain', state.strainAcc? state.strainAcc.strain.toFixed(1):'—');
+  setHTML('ov-sleep', (state.sleep!=null?state.sleep:'—')+'<small>%</small>');
+  setHTML('ov-hr',  (state.hr!=null?state.hr:'—')+'<small>bpm</small>');
+  setHTML('ov-hrv', (state.hrvMs!=null?state.hrvMs:'—')+'<small>ms</small>');
+}
+function renderRecovery(){
+  const r=state.recovery;
+  setField('rec-pct', r==null?'—':r);
+  setRing('rec-arc', r==null?0:r, r==null?'#1f2228':recColor(r));
+  setField('rec-state', r==null?'Recovery':(r>=67?'High':r>=34?'Moderate':'Low'));
+  setField('rec-hrv', state.hrvMs!=null? state.hrvMs+' ms':'—');
+  setField('rec-rhr', state.restHr!=null? state.restHr+' bpm':'—');
+  setField('rec-resp','—');
+}
+function renderStrain(){
+  const acc=state.strainAcc;
+  setField('str-val', acc? acc.strain.toFixed(1):'—');
+  const bar=$('str-bar'); if(bar) bar.style.width=(acc? acc.strain/21*100:0)+'%';
+  setField('str-hr', state.hr!=null? state.hr+' bpm':'—');
+  setField('str-avg', state.hrCount? Math.round(state.hrSum/state.hrCount)+' bpm':'—');
+  const zc=$('str-zones'); if(zc){
+    const zs=acc? acc.zoneSeconds:[0,0,0,0,0,0]; const tot=zs.reduce((a,b)=>a+b,0)||1;
+    zc.innerHTML=zs.map((s,i)=>`<div class="zone"><span class="lab">Zone ${i}</span><span class="zb"><i style="width:${(s/tot*100).toFixed(0)}%"></i></span><span class="zt">${fmtDur(s)}</span></div>`).join('');
+  }
+}
+function renderSleep(){
+  const need=sleepNeedMinutes({ dayStrain: state.strainAcc? state.strainAcc.strain:0 });
+  setField('slp-need', fmtMs(need));
+  if(state.sleep){
+    setField('slp-got', fmtMs(state.sleep.asleepMin));
+    const perf=Math.round(state.sleep.asleepMin/need*100);
+    setField('slp-pct', perf); setRing('slp-arc', perf, 'var(--sleep)');
+  } else { setField('slp-got','—'); setField('slp-pct','—'); setRing('slp-arc',0,'var(--sleep)'); }
+}
+function renderAll(){ renderOverview(); renderRecovery(); renderStrain(); renderSleep(); }
+
+/* ----------------------------- tabs --------------------------------------- */
+function showTab(name){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id==='s-'+name));
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  window.scrollTo(0,0); renderAll();
+}
+
+/* ----------------------------- live HR feed ------------------------------- */
+function onHR(dv){
+  const hr=parseHeartRate(dv);
+  if(!(hr>0)) return;
+  const now=Date.now(); const dt=lastHrTs?(now-lastHrTs)/1000:1; lastHrTs=now;
+  state.hr=hr; state.hrCount++; state.hrSum+=hr;
+  state.restHr = state.restHr==null? hr : Math.min(state.restHr, hr);
+  if(state.strainAcc && dt>0 && dt<15) state.strainAcc.add(hr, dt);
+  state.hrvMs = rmssd();
+  renderAll();
+}
+
+/* ===================== DEV / SETUP (remove after extraction) =====================
+   Connection, device info, raw-frame capture/dump, and the custom-command sender used
+   to pull data off the band for decoding. To retire: delete this block, the Setup
+   <section> + tab button in index.html, and the profile bit graduates to Settings.   */
+function logEl(){ return $('log'); }
+function log(msg, cls='dim'){ const el=logEl(); if(!el) return; const d=document.createElement('div');
+  d.className='ln '+cls; d.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
+  el.appendChild(d); el.scrollTop=el.scrollHeight; }
 function logFrame(dir, info){
   if(info.error){ log(`${dir} ${info.rawHex} ⟶ ${info.error}`,'err'); return; }
   const ok=(info.headOk && info.payOk!==false)?'✓':'⚠';
-  log(`${dir} ${info.name} seq=${info.sequence} code=${info.code} `+
-      `[h:${info.headOk?'ok':'BAD'} p:${info.payOk===null?'-':info.payOk?'ok':'BAD'}] ${ok}`, info.packetType===48?'evt':'rx');
+  log(`${dir} ${info.name} seq=${info.sequence} code=${info.code} [h:${info.headOk?'ok':'BAD'} p:${info.payOk===null?'-':info.payOk?'ok':'BAD'}] ${ok}`, info.packetType===48?'evt':'rx');
   log(`     payload=${info.payloadHex}`,'dim');
 }
+function setStatus(t, on){ setField('status', t); const d=$('dot'); if(d) d.classList.toggle('on', !!on); }
 
-/* ----------------------------- realtime + capture ------------------------- */
-// The fd4b channels carry the deep-metric stream. We don't yet have verified byte
-// layouts for REALTIME_DATA(40)/RAW(43)/IMU(51), so instead of guessing field offsets
-// we (a) route + count frames by type, and (b) let you capture raw frames to hand back
-// for clean-room decoding. The custom-command sender probes for the "enable realtime" cmd.
-const rt = { counts:{}, last:{} };
-let capturing = false; const capture = [];      // {t, ch, hex}
-const CAP_MAX = 20000;
-
-function renderRt(){
-  const el=$('rt'); if(!el) return;
+const rt = { counts:{} };
+let capturing=false; const capture=[]; const CAP_MAX=20000;
+function renderRt(){ const el=$('rt'); if(!el) return;
   const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
-  el.textContent = rows.length ? rows.join('   ') : 'no fd4b frames yet';
-}
+  el.textContent = rows.length ? rows.join('   ') : 'none yet'; }
 function onFrame(label, dv){
-  const info = parseFrame(dv);
-  logFrame('RX['+label+']', info);
-  if(!info.error){ const k=info.name||('?'+info.packetType);
-    rt.counts[k]=(rt.counts[k]||0)+1; rt.last[k]=Date.now(); renderRt(); }
-  if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex});
-    if(capture.length>CAP_MAX) capture.shift(); }
+  const info=parseFrame(dv); logFrame('RX['+label+']', info);
+  if(!info.error){ const k=info.name; rt.counts[k]=(rt.counts[k]||0)+1; renderRt(); }
+  if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex}); if(capture.length>CAP_MAX) capture.shift(); }
 }
 function dumpCapture(){
-  const text = capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
+  const text=capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
   const ta=$('dump'); ta.value=text||'(nothing captured)'; ta.style.display='block'; ta.focus(); ta.select();
   navigator.clipboard?.writeText(text).then(
-    ()=>log('capture copied to clipboard ('+capture.length+' frames)','ok'),
-    ()=>log('capture shown below — select all & copy/share ('+capture.length+' frames)','dim'));
+    ()=>log('copied to clipboard ('+capture.length+' frames) — paste it to Claude','ok'),
+    ()=>log('shown below — select all & copy ('+capture.length+' frames)','dim'));
 }
-function parseHexData(s){
-  s=(s||'').trim(); if(!s) return [];
-  return s.split(/[\s,]+/).filter(Boolean).map(x=>parseInt(x,16)&0xFF);
+function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
+  return s.split(/[\s,]+/).filter(Boolean).map(x=>parseInt(x,16)&0xFF); }
+const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
+  39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
+function enableDev(on){
+  for(const id of ['hello','battery','range','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  const c=$('connect'); if(c) c.disabled=on;
 }
-
-// Destructive commands — gate behind a confirm so a fat-finger in the custom sender
-// can't trigger firmware load or rewrite optical-sensor config (could brick/misconfigure).
-const CRITICAL_COMMANDS = {
-  36:'start_firmware_load', 37:'load_firmware_data', 38:'process_firmware_image',
-  39:'set_led_drive', 41:'set_tia_gain', 43:'set_bias_offset',
-};
+/* ===================== END DEV/SETUP ===================== */
 
 /* ----------------------------- BLE flow ----------------------------------- */
-let deviceId=null, seq=1, hrTimer=null, lastHrAt=0;
+let deviceId=null, seq=1;
 
 async function connect(){
   try{
-    rt.counts={}; rt.last={}; renderRt();
+    rt.counts={}; renderRt();
+    state.hrCount=0; state.hrSum=0; state.restHr=null; lastHrTs=0; rr.length=0;
+    state.strainAcc=newStrainAcc();
     setStatus('initialising…');
     await BleClient.initialize();
     log('select your WHOOP in the chooser…');
-    const device = await BleClient.requestDevice({
-      namePrefix:'WHOOP',
-      optionalServices:[SVC, HR_SVC, BATT_SVC, DEV_SVC],
-    });
-    deviceId = device.deviceId;
+    const device=await BleClient.requestDevice({ namePrefix:'WHOOP', optionalServices:[SVC,HR_SVC,BATT_SVC,DEV_SVC] });
+    deviceId=device.deviceId;
     log(`selected: ${device.name||'WHOOP'} [${deviceId}]`);
     setStatus('connecting…');
     await BleClient.connect(deviceId, onDisconnect);
     setStatus('connected — '+(device.name||'WHOOP'), true);
-    enable(true);
+    enableDev(true);
 
-    // device info + battery (standard, no auth)
-    try{ const b=await BleClient.read(deviceId, BATT_SVC, BATT_LVL); setField('batt', b.getUint8(0)+'%'); }catch(e){ log('battery read: '+e.message,'err'); }
+    try{ const b=await BleClient.read(deviceId,BATT_SVC,BATT_LVL); setField('batt', b.getUint8(0)+'%'); }catch(e){ log('battery read: '+e.message,'err'); }
     for(const [ch,id] of [[DEV_MODEL,'model'],[DEV_FW,'fw'],[DEV_SERIAL,'serial'],[DEV_MFR,'mfr']]){
-      try{ const v=await BleClient.read(deviceId, DEV_SVC, ch); setField(id, new TextDecoder().decode(v).replace(/\0/g,'').trim()); }catch(e){}
+      try{ const v=await BleClient.read(deviceId,DEV_SVC,ch); setField(id, new TextDecoder().decode(v).replace(/\0/g,'').trim()); }catch(e){}
     }
-
-    // live HR (standard service — works without the custom-service auth)
-    try{
-      await BleClient.startNotifications(deviceId, HR_SVC, HR_MEAS, (v)=>{
-        const hr=parseHeartRate(v); lastHrAt=Date.now();
-        setField('hr', hr); const r=rmssd(); setField('hrv', r==null?'—':r+' ms');
-      });
-      log('subscribed: live Heart Rate ✓','ok');
-    }catch(e){ log('HR subscribe failed: '+e.message,'err'); }
-
-    // custom command service (CoreBluetooth bonds/encrypts on demand — the iOS advantage)
+    try{ await BleClient.startNotifications(deviceId,HR_SVC,HR_MEAS, onHR); log('subscribed: live Heart Rate ✓','ok'); }
+    catch(e){ log('HR subscribe failed: '+e.message,'err'); }
     for(const [ch,label] of [[RX_CMD,'command_from_strap'],[RX_EVT,'events_from_strap'],[RX_DAT,'data_from_strap']]){
-      try{ await BleClient.startNotifications(deviceId, SVC, ch, (v)=>onFrame(label, v));
-           log('subscribed: '+label+' ✓','ok'); }
+      try{ await BleClient.startNotifications(deviceId,SVC,ch,(v)=>onFrame(label,v)); log('subscribed: '+label+' ✓','ok'); }
       catch(e){ log('subscribe '+label+' FAILED: '+e.message,'err'); }
     }
-    log('connected. Try get_hello.','ok');
+    log('connected. Live HR is flowing — see the Strain/Overview tabs.','ok');
+    renderAll();
   }catch(e){ log('connect error: '+e.message,'err'); setStatus('not connected'); }
 }
 
 async function send(command, data=[], label=''){
   if(!deviceId){ log('not connected','err'); return; }
-  const frame = buildCommand(seq, command, data);
-  try{
-    await BleClient.write(deviceId, SVC, TX, numbersToDataView(frame));
-    log(`TX ${label||command} seq=${seq}  ${hex(frame)}`,'cmd');
-    seq=(seq+1)&0xFF; if(seq===0) seq=1;
+  const frame=buildCommand(seq,command,data);
+  try{ await BleClient.write(deviceId,SVC,TX,numbersToDataView(frame));
+    log(`TX ${label||command} seq=${seq}  ${hex(frame)}`,'cmd'); seq=(seq+1)&0xFF; if(seq===0) seq=1;
   }catch(e){ log('TX failed: '+e.message,'err'); }
 }
-
-async function onDisconnect(){ setStatus('disconnected'); enable(false); log('device disconnected.','err'); }
-function enable(on){
-  for(const id of ['hello','battery','range','disconnect','csend']) $(id).disabled=!on;
-  $('connect').disabled=on;
-}
+async function onDisconnect(){ setStatus('disconnected'); enableDev(false); log('device disconnected.','err'); }
 
 function selfTest(){
   const built=hex(buildCommand(1,145,[0x01]));
-  if(built==='aa0108000001e67123019101363e5c8d') log('self-test: protocol OK ✓','ok');
-  else log('self-test FAILED: '+built,'err');
+  log(built==='aa0108000001e67123019101363e5c8d' ? 'self-test: protocol OK ✓' : 'self-test FAILED: '+built, built==='aa0108000001e67123019101363e5c8d'?'ok':'err');
 }
 
+/* ----------------------------- profile form ------------------------------- */
+function fillProfileForm(){ $('p-age').value=profile.age||''; $('p-sex').value=profile.sex||'m';
+  $('p-rhr').value=profile.restingHr||''; $('p-mhr').value=profile.maxHr||''; }
+function saveProfileForm(){
+  profile={ age:parseInt($('p-age').value,10)||30, sex:$('p-sex').value==='f'?'f':'m',
+            restingHr:parseInt($('p-rhr').value,10)||50, maxHr:parseInt($('p-mhr').value,10)||0 };
+  localStorage.setItem(PKEY, JSON.stringify(profile));
+  state.strainAcc=newStrainAcc();                       // note: resets live strain accumulation
+  setField('p-note', `saved · max HR ${effMaxHr()} bpm`);
+  renderAll();
+}
+
+/* ----------------------------- wire up ------------------------------------ */
 document.addEventListener('DOMContentLoaded', ()=>{
   SplashScreen.hide().catch(()=>{});
+  document.querySelectorAll('#tabs button').forEach(b=> b.onclick=()=>showTab(b.dataset.tab));
+  fillProfileForm();
   selfTest();
-  $('connect').onclick   = connect;
-  $('hello').onclick     = ()=>send(145,[0x01],'get_hello');
-  $('battery').onclick   = ()=>send(26,[],'get_battery_level');
-  $('range').onclick     = ()=>send(34,[],'get_data_range');
-  $('disconnect').onclick= async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} } };
-  $('clear').onclick     = ()=>$('log').innerHTML='';
-  $('csend').onclick     = ()=>{ const code=parseInt($('ccode').value,10);
+  $('connect').onclick    = connect;
+  $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} } };
+  $('hello').onclick      = ()=>send(145,[0x01],'get_hello');
+  $('battery').onclick    = ()=>send(26,[],'get_battery_level');
+  $('range').onclick      = ()=>send(34,[],'get_data_range');
+  $('p-save').onclick     = saveProfileForm;
+  $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }
     const danger=CRITICAL_COMMANDS[code];
     if(danger && !confirm(`⚠ Command ${code} (${danger}) can load firmware or rewrite optical-sensor config and may brick or misconfigure your band.\n\nSend it anyway?`)){
       log(`blocked critical command ${code} (${danger})`,'err'); return; }
     send(code, parseHexData($('cdata').value), danger?`cmd${code}!`:'cmd'+code); };
-  $('capture').onclick   = ()=>{ capturing=!capturing;
-    $('capture').textContent='Capture: '+(capturing?'on':'off'); $('capture').classList.toggle('live',capturing);
+  $('capture').onclick    = ()=>{ capturing=!capturing;
+    $('capture').textContent=capturing?'Stop capture':'Start capture'; $('capture').classList.toggle('live',capturing);
     log('capture '+(capturing?'started':'stopped')+' ('+capture.length+' frames held)', capturing?'ok':'dim'); };
-  $('dumpbtn').onclick   = dumpCapture;
-  enable(false);
+  $('dumpbtn').onclick    = dumpCapture;
+  $('clear').onclick      = ()=>{ const el=logEl(); if(el) el.innerHTML=''; };
+  enableDev(false);
   renderRt();
+  renderAll();
 });

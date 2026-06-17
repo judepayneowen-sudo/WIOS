@@ -6,88 +6,244 @@
 <title>WHOOP Core</title>
 <style>
   :root{
-    --void:#04080d; --abyss:#0a1622; --cyan:#38e1ff; --cyan-bright:#bff4ff;
-    --cyan-dim:#1c5e72; --amber:#ffb35c; --text:#cfe9f2; --text-dim:#6f93a3;
-    --ok:#5cff9d; --bad:#ff6b6b;
+    --bg:#000; --bg2:#0c0d10; --card:#16181d; --line:#23262d;
+    --text:#ffffff; --dim:#8b9099; --dimmer:#5b606a;
+    --rec-green:#16ec84; --rec-yellow:#ffde2e; --rec-red:#ff3b5c;
+    --strain:#3aa0ff; --sleep:#7c5cff;
   }
-  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  body{margin:0;background:var(--void);color:var(--text);
-    font-family:-apple-system,"Segoe UI",system-ui,sans-serif;
-    padding:max(16px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));}
-  h1{font-size:15px;letter-spacing:3px;text-transform:uppercase;color:var(--cyan);margin:0}
-  .sub{color:var(--text-dim);font-size:11px;margin:2px 0 14px}
-  .panel{background:var(--abyss);border:1px solid var(--cyan-dim);border-radius:12px;padding:14px;margin-bottom:12px}
-  .status{font-family:ui-monospace,monospace;font-size:13px}
-  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--bad);margin-right:7px;vertical-align:middle}
-  .dot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
-  .vitals{display:flex;gap:12px}
-  .vital{flex:1;text-align:center}
-  .vital .v{font-family:ui-monospace,monospace;font-size:40px;color:var(--cyan-bright);line-height:1.1}
-  .vital .v.sm{font-size:24px}
-  .vital .k{font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--text-dim);margin-top:2px}
-  .meta{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:12px;font-family:ui-monospace,monospace}
-  .meta .k{color:var(--text-dim)}
-  button{background:transparent;color:var(--cyan);border:1px solid var(--cyan);border-radius:8px;
-    padding:11px 14px;font:inherit;font-size:13px;letter-spacing:1px;text-transform:uppercase;margin:3px 4px 3px 0}
-  button:disabled{opacity:.32}
-  button.live{background:var(--ok);color:var(--void);border-color:var(--ok)}
-  .row{display:flex;flex-wrap:wrap}
-  .in{background:#020509;color:var(--text);border:1px solid var(--cyan-dim);border-radius:8px;
-    padding:10px;font:inherit;font-size:13px;font-family:ui-monospace,monospace;flex:1;min-width:84px;margin:3px 4px 3px 0}
-  textarea#dump{display:none;width:100%;height:20vh;margin-top:8px;background:#020509;color:var(--text);
-    border:1px solid var(--cyan-dim);border-radius:8px;padding:8px;font-family:ui-monospace,monospace;font-size:10px;white-space:pre}
-  #log{background:#020509;border:1px solid var(--cyan-dim);border-radius:10px;height:34vh;overflow:auto;
-    padding:10px;font-family:ui-monospace,monospace;font-size:11px;white-space:pre-wrap;word-break:break-all}
-  .ln{margin:0 0 2px}
-  .cmd{color:var(--cyan-bright)} .rx{color:var(--cyan)} .evt{color:var(--amber)}
-  .ok{color:var(--ok)} .err{color:var(--bad)} .dim{color:var(--text-dim)}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,"Segoe UI",system-ui,sans-serif}
+  body{padding-bottom:calc(62px + env(safe-area-inset-bottom))}
+  .screen{display:none;padding:max(18px,env(safe-area-inset-top)) 16px 16px;min-height:100vh}
+  .screen.on{display:block}
+  h2{font-size:13px;letter-spacing:2.5px;text-transform:uppercase;color:var(--dim);margin:0 0 14px;font-weight:600}
+  .card{background:var(--card);border-radius:16px;padding:18px;margin-bottom:14px}
+  .muted{color:var(--dim);font-size:12px}
+  .await{color:var(--dimmer);font-size:11px;letter-spacing:.5px;margin-top:6px}
+
+  /* ring */
+  .ringwrap{position:relative;width:200px;height:200px;margin:6px auto 4px}
+  .ringwrap.sm{width:150px;height:150px}
+  svg.ring{width:100%;height:100%;transform:rotate(-90deg)}
+  .ring-bg{fill:none;stroke:#1f2228;stroke-width:9}
+  .ring-fg{fill:none;stroke-width:9;stroke-linecap:round;transition:stroke-dashoffset .6s ease,stroke .3s}
+  .ringtxt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .ringtxt .big{font-size:46px;font-weight:700;line-height:1}
+  .ringwrap.sm .ringtxt .big{font-size:34px}
+  .ringtxt .lbl{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-top:4px}
+
+  /* tiles */
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .tile{background:var(--card);border-radius:16px;padding:16px}
+  .tile .k{font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--dim)}
+  .tile .v{font-size:34px;font-weight:700;margin-top:6px;line-height:1}
+  .tile .v small{font-size:14px;color:var(--dim);font-weight:500}
+  .metric{display:flex;justify-content:space-between;align-items:baseline;padding:12px 0;border-bottom:1px solid var(--line)}
+  .metric:last-child{border-bottom:0}
+  .metric .k{color:var(--dim);font-size:13px}
+  .metric .v{font-size:20px;font-weight:600;font-variant-numeric:tabular-nums}
+
+  /* strain bar / stages */
+  .bar{height:8px;background:#1f2228;border-radius:5px;overflow:hidden;margin-top:14px}
+  .bar > i{display:block;height:100%;width:0;background:var(--strain);border-radius:5px;transition:width .5s}
+  .stagebar{display:flex;height:14px;border-radius:5px;overflow:hidden;margin:12px 0}
+  .stagebar > i{height:100%}
+  .zone{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:12px}
+  .zone .lab{width:54px;color:var(--dim)} .zone .zb{flex:1;height:7px;background:#1f2228;border-radius:4px;overflow:hidden}
+  .zone .zb > i{display:block;height:100%;width:0;background:var(--strain)} .zone .zt{width:48px;text-align:right;color:var(--dim);font-variant-numeric:tabular-nums}
+
+  /* bottom tabs */
+  nav#tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:#0a0b0e;
+    border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom);z-index:10}
+  nav#tabs button{flex:1;background:none;border:0;color:var(--dimmer);font:inherit;font-size:10px;
+    letter-spacing:1px;text-transform:uppercase;padding:10px 2px 12px}
+  nav#tabs button.active{color:var(--text)}
+  nav#tabs button.dev.active{color:var(--strain)}
+  nav#tabs button .ic{display:block;font-size:17px;margin-bottom:3px}
+
+  /* setup / dev */
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--rec-red);margin-right:7px;vertical-align:middle}
+  .dot.on{background:var(--rec-green);box-shadow:0 0 8px var(--rec-green)}
+  button.act{background:transparent;color:var(--strain);border:1px solid var(--strain);border-radius:9px;
+    padding:11px 14px;font:inherit;font-size:13px;margin:3px 5px 3px 0}
+  button.act:disabled{opacity:.3}
+  button.act.live{background:var(--rec-green);color:#000;border-color:var(--rec-green)}
+  .row{display:flex;flex-wrap:wrap;align-items:center}
+  .in{background:#07080a;color:var(--text);border:1px solid var(--line);border-radius:9px;
+    padding:10px;font:inherit;font-size:13px;font-family:ui-monospace,monospace;margin:3px 5px 3px 0;min-width:70px;-webkit-user-select:text;user-select:text}
+  label.fl{display:flex;flex-direction:column;gap:4px;font-size:11px;color:var(--dim);margin:0 10px 8px 0}
+  .step{display:flex;gap:10px;margin:0 0 12px}
+  .step .n{flex:none;width:22px;height:22px;border-radius:50%;background:var(--strain);color:#000;
+    font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .step .t{font-size:13px;color:var(--text);line-height:1.45}
+  .step .t b{color:var(--strain)}
+  #dump{display:none;width:100%;height:18vh;margin-top:8px;background:#07080a;color:var(--text);
+    border:1px solid var(--line);border-radius:9px;padding:8px;font-family:ui-monospace,monospace;font-size:10px;white-space:pre;-webkit-user-select:text;user-select:text}
+  #log{background:#07080a;border:1px solid var(--line);border-radius:9px;height:24vh;overflow:auto;
+    padding:9px;font-family:ui-monospace,monospace;font-size:10px;white-space:pre-wrap;word-break:break-all;-webkit-user-select:text;user-select:text}
+  .ln{margin:0 0 2px} .cmd{color:#bfe0ff}.rx{color:var(--strain)}.evt{color:var(--rec-yellow)}
+  .ok{color:var(--rec-green)}.err{color:var(--rec-red)}.dim{color:var(--dim)}
+  .banner{background:#14233a;border:1px solid #244;border-radius:10px;padding:10px 12px;font-size:12px;color:#bcd;margin-bottom:14px}
 </style>
 </head>
 <body>
-  <h1>WHOOP Core</h1>
-  <div class="sub">standalone reader · WHOOP 5.0 · CoreBluetooth</div>
 
-  <div class="panel"><div class="status"><span id="dot" class="dot"></span><span id="status">Not connected</span></div></div>
-
-  <div class="panel vitals">
-    <div class="vital"><div class="v" id="hr">—</div><div class="k">bpm</div></div>
-    <div class="vital"><div class="v" id="hrv">—</div><div class="k">HRV rmssd</div></div>
-    <div class="vital"><div class="v sm" id="batt">—</div><div class="k">battery</div></div>
-  </div>
-
-  <div class="panel meta">
-    <span class="k">model</span><span id="model">—</span>
-    <span class="k">firmware</span><span id="fw">—</span>
-    <span class="k">serial</span><span id="serial">—</span>
-    <span class="k">maker</span><span id="mfr">—</span>
-  </div>
-
-  <div class="panel">
-    <div class="row">
-      <button id="connect">Connect</button>
-      <button id="hello">get_hello</button>
-      <button id="battery">battery</button>
-      <button id="range">data_range</button>
-      <button id="disconnect">Disconnect</button>
-      <button id="clear">Clear</button>
+  <!-- ===================== WHOOP-STYLE APP (permanent) ===================== -->
+  <section class="screen on" id="s-overview">
+    <h2>Today</h2>
+    <div class="card" style="text-align:center">
+      <div class="ringwrap"><svg class="ring" viewBox="0 0 200 200">
+        <circle class="ring-bg" cx="100" cy="100" r="88"></circle>
+        <circle class="ring-fg" id="ov-arc" cx="100" cy="100" r="88"></circle></svg>
+        <div class="ringtxt"><div class="big" id="ov-rec">—</div><div class="lbl">Recovery</div></div>
+      </div>
+      <div class="await" id="ov-rec-note">awaiting overnight data</div>
     </div>
-    <div class="row" style="margin-top:6px">
-      <input id="ccode" class="in" inputmode="numeric" placeholder="cmd # (e.g. 145)">
-      <input id="cdata" class="in" placeholder="data hex (e.g. 01)">
-      <button id="csend">send</button>
+    <div class="tiles">
+      <div class="tile"><div class="k">Day Strain</div><div class="v" id="ov-strain" style="color:var(--strain)">—</div><div class="await">live since connect</div></div>
+      <div class="tile"><div class="k">Sleep</div><div class="v" id="ov-sleep" style="color:var(--sleep)">—<small>%</small></div><div class="await">awaiting sleep data</div></div>
+      <div class="tile"><div class="k">Heart Rate</div><div class="v" id="ov-hr">—<small>bpm</small></div></div>
+      <div class="tile"><div class="k">HRV</div><div class="v" id="ov-hrv">—<small>ms</small></div></div>
     </div>
-  </div>
+  </section>
 
-  <div class="panel">
-    <div class="meta"><span class="k">fd4b frames</span><span id="rt">no fd4b frames yet</span></div>
-    <div class="row" style="margin-top:8px">
-      <button id="capture">Capture: off</button>
-      <button id="dumpbtn">Dump capture</button>
+  <section class="screen" id="s-recovery">
+    <h2>Recovery</h2>
+    <div class="card" style="text-align:center">
+      <div class="ringwrap"><svg class="ring" viewBox="0 0 200 200">
+        <circle class="ring-bg" cx="100" cy="100" r="88"></circle>
+        <circle class="ring-fg" id="rec-arc" cx="100" cy="100" r="88"></circle></svg>
+        <div class="ringtxt"><div class="big" id="rec-pct">—</div><div class="lbl" id="rec-state">Recovery</div></div>
+      </div>
+      <div class="await" id="rec-note">Recovery is computed from overnight HRV &amp; resting HR — available once we've extracted a night of data.</div>
     </div>
-    <textarea id="dump" readonly></textarea>
-  </div>
+    <div class="card">
+      <div class="metric"><span class="k">HRV (RMSSD)</span><span class="v" id="rec-hrv">—</span></div>
+      <div class="metric"><span class="k">Resting heart rate</span><span class="v" id="rec-rhr">—</span></div>
+      <div class="metric"><span class="k">Respiratory rate</span><span class="v" id="rec-resp">—</span></div>
+    </div>
+  </section>
 
-  <div id="log" class="panel"></div>
+  <section class="screen" id="s-strain">
+    <h2>Strain</h2>
+    <div class="card" style="text-align:center">
+      <div id="str-val" style="font-size:64px;font-weight:700;color:var(--strain);line-height:1">—</div>
+      <div class="muted" style="letter-spacing:2px">DAY STRAIN · 0–21</div>
+      <div class="bar"><i id="str-bar"></i></div>
+      <div class="await" id="str-note">live estimate since connect — full-day strain needs historical sync</div>
+    </div>
+    <div class="card">
+      <div class="metric"><span class="k">Live heart rate</span><span class="v" id="str-hr">—</span></div>
+      <div class="metric"><span class="k">Average heart rate</span><span class="v" id="str-avg">—</span></div>
+    </div>
+    <div class="card">
+      <div class="muted" style="margin-bottom:8px">Time in HR zones</div>
+      <div id="str-zones"></div>
+    </div>
+  </section>
+
+  <section class="screen" id="s-sleep">
+    <h2>Sleep</h2>
+    <div class="card" style="text-align:center">
+      <div class="ringwrap sm"><svg class="ring" viewBox="0 0 200 200">
+        <circle class="ring-bg" cx="100" cy="100" r="88"></circle>
+        <circle class="ring-fg" id="slp-arc" cx="100" cy="100" r="88" style="stroke:var(--sleep)"></circle></svg>
+        <div class="ringtxt"><div class="big" id="slp-pct">—</div><div class="lbl">Performance</div></div>
+      </div>
+      <div class="await" id="slp-note">Sleep performance needs decoded sleep data — coming after historical sync.</div>
+    </div>
+    <div class="card">
+      <div class="metric"><span class="k">Time asleep</span><span class="v" id="slp-got">—</span></div>
+      <div class="metric"><span class="k">Sleep need</span><span class="v" id="slp-need">—</span></div>
+    </div>
+    <div class="card">
+      <div class="muted" style="margin-bottom:2px">Stages</div>
+      <div class="stagebar" id="slp-stages"><i style="flex:1;background:#1f2228"></i></div>
+      <div class="muted">awaiting stage data</div>
+    </div>
+  </section>
+
+  <!-- ===================== DEV / SETUP (remove after extraction) =====================
+       Everything from here to "END DEV/SETUP" is the temporary extraction + tooling half.
+       To retire it later: delete this <section>, delete the Setup <button> in <nav>, and
+       delete the DEV block in app.js (the profile bit graduates to a Settings screen).   -->
+  <section class="screen" id="s-setup">
+    <h2>Setup &amp; data extraction</h2>
+
+    <div class="banner">This tab is temporary scaffolding. Once we've pulled the data off your WHOOP and learned its formats, it gets removed and the screens above fill in for real.</div>
+
+    <div class="card">
+      <div style="font-family:ui-monospace,monospace;font-size:13px"><span id="dot" class="dot"></span><span id="status">Not connected</span></div>
+      <div class="row" style="margin-top:10px">
+        <button class="act" id="connect">Connect WHOOP</button>
+        <button class="act" id="disconnect" disabled>Disconnect</button>
+      </div>
+      <div class="row" style="margin-top:8px;gap:14px;font-size:12px;color:var(--dim)">
+        <span>model <b id="model" style="color:#fff">—</b></span>
+        <span>fw <b id="fw" style="color:#fff">—</b></span>
+        <span>batt <b id="batt" style="color:#fff">—</b></span>
+      </div>
+    </div>
+
+    <!-- profile: KEEP (graduates to a Settings screen when dev tooling is removed) -->
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">Your profile — used for strain &amp; recovery math</div>
+      <div class="row">
+        <label class="fl">Age<input class="in" id="p-age" inputmode="numeric" placeholder="30"></label>
+        <label class="fl">Sex<select class="in" id="p-sex"><option value="m">M</option><option value="f">F</option></select></label>
+        <label class="fl">Resting HR<input class="in" id="p-rhr" inputmode="numeric" placeholder="50"></label>
+        <label class="fl">Max HR<input class="in" id="p-mhr" inputmode="numeric" placeholder="auto"></label>
+      </div>
+      <button class="act" id="p-save">Save profile</button>
+      <div class="await" id="p-note">Max HR auto-fills from age (Tanaka) if left blank.</div>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="margin-bottom:12px;color:#fff">How to pull the data — step by step</div>
+      <div class="step"><div class="n">1</div><div class="t"><b>Quit the WHOOP app</b> on your phone first. A band only talks to one device at a time, so if the official app is connected, we can't be.</div></div>
+      <div class="step"><div class="n">2</div><div class="t">Tap <b>Connect WHOOP</b> above and pick your band. Live heart rate should start showing on the other tabs straight away.</div></div>
+      <div class="step"><div class="n">3</div><div class="t">Tap <b>Start capture</b> (it turns green). This records every raw message the band sends, so nothing is lost.</div></div>
+      <div class="step"><div class="n">4</div><div class="t">Tap <b>get_hello</b>, then <b>data_range</b>. Then in the box below type command <b>3</b> with data <b>01</b> and tap <b>send</b> — that asks the band to stream its live sensor data.</div></div>
+      <div class="step"><div class="n">5</div><div class="t">Watch <b>fd4b frames</b> count up for about 20 seconds. The more it climbs, the more data we get.</div></div>
+      <div class="step"><div class="n">6</div><div class="t">Tap <b>Dump &amp; copy</b>. The captured data is copied to your clipboard (and shown in the box). <b>Paste it to Claude</b> — that's the bit we decode to teach the app real recovery / strain / sleep.</div></div>
+      <div class="step"><div class="n">7</div><div class="t">When done, send command <b>3</b> data <b>00</b> to stop the stream. Repeat over a few days (including after sleep) so we capture a full picture.</div></div>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px">Commands</div>
+      <div class="row">
+        <button class="act" id="hello" disabled>get_hello</button>
+        <button class="act" id="battery" disabled>battery</button>
+        <button class="act" id="range" disabled>data_range</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <input class="in" id="ccode" inputmode="numeric" placeholder="cmd # (e.g. 3)">
+        <input class="in" id="cdata" placeholder="data hex (e.g. 01)">
+        <button class="act" id="csend" disabled>send</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="muted">fd4b frames: <b id="rt" style="color:#fff">none yet</b></div>
+      <div class="row" style="margin-top:10px">
+        <button class="act" id="capture">Start capture</button>
+        <button class="act" id="dumpbtn">Dump &amp; copy</button>
+        <button class="act" id="clear">Clear log</button>
+      </div>
+      <textarea id="dump" readonly></textarea>
+      <div id="log" style="margin-top:10px"></div>
+    </div>
+  </section>
+  <!-- ===================== END DEV/SETUP ===================== -->
+
+  <nav id="tabs">
+    <button class="active" data-tab="overview"><span class="ic">◎</span>Overview</button>
+    <button data-tab="recovery"><span class="ic">♥</span>Recovery</button>
+    <button data-tab="strain"><span class="ic">▲</span>Strain</button>
+    <button data-tab="sleep"><span class="ic">☾</span>Sleep</button>
+    <button class="dev" data-tab="setup"><span class="ic">⚙</span>Setup</button>
+  </nav>
 
   <script src="app.js"></script>
 </body>
