@@ -99,11 +99,53 @@ function logFrame(dir, info){
   log(`     payload=${info.payloadHex}`,'dim');
 }
 
+/* ----------------------------- realtime + capture ------------------------- */
+// The fd4b channels carry the deep-metric stream. We don't yet have verified byte
+// layouts for REALTIME_DATA(40)/RAW(43)/IMU(51), so instead of guessing field offsets
+// we (a) route + count frames by type, and (b) let you capture raw frames to hand back
+// for clean-room decoding. The custom-command sender probes for the "enable realtime" cmd.
+const rt = { counts:{}, last:{} };
+let capturing = false; const capture = [];      // {t, ch, hex}
+const CAP_MAX = 20000;
+
+function renderRt(){
+  const el=$('rt'); if(!el) return;
+  const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
+  el.textContent = rows.length ? rows.join('   ') : 'no fd4b frames yet';
+}
+function onFrame(label, dv){
+  const info = parseFrame(dv);
+  logFrame('RX['+label+']', info);
+  if(!info.error){ const k=info.name||('?'+info.packetType);
+    rt.counts[k]=(rt.counts[k]||0)+1; rt.last[k]=Date.now(); renderRt(); }
+  if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex});
+    if(capture.length>CAP_MAX) capture.shift(); }
+}
+function dumpCapture(){
+  const text = capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
+  const ta=$('dump'); ta.value=text||'(nothing captured)'; ta.style.display='block'; ta.focus(); ta.select();
+  navigator.clipboard?.writeText(text).then(
+    ()=>log('capture copied to clipboard ('+capture.length+' frames)','ok'),
+    ()=>log('capture shown below — select all & copy/share ('+capture.length+' frames)','dim'));
+}
+function parseHexData(s){
+  s=(s||'').trim(); if(!s) return [];
+  return s.split(/[\s,]+/).filter(Boolean).map(x=>parseInt(x,16)&0xFF);
+}
+
+// Destructive commands — gate behind a confirm so a fat-finger in the custom sender
+// can't trigger firmware load or rewrite optical-sensor config (could brick/misconfigure).
+const CRITICAL_COMMANDS = {
+  36:'start_firmware_load', 37:'load_firmware_data', 38:'process_firmware_image',
+  39:'set_led_drive', 41:'set_tia_gain', 43:'set_bias_offset',
+};
+
 /* ----------------------------- BLE flow ----------------------------------- */
 let deviceId=null, seq=1, hrTimer=null, lastHrAt=0;
 
 async function connect(){
   try{
+    rt.counts={}; rt.last={}; renderRt();
     setStatus('initialising…');
     await BleClient.initialize();
     log('select your WHOOP in the chooser…');
@@ -135,7 +177,7 @@ async function connect(){
 
     // custom command service (CoreBluetooth bonds/encrypts on demand — the iOS advantage)
     for(const [ch,label] of [[RX_CMD,'command_from_strap'],[RX_EVT,'events_from_strap'],[RX_DAT,'data_from_strap']]){
-      try{ await BleClient.startNotifications(deviceId, SVC, ch, (v)=>logFrame('RX['+label+']', parseFrame(v)));
+      try{ await BleClient.startNotifications(deviceId, SVC, ch, (v)=>onFrame(label, v));
            log('subscribed: '+label+' ✓','ok'); }
       catch(e){ log('subscribe '+label+' FAILED: '+e.message,'err'); }
     }
@@ -155,7 +197,7 @@ async function send(command, data=[], label=''){
 
 async function onDisconnect(){ setStatus('disconnected'); enable(false); log('device disconnected.','err'); }
 function enable(on){
-  for(const id of ['hello','battery','range','disconnect']) $(id).disabled=!on;
+  for(const id of ['hello','battery','range','disconnect','csend']) $(id).disabled=!on;
   $('connect').disabled=on;
 }
 
@@ -174,5 +216,16 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('range').onclick     = ()=>send(34,[],'get_data_range');
   $('disconnect').onclick= async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} } };
   $('clear').onclick     = ()=>$('log').innerHTML='';
+  $('csend').onclick     = ()=>{ const code=parseInt($('ccode').value,10);
+    if(!Number.isFinite(code)){ log('enter a command number','err'); return; }
+    const danger=CRITICAL_COMMANDS[code];
+    if(danger && !confirm(`⚠ Command ${code} (${danger}) can load firmware or rewrite optical-sensor config and may brick or misconfigure your band.\n\nSend it anyway?`)){
+      log(`blocked critical command ${code} (${danger})`,'err'); return; }
+    send(code, parseHexData($('cdata').value), danger?`cmd${code}!`:'cmd'+code); };
+  $('capture').onclick   = ()=>{ capturing=!capturing;
+    $('capture').textContent='Capture: '+(capturing?'on':'off'); $('capture').classList.toggle('live',capturing);
+    log('capture '+(capturing?'started':'stopped')+' ('+capture.length+' frames held)', capturing?'ok':'dim'); };
+  $('dumpbtn').onclick   = dumpCapture;
   enable(false);
+  renderRt();
 });
