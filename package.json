@@ -6,6 +6,7 @@
   "description": "Standalone iOS app that reads a WHOOP 5.0 directly over Bluetooth (CoreBluetooth via Capacitor). Independent of ARC Home.",
   "scripts": {
     "build:web": "esbuild src/app.js --bundle --format=iife --outfile=www/app.js",
+    "test": "node test/scores.test.mjs",
     "add:ios": "npm run build:web && cap add ios",
     "sync": "npm run build:web && cap sync ios",
     "open": "cap open ios"
