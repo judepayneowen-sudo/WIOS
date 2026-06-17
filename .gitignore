@@ -1,0 +1,5 @@
+node_modules/
+ios/
+www/app.js
+*.ipa
+.DS_Store

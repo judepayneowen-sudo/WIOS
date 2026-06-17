@@ -1,0 +1,69 @@
+name: Build WHOOP Core iOS (unsigned .ipa)
+
+# Free macOS cloud build of the standalone WHOOP Core iOS app.
+# Trigger by hand from the Actions tab ("Run workflow"), download the .ipa artifact,
+# and sideload it from Windows with Sideloadly (free Apple ID re-signs at install —
+# no Mac and no $99 Apple Developer account needed).
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install JS dependencies
+        run: npm install
+
+      - name: Bundle web app + generate the iOS project
+        run: npm run add:ios
+
+      - name: Add Bluetooth usage descriptions to Info.plist
+        working-directory: ios/App/App
+        run: |
+          PB=/usr/libexec/PlistBuddy
+          BT="WHOOP Core uses Bluetooth to read data directly from your WHOOP 5.0 band."
+          $PB -c "Add :NSBluetoothAlwaysUsageDescription string '$BT'" Info.plist || $PB -c "Set :NSBluetoothAlwaysUsageDescription '$BT'" Info.plist
+          $PB -c "Add :NSBluetoothPeripheralUsageDescription string '$BT'" Info.plist || $PB -c "Set :NSBluetoothPeripheralUsageDescription '$BT'" Info.plist
+
+      - name: Build unsigned archive
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$PWD/build/App.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            MARKETING_VERSION=0.1 \
+            CURRENT_PROJECT_VERSION=1 \
+            archive
+
+      - name: Ad-hoc sign + package .ipa
+        working-directory: ios/App
+        run: |
+          mkdir -p build/Payload
+          cp -R build/App.xcarchive/Products/Applications/App.app build/Payload/
+          APP=build/Payload/App.app
+          # Ad-hoc placeholder signature (Sideloadly replaces it with your Apple ID at install).
+          # Sign inside-out: frameworks first, then the app bundle.
+          if [ -d "$APP/Frameworks" ]; then
+            find "$APP/Frameworks" -maxdepth 1 -name "*.framework" -exec codesign --force --sign - {} \;
+          fi
+          codesign --force --sign - "$APP"
+          codesign --verify --verbose=2 "$APP" || true
+          cd build && zip -qry WHOOP-Core-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WHOOP-Core-unsigned-ipa
+          path: ios/App/build/WHOOP-Core-unsigned.ipa
+          if-no-files-found: error

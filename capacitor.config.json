@@ -1,0 +1,27 @@
+{
+  "appId": "com.jude.whoopcore",
+  "appName": "WHOOP Core",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#04080dff",
+    "limitsNavigationsToAppBoundDomains": false
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "launchAutoHide": true,
+      "fadeOutDuration": 300,
+      "backgroundColor": "#04080d",
+      "showSpinner": false
+    },
+    "BluetoothLe": {
+      "displayStrings": {
+        "scanning": "Scanning for WHOOP…",
+        "cancel": "Cancel",
+        "availableDevices": "WHOOP devices",
+        "noDeviceFound": "No WHOOP found"
+      }
+    }
+  }
+}
