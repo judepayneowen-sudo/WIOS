@@ -211,6 +211,16 @@
     </div>
 
     <div class="card">
+      <div class="muted" style="margin-bottom:10px;color:#fff">Collecting &amp; comparing — recommendations</div>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 8px">• <b>Always wear the band</b> while capturing — off the wrist there's no pulse, so the data is just noise.</p>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 8px">• <b>This app and the official WHOOP app take turns</b> on Bluetooth — a band talks to one device at a time. Quit the WHOOP app before connecting here, and reopen it after.</p>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 12px">• <b>Keep using the WHOOP app normally otherwise.</b> It keeps the band recording everything (including sleep) and its numbers are the answer key we calibrate against.</p>
+      <div class="step"><div class="n">A</div><div class="t"><b>Live capture</b> — wear it, quit the WHOOP app, connect, turn <b>Realtime HR</b> on, capture ~20 s, then <b>Dump &amp; copy</b>.</div></div>
+      <div class="step"><div class="n">B</div><div class="t"><b>Full day / sleep</b> — live normally with the WHOOP app (wear it overnight). Later, quit the app, connect here, tap <b>data_range</b>, capture, then <b>Dump &amp; copy</b>.</div></div>
+      <div class="step"><div class="n">C</div><div class="t"><b>With every dump, note the WHOOP app's numbers for that same day</b> — Recovery %, Day Strain, Sleep %, HRV (ms), Resting HR — and send them alongside the dump. That pairing is what calibrates the screens above to match WHOOP.</div></div>
+    </div>
+
+    <div class="card">
       <div class="muted" style="margin-bottom:10px">Commands</div>
       <div class="row">
         <button class="act" id="hello" disabled>get_hello</button>
@@ -234,6 +244,18 @@
       </div>
       <textarea id="dump" readonly></textarea>
       <div id="log" style="margin-top:10px"></div>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="margin-bottom:10px;color:#fff">Roadmap — what's next</div>
+      <p style="font-size:13px;line-height:1.7;margin:0">
+        ✓ Live HR · HRV · battery — working now<br>
+        ◷ Decode the realtime sensor stream (needs your captures)<br>
+        ◷ Historical sync → overnight HR/HRV + sleep<br>
+        ◷ Calibrate Recovery / Strain / Sleep against the WHOOP app's numbers<br>
+        ◷ Then this Setup tab is removed and the screens above go live
+      </p>
+      <div class="await" style="margin-top:12px">Getting it on your phone: a cable once (Sideloadly) for the first install; after that, OTA via Cloudflare Pages + SideStore keep it updated hands-free.</div>
     </div>
   </section>
   <!-- ===================== END DEV/SETUP ===================== -->
