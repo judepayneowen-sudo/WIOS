@@ -214,8 +214,15 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
+}
+// cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
+let rtHrOn=false;
+async function toggleRealtimeHr(){
+  rtHrOn=!rtHrOn;
+  await send(3,[rtHrOn?0x01:0x00], rtHrOn?'toggle_realtime_hr ON':'toggle_realtime_hr OFF');
+  const b=$('rthr'); if(b){ b.textContent='Realtime HR: '+(rtHrOn?'on':'off'); b.classList.toggle('live',rtHrOn); }
 }
 /* ===================== END DEV/SETUP ===================== */
 
@@ -260,7 +267,9 @@ async function send(command, data=[], label=''){
     log(`TX ${label||command} seq=${seq}  ${hex(frame)}`,'cmd'); seq=(seq+1)&0xFF; if(seq===0) seq=1;
   }catch(e){ log('TX failed: '+e.message,'err'); }
 }
-async function onDisconnect(){ setStatus('disconnected'); enableDev(false); log('device disconnected.','err'); }
+async function onDisconnect(){ setStatus('disconnected'); enableDev(false);
+  rtHrOn=false; const b=$('rthr'); if(b){ b.textContent='Realtime HR: off'; b.classList.remove('live'); }
+  log('device disconnected.','err'); }
 
 function selfTest(){
   const built=hex(buildCommand(1,145,[0x01]));
@@ -290,6 +299,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('hello').onclick      = ()=>send(145,[0x01],'get_hello');
   $('battery').onclick    = ()=>send(26,[],'get_battery_level');
   $('range').onclick      = ()=>send(34,[],'get_data_range');
+  $('rthr').onclick       = toggleRealtimeHr;
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }

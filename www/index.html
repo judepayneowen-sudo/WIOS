@@ -204,7 +204,7 @@
       <div class="step"><div class="n">1</div><div class="t"><b>Quit the WHOOP app</b> on your phone first. A band only talks to one device at a time, so if the official app is connected, we can't be.</div></div>
       <div class="step"><div class="n">2</div><div class="t">Tap <b>Connect WHOOP</b> above and pick your band. Live heart rate should start showing on the other tabs straight away.</div></div>
       <div class="step"><div class="n">3</div><div class="t">Tap <b>Start capture</b> (it turns green). This records every raw message the band sends, so nothing is lost.</div></div>
-      <div class="step"><div class="n">4</div><div class="t">Tap <b>get_hello</b>, then <b>data_range</b>. Then in the box below type command <b>3</b> with data <b>01</b> and tap <b>send</b> — that asks the band to stream its live sensor data.</div></div>
+      <div class="step"><div class="n">4</div><div class="t">Tap <b>get_hello</b>, then <b>data_range</b>, then <b>Realtime HR</b> (it turns on) — that asks the band to stream its live sensor data.</div></div>
       <div class="step"><div class="n">5</div><div class="t">Watch <b>fd4b frames</b> count up for about 20 seconds. The more it climbs, the more data we get.</div></div>
       <div class="step"><div class="n">6</div><div class="t">Tap <b>Dump &amp; copy</b>. The captured data is copied to your clipboard (and shown in the box). <b>Paste it to Claude</b> — that's the bit we decode to teach the app real recovery / strain / sleep.</div></div>
       <div class="step"><div class="n">7</div><div class="t">When done, send command <b>3</b> data <b>00</b> to stop the stream. Repeat over a few days (including after sleep) so we capture a full picture.</div></div>
@@ -216,6 +216,7 @@
         <button class="act" id="hello" disabled>get_hello</button>
         <button class="act" id="battery" disabled>battery</button>
         <button class="act" id="range" disabled>data_range</button>
+        <button class="act" id="rthr" disabled>Realtime HR: off</button>
       </div>
       <div class="row" style="margin-top:8px">
         <input class="in" id="ccode" inputmode="numeric" placeholder="cmd # (e.g. 3)">
