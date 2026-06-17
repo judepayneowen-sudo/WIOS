@@ -1,0 +1,131 @@
+name: Release WHOOP Core (AltStore → Cloudflare Pages)
+
+# Builds the unsigned .ipa + AltStore source bundle (apps.json + icon.png) and deploys all
+# three to Cloudflare Pages, so AltStore can fetch them over HTTPS and offer OTA updates.
+# Run from the Actions tab. Requires repo secrets CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pages_project:
+        description: "Cloudflare Pages project name (served at https://<project>.pages.dev)"
+        required: true
+        default: "whoop-core"
+      base_url:
+        description: "Override public base URL (only if using a custom domain). Blank = https://<project>.pages.dev"
+        required: false
+        default: ""
+      version:
+        description: "Version (default: package.json version). Must increase for AltStore to offer an update."
+        required: false
+      notes:
+        description: "What's-new / changelog for this version"
+        required: false
+        default: ""
+
+jobs:
+  release:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Resolve version + base URL
+        id: cfg
+        env:
+          IN_VERSION: ${{ inputs.version }}
+          IN_BASE: ${{ inputs.base_url }}
+          IN_PROJECT: ${{ inputs.pages_project }}
+        run: |
+          V="$IN_VERSION"; [ -z "$V" ] && V="$(node -p "require('./package.json').version")"
+          BASE="$IN_BASE"; [ -z "$BASE" ] && BASE="https://${IN_PROJECT}.pages.dev"
+          BASE="${BASE%/}"
+          echo "version=$V"   >> "$GITHUB_OUTPUT"
+          echo "base=$BASE"   >> "$GITHUB_OUTPUT"
+          echo "Version $V → base $BASE"
+
+      - name: Install JS dependencies
+        run: npm install
+
+      - name: Bundle web app + generate the iOS project
+        run: npm run add:ios
+
+      - name: Add Bluetooth usage descriptions to Info.plist
+        working-directory: ios/App/App
+        run: |
+          PB=/usr/libexec/PlistBuddy
+          BT="WHOOP Core uses Bluetooth to read data directly from your WHOOP 5.0 band."
+          $PB -c "Add :NSBluetoothAlwaysUsageDescription string '$BT'" Info.plist || $PB -c "Set :NSBluetoothAlwaysUsageDescription '$BT'" Info.plist
+          $PB -c "Add :NSBluetoothPeripheralUsageDescription string '$BT'" Info.plist || $PB -c "Set :NSBluetoothPeripheralUsageDescription '$BT'" Info.plist
+
+      - name: Build unsigned archive
+        working-directory: ios/App
+        run: |
+          xcodebuild \
+            -workspace App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath "$PWD/build/App.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            MARKETING_VERSION=${{ steps.cfg.outputs.version }} \
+            CURRENT_PROJECT_VERSION=1 \
+            archive
+
+      - name: Ad-hoc sign + package .ipa
+        working-directory: ios/App
+        run: |
+          mkdir -p build/Payload
+          cp -R build/App.xcarchive/Products/Applications/App.app build/Payload/
+          APP=build/Payload/App.app
+          if [ -d "$APP/Frameworks" ]; then
+            find "$APP/Frameworks" -maxdepth 1 -name "*.framework" -exec codesign --force --sign - {} \;
+          fi
+          codesign --force --sign - "$APP"
+          cd build && zip -qry WHOOP-Core.ipa Payload
+
+      - name: Assemble AltStore dist bundle
+        env:
+          BASE_URL: ${{ steps.cfg.outputs.base }}
+          REL_VERSION: ${{ steps.cfg.outputs.version }}
+          REL_NOTES: ${{ inputs.notes }}
+        run: |
+          mkdir -p dist
+          cp ios/App/build/WHOOP-Core.ipa dist/WHOOP-Core.ipa
+          node tools/make-icon.mjs dist/icon.png
+          node tools/make-altstore-source.mjs \
+            --base "$BASE_URL" --version "$REL_VERSION" \
+            --ipa dist/WHOOP-Core.ipa --out dist/apps.json --notes "$REL_NOTES"
+          echo "----- dist/apps.json -----" && cat dist/apps.json
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy dist --project-name=${{ inputs.pages_project }} --branch=main
+
+      - name: Summary
+        env:
+          BASE_URL: ${{ steps.cfg.outputs.base }}
+        run: |
+          {
+            echo "### WHOOP Core ${{ steps.cfg.outputs.version }} deployed"
+            echo ""
+            echo "Add this AltStore source URL on your phone:"
+            echo ""
+            echo "    ${BASE_URL}/apps.json"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # Keep a downloadable copy too (handy for one-off Sideloadly installs / debugging).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WHOOP-Core-altstore-dist
+          path: |
+            dist/WHOOP-Core.ipa
+            dist/apps.json
+            dist/icon.png
+          if-no-files-found: error

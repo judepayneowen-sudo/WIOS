@@ -2,4 +2,5 @@ node_modules/
 ios/
 www/app.js
 *.ipa
+dist/
 .DS_Store

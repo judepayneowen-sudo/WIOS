@@ -195,9 +195,20 @@ async function send(command, data=[], label=''){
   }catch(e){ log('TX failed: '+e.message,'err'); }
 }
 
-async function onDisconnect(){ setStatus('disconnected'); enable(false); log('device disconnected.','err'); }
+// cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
+// One-tap version of NEXT STEP #1 — flip Capture on, toggle this, watch the fd4b counter.
+let rtHrOn=false;
+async function toggleRealtimeHr(){
+  rtHrOn=!rtHrOn;
+  await send(3,[rtHrOn?0x01:0x00], rtHrOn?'toggle_realtime_hr ON':'toggle_realtime_hr OFF');
+  const b=$('rthr'); b.textContent='Realtime HR: '+(rtHrOn?'on':'off'); b.classList.toggle('live',rtHrOn);
+}
+
+async function onDisconnect(){ setStatus('disconnected'); enable(false);
+  rtHrOn=false; const b=$('rthr'); if(b){ b.textContent='Realtime HR: off'; b.classList.remove('live'); }
+  log('device disconnected.','err'); }
 function enable(on){
-  for(const id of ['hello','battery','range','disconnect','csend']) $(id).disabled=!on;
+  for(const id of ['hello','battery','range','rthr','disconnect','csend']) $(id).disabled=!on;
   $('connect').disabled=on;
 }
 
@@ -214,6 +225,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('hello').onclick     = ()=>send(145,[0x01],'get_hello');
   $('battery').onclick   = ()=>send(26,[],'get_battery_level');
   $('range').onclick     = ()=>send(34,[],'get_data_range');
+  $('rthr').onclick      = toggleRealtimeHr;
   $('disconnect').onclick= async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} } };
   $('clear').onclick     = ()=>$('log').innerHTML='';
   $('csend').onclick     = ()=>{ const code=parseInt($('ccode').value,10);
