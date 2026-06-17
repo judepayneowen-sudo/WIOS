@@ -133,6 +133,13 @@ function parseHexData(s){
   return s.split(/[\s,]+/).filter(Boolean).map(x=>parseInt(x,16)&0xFF);
 }
 
+// Destructive commands — gate behind a confirm so a fat-finger in the custom sender
+// can't trigger firmware load or rewrite optical-sensor config (could brick/misconfigure).
+const CRITICAL_COMMANDS = {
+  36:'start_firmware_load', 37:'load_firmware_data', 38:'process_firmware_image',
+  39:'set_led_drive', 41:'set_tia_gain', 43:'set_bias_offset',
+};
+
 /* ----------------------------- BLE flow ----------------------------------- */
 let deviceId=null, seq=1, hrTimer=null, lastHrAt=0;
 
@@ -211,7 +218,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('clear').onclick     = ()=>$('log').innerHTML='';
   $('csend').onclick     = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }
-    send(code, parseHexData($('cdata').value), 'cmd'+code); };
+    const danger=CRITICAL_COMMANDS[code];
+    if(danger && !confirm(`⚠ Command ${code} (${danger}) can load firmware or rewrite optical-sensor config and may brick or misconfigure your band.\n\nSend it anyway?`)){
+      log(`blocked critical command ${code} (${danger})`,'err'); return; }
+    send(code, parseHexData($('cdata').value), danger?`cmd${code}!`:'cmd'+code); };
   $('capture').onclick   = ()=>{ capturing=!capturing;
     $('capture').textContent='Capture: '+(capturing?'on':'off'); $('capture').classList.toggle('live',capturing);
     log('capture '+(capturing?'started':'stopped')+' ('+capture.length+' frames held)', capturing?'ok':'dim'); };
