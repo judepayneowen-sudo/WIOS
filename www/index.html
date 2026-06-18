@@ -269,6 +269,13 @@
     </div>
 
     <div class="card">
+      <div class="muted" style="margin-bottom:8px;color:#fff">Historical sync — for Recovery / Sleep / Strain</div>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 6px">Live heart rate is only “now”. Your <b>Recovery, Sleep and full-day Strain</b> are built from the band's stored history — recorded while you wear it, <b>especially overnight</b>. This pulls that buffered history off the band so it can be decoded into your real scores.</p>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">Wear it (including a night), then tap <b>Sync history</b>. It asks the band for its data range and streams the stored data back — watch <b>HISTORICAL</b> climb in the fd4b counter below. Give it ~30–60s, then <b>Dump &amp; copy</b> and send it to Claude. Tap again to stop.</p>
+      <button class="act" id="synchist" disabled>Sync history</button>
+    </div>
+
+    <div class="card">
       <div class="muted">fd4b frames: <b id="rt" style="color:#fff">none yet</b></div>
       <div class="row" style="margin-top:10px">
         <button class="act" id="capture">Start capture</button>
