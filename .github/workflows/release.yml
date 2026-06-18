@@ -52,13 +52,19 @@ jobs:
       - name: Bundle web app + generate the iOS project
         run: npm run add:ios
 
-      - name: Add Bluetooth usage descriptions to Info.plist
+      - name: Add Bluetooth + local-network usage to Info.plist
         working-directory: ios/App/App
         run: |
           PB=/usr/libexec/PlistBuddy
           BT="WHOOP Core uses Bluetooth to read data directly from your WHOOP 5.0 band."
           $PB -c "Add :NSBluetoothAlwaysUsageDescription string '$BT'" Info.plist || $PB -c "Set :NSBluetoothAlwaysUsageDescription '$BT'" Info.plist
           $PB -c "Add :NSBluetoothPeripheralUsageDescription string '$BT'" Info.plist || $PB -c "Set :NSBluetoothPeripheralUsageDescription '$BT'" Info.plist
+          # Local-network: lets the app POST captures to the laptop drop-box over WiFi.
+          LN="WHOOP Core sends your captured band data to a helper running on your laptop over your local WiFi."
+          $PB -c "Add :NSLocalNetworkUsageDescription string '$LN'" Info.plist || $PB -c "Set :NSLocalNetworkUsageDescription '$LN'" Info.plist
+          # Allow cleartext HTTP to LAN / .local hosts (the drop-box) without disabling ATS globally.
+          $PB -c "Add :NSAppTransportSecurity dict" Info.plist 2>/dev/null || true
+          $PB -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" Info.plist || $PB -c "Set :NSAppTransportSecurity:NSAllowsLocalNetworking true" Info.plist
 
       - name: Build unsigned archive
         working-directory: ios/App

@@ -8,6 +8,9 @@
     "limitsNavigationsToAppBoundDomains": false
   },
   "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
     "SplashScreen": {
       "launchShowDuration": 800,
       "launchAutoHide": true,

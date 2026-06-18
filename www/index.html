@@ -282,6 +282,11 @@
         <button class="act" id="dumpbtn">Dump &amp; copy</button>
         <button class="act" id="clear">Clear log</button>
       </div>
+      <div class="row" style="margin-top:10px">
+        <input class="in" id="laphost" placeholder="laptop IP:port (e.g. 192.168.0.196:8787)" style="flex:1">
+        <button class="act" id="sendlap">Send to laptop</button>
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:12px">Run <b>tools/whoop-dropbox.py</b> on your laptop (same WiFi), enter the IP:port it prints, then tap <b>Send to laptop</b> — the capture goes straight to Claude, no copy-paste.</div>
       <textarea id="dump" readonly></textarea>
       <div id="log" style="margin-top:10px"></div>
     </div>

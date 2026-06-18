@@ -4,5 +4,7 @@ www/app.js
 *.ipa
 dist/
 .whoop.env
+.whoop.txt
 .whoop-tokens.json
 .DS_Store
+captures/

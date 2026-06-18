@@ -279,6 +279,29 @@ function dumpCapture(){
     ()=>log('copied to clipboard ('+capture.length+' frames) — paste it to Claude','ok'),
     ()=>log('shown below — select all & copy ('+capture.length+' frames)','dim'));
 }
+// Drop-box: POST the capture straight to the laptop helper (tools/whoop-dropbox.py) over LAN.
+// CapacitorHttp (enabled in capacitor.config.json) routes this natively, bypassing the
+// webview's CORS / mixed-content gate; Info.plist NSAllowsLocalNetworking permits cleartext LAN.
+const LKEY='whoopcore.laphost';
+function loadLapHost(){ try{ return localStorage.getItem(LKEY)||'192.168.0.196:8787'; }catch(e){ return '192.168.0.196:8787'; } }
+async function sendToLaptop(){
+  const host=(($('laphost')&&$('laphost').value)||'').trim();
+  if(!/^[\w.\-]+:\d{2,5}$/.test(host)){ log('enter laptop as IP:port, e.g. 192.168.0.196:8787','err'); return; }
+  try{ localStorage.setItem(LKEY, host); }catch(e){}
+  const text=capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
+  if(!text){ log('nothing captured yet — connect and capture first','err'); return; }
+  const url=`http://${host}/capture`;
+  log(`sending ${capture.length} frames → ${url} …`,'cmd');
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), 8000);
+  try{
+    const res=await fetch(url,{ method:'POST', headers:{'Content-Type':'text/plain'}, body:text, signal:ctrl.signal });
+    clearTimeout(to);
+    if(res.ok){ const t=await res.text().catch(()=>''); log(`✓ sent to laptop (${capture.length} frames). ${t}`.trim(),'ok'); }
+    else log(`laptop responded ${res.status} — is the drop-box running on ${host}?`,'err');
+  }catch(e){ clearTimeout(to);
+    log(`send failed: ${e.name==='AbortError'?'timed out':e.message}. If iOS just asked to allow local network access, tap Allow then Send again. Otherwise check the drop-box is running and the IP:port matches.`,'err');
+  }
+}
 function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
   return s.split(/[\s,]+/).filter(Boolean).map(x=>parseInt(x,16)&0xFF); }
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
@@ -384,6 +407,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   document.querySelectorAll('#tabs button').forEach(b=> b.onclick=()=>showTab(b.dataset.tab));
   document.querySelectorAll('[data-go]').forEach(el=> el.onclick=()=>showTab(el.dataset.go));
   fillProfileForm();
+  if($('laphost')) $('laphost').value = loadLapHost();
   selfTest();
   $('connect').onclick    = connect;
   $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} } };
@@ -403,6 +427,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     $('capture').textContent=capturing?'Stop capture':'Start capture'; $('capture').classList.toggle('live',capturing);
     log('capture '+(capturing?'started':'stopped')+' ('+capture.length+' frames held)', capturing?'ok':'dim'); };
   $('dumpbtn').onclick    = dumpCapture;
+  $('sendlap').onclick    = sendToLaptop;
   $('clear').onclick      = ()=>{ const el=logEl(); if(el) el.innerHTML=''; };
   enableDev(false);
   renderRt();
