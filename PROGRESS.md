@@ -4,21 +4,70 @@ Standalone iOS app that reads a **WHOOP 5.0** directly over Bluetooth. Independe
 other project. This file is the portable context: read it on your phone (GitHub) or hand it
 to Claude on `claude.ai/code` pointed at this repo to continue with full context.
 
-## TL;DR — where we are
+## TL;DR — where we are (updated 2026-06-18)
+- ✅ **App is LIVE on the iPhone — WHOOP Core v0.1.6.** Installed via **SideStore**; updates
+  **over-the-air** from the `wios-awe.pages.dev` source — no cable.
 - ✅ **Live HR + HRV (RMSSD) + battery + device info** — via *standard* BLE services, no auth.
-- ✅ **Custom `fd4b` command service CONFIRMED working on iOS.** CoreBluetooth bonds/encrypts
-  on demand automatically, so the deep-metric service responds. This is the whole reason the
-  app is on iOS: **Windows could NOT do this** — WinRT bonds the band at protection level
-  "None" (no encryption key), so the link the band requires is unreachable there.
-- ✅ Builds green via GitHub Actions → unsigned `.ipa` → Sideloadly (free Apple ID, no Mac).
-- 🔜 **Next:** enable the realtime sensor stream, decode its packet layout, then historical
-  sync for sleep/recovery, then calibrate the score functions.
+- ✅ **Custom `fd4b` command service working on iOS.** CoreBluetooth bonds/encrypts on demand,
+  so the deep-metric service responds. This is the whole reason it's iOS: **Windows could NOT**
+  (WinRT bonds at protection level "None" — no encryption key — so the link is unreachable).
+- ✅ **Realtime stream decoded.** `toggle_realtime_hr` (cmd **3**, data `01`on/`00`off) →
+  REALTIME_DATA(40): HR at payload byte **8**, RR-present flag byte **9**, RR ms bytes **10–11** (LE).
+- ✅ **Drop-box** (v0.1.5): "Send to laptop" POSTs captures over WiFi to `tools/whoop-dropbox.py`
+  → `captures/` (no copy-paste). *Laptop-only receiver.*
+- ✅ **Read-only historical sync** (v0.1.6): streams HISTORICAL_DATA(47) **without** the commit-ack,
+  so the band keeps the data for the official app (won't starve WHOOP's own cloud sync).
+- ✅ **Score-calibration harness** (committed `bdae010`): tunes `scores.js` against the **WHOOP API**
+  (the ground-truth answer-key). The scores are computed in WHOOP's **cloud** — *not* on the band
+  or in the app, so they can't be reverse-engineered out of goose/the binary. We reconstruct the
+  published shapes and **fit** the constants. See `tools/CALIBRATE.md`.
+- 🔜 **Next:** accumulate ~2–3 weeks of WHOOP cloud days (recovery/sleep answer-key) · decode
+  HISTORICAL_DATA(47) for full-day strain · then run the calibration.
+
+## Working from your phone — temp handover (next few days)
+
+On `claude.ai/code` (pointed at this repo) or GitHub mobile. What's doable where, so you don't
+reach for a tool that only runs on the laptop:
+
+### ✅ Doable from the phone
+- **Edit code/docs, commit, push.** Always `git fetch` first — desktop + phone both push here.
+- **Ship a build to the phone, no laptop:** bump `version` in `package.json` → run **release.yml**
+  (Actions → Run workflow, or `gh workflow run release.yml -f version=X.Y.Z`). It publishes the
+  source + `.ipa` to `wios-awe.pages.dev`; **SideStore** then updates WHOOP Core OTA (open SideStore → refresh).
+- **Use the app + capture on-device** (Connect, Start capture, **Dump** to clipboard). Paste a dump
+  into chat if you want it decoded/eyeballed.
+- **Phone-sized tasks:** UI polish in `www/index.html`; the `HISTORICAL_DATA(47)` decoder
+  (`decodeHistorical` stub in `tools/whoop-decode.mjs`); labels/docs.
+
+### 🔌 Laptop-only (NOT from the phone)
+- **Drop-box** `tools/whoop-dropbox.py` — needs the laptop on the same WiFi. From the phone use the
+  app's **Dump** (copy text) instead of **Send to laptop**.
+- **`tools/whoop-api.mjs`** + **`npm run calibrate`** — need Node + the gitignored `.whoop.env` creds
+  + `captures/`, all on the laptop. (Recovery/sleep need ~2–3 weeks of data anyway, so this waits regardless.)
+
+### ⏳ Time-gated (just wear the band)
+- **Recovery + Sleep** calibration needs ~2–3 weeks of WHOOP **cloud** history as the answer-key
+  (only ~1 day so far). **Keep the official WHOOP app syncing** during this window — that's what fills
+  the cloud. Accumulates passively; nothing to code.
+- **Strain** isn't time-gated (it's computed daily), but needs a **full-day capture** = the band's
+  historical buffer = the `HISTORICAL_DATA(47)` decode (the one open decoder TODO).
+
+### ⚠️ Gotchas
+- **VPN OFF** on phone + laptop (Nord broke Bonjour/local-network before).
+- **Quit the official WHOOP app** before connecting WHOOP Core (one BLE connection at a time); reopen
+  it after so it resyncs to the cloud.
+- **`git fetch` before every push** (parallel desktop/phone work).
+- The drop-box only catches sends while the **laptop is on with `whoop-dropbox.py` running** — don't rely on it while away; use **Dump** instead.
 
 ## Build & run
+**Now installed (current path):** via **SideStore**, updating OTA from the `wios-awe.pages.dev`
+source. To push an update: bump `package.json` version → run **release.yml** → open SideStore → refresh.
+
+**From scratch (if ever reinstalling):**
 1. **Actions** tab → "Build WHOOP Core iOS" → **Run workflow** → download `WHOOP-Core-unsigned-ipa`.
-2. **Sideloadly** → Apple ID → install → trust on phone (Settings → General → VPN & Device Management).
+2. **Sideloadly** or **SideStore** → Apple ID → install → trust on phone (Settings → General → VPN & Device Management).
 3. Launch **WHOOP Core**, allow Bluetooth, **Connect** (quit the WHOOP phone app first — one BLE connection at a time).
-4. In-app: command buttons, **custom command sender** (cmd # + hex data), **Capture/Dump** (collects raw `fd4b` frames → clipboard for decoding).
+4. In-app: command buttons, **custom command sender** (cmd # + hex data), **Capture/Dump** (raw `fd4b` frames → clipboard), **Send to laptop** (drop-box), **Sync history** (Read-only).
 
 ## Protocol (clean-room reimplementation of the GOOSE/Gen5 format)
 ### GATT map
@@ -61,18 +110,22 @@ payload :  [ packetType, sequence, command/event, ...data ]
 - `get_hello` (145) → COMMAND_RESPONSE carrying band clock (unix time, LE), serial string, and a device identity token.
 - `get_data_range` (34) → COMMAND_RESPONSE with available-window timestamps + record-index counters (currently only ~minutes of buffer when freshly connected).
 - `send_r10_r11_realtime` (63) → only ACKs, no stream (wrong toggle — use cmd 3).
+- `toggle_realtime_hr` (3, data 01) → **REALTIME_DATA(40)** stream. Decoded from a real capture:
+  payload `[8]` = HR bpm, `[9]` = RR-present flag, `[10..11]` = RR interval ms (LE). Proof: mean
+  byte[8] ≈ 60000 / mean RR. (Replayed offline by `tools/whoop-decode.mjs`.)
 
 ## NEXT STEPS (in order)
-1. **Start the realtime stream.** Capture **on** → custom sender **cmd `3` data `01`** (`toggle_realtime_hr`). Watch the `fd4b frames` counter for **REALTIME_DATA(40)** on the data channel; let it run ~20 s; **Dump**. Send **cmd `3` data `00`** to stop.
-   - If it only ACKs, pull goose's exact enable frame + the `start_raw_data` command number.
-2. **Decode REALTIME_DATA(40) / RAW(43) / IMU(51)** byte offsets from the captured frames → HR / PPG / accel / SpO₂ / skin-temp. Feed into `makeStrainAccumulator` and recovery inputs.
-3. **Historical sync** (for sleep/recovery): `get_data_range(34)` → `set_read_pointer(33)` → `send_historical_data(22)` → stream of **HISTORICAL_DATA(47)** packets → decode overnight HR/HRV + durations.
-4. **Calibrate** `src/scores.js` constants (`STRAIN_SCALE`, `RECOVERY_WEIGHTS`, `SLEEP_NEED`, zone edges) by regressing our outputs against the real numbers the WHOOP app shows for the same day.
+1. **(passive) Accumulate the answer-key.** Wear the band daily; keep the official WHOOP app syncing to the cloud for ~2–3 weeks → builds the Recovery/Sleep ground-truth. (Realtime stream + decode are DONE.)
+2. **Decode HISTORICAL_DATA(47).** Run a **read-only** Sync-history capture overnight (band keeps the data for the official app), **Dump/Send**, then decode the (47) record stride (timestamp + HR + …) in `tools/whoop-decode.mjs` (the `decodeHistorical` stub) → full-day HR for strain + overnight HRV/sleep.
+3. **Calibrate (laptop).** `node tools/whoop-api.mjs auth` → `node tools/whoop-api.mjs 60` → `npm run calibrate` → paste the printed `RECOVERY_WEIGHTS` / `STRAIN_SCALE` / `SLEEP_NEED` into `src/scores.js` → `npm test && npm run sync`. Full guide in `tools/CALIBRATE.md`.
+4. **Ship it.** Bump `package.json` version → run `release.yml` → SideStore updates the phone OTA.
 
 ## Code map
-- `src/app.js` — protocol (CRC/build/parse), BLE flow via `@capacitor-community/bluetooth-le`, UI wiring, capture/dump, guardrailed custom sender.
-- `src/scores.js` — pure recovery/strain/sleep functions (clean-room approximations; constants flagged `CALIBRATE`). `npm test` → 18 assertions.
-- `www/index.html` — cyan HUD UI. `.github/workflows/build.yml` — CI build.
+- `src/app.js` — protocol (CRC/build/parse), BLE flow via `@capacitor-community/bluetooth-le`, UI wiring, capture/dump, drop-box send, read-only historical sync, guardrailed custom sender.
+- `src/scores.js` — pure recovery/strain/sleep functions (clean-room approximations; constants flagged `CALIBRATE`, incl. a `bias` term in `RECOVERY_WEIGHTS`). `npm test` → 18 assertions.
+- `www/index.html` — cyan HUD UI.
+- **Calibration toolchain (laptop):** `tools/whoop-api.mjs` (+`WHOOP-API.md`) pulls official scores → `calibration/whoop-data.json`; `tools/whoop-decode.mjs` replays capture files offline; `tools/calibrate.mjs` (`npm run calibrate`) fits the constants; `tools/CALIBRATE.md` is the how-to; `tools/whoop-dropbox.py` is the drop-box receiver.
+- `.github/workflows/` — `build.yml` (unsigned `.ipa`) · `release.yml` (signed source + `.ipa` → `wios-awe.pages.dev` for SideStore OTA).
 
 ## Notes
 - Protocol was reverse-engineered **clean-room** (from frame fixtures + observed behaviour). Do not copy the abandoned, `UNLICENSED` third-party "goose" project's code — reference only.
