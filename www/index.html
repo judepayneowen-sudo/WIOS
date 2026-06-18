@@ -271,8 +271,12 @@
     <div class="card">
       <div class="muted" style="margin-bottom:8px;color:#fff">Historical sync — for Recovery / Sleep / Strain</div>
       <p style="font-size:13px;line-height:1.5;margin:0 0 6px">Live heart rate is only “now”. Your <b>Recovery, Sleep and full-day Strain</b> are built from the band's stored history — recorded while you wear it, <b>especially overnight</b>. This pulls that buffered history off the band so it can be decoded into your real scores.</p>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">Wear it (including a night), then tap <b>Sync history</b>. It asks the band for its data range and streams the stored data back — watch <b>HISTORICAL</b> climb in the fd4b counter below. Give it ~30–60s, then <b>Dump &amp; copy</b> and send it to Claude. Tap again to stop.</p>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">Wear it (including a night), then tap <b>Sync history</b>. It asks the band for its data range and streams the stored data back — watch <b>HISTORICAL</b> climb in the fd4b counter below. Give it ~30–60s, then tap <b>Send to laptop</b> (below). Tap again to stop.</p>
       <button class="act" id="synchist" disabled>Sync history</button>
+      <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:13px;line-height:1.45">
+        <input type="checkbox" id="histro" style="margin-top:2px">
+        <span><b>Read-only</b> — stream the history but don't acknowledge/commit it, so it stays on the band for the official WHOOP app to sync. Safer when you still want WHOOP's own scores as a reference. May stall if the band needs acks to keep streaming — if <b>HISTORICAL</b> stays at 0, untick this and retry.</span>
+      </label>
     </div>
 
     <div class="card">

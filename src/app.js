@@ -267,8 +267,8 @@ function onFrame(label, dv){
   }
   if(histSync && (info.packetType===47 || info.packetType===48)){
     if(info.packetType===47) histCount++;
-    clearTimeout(histAckTimer);
-    histAckTimer=setTimeout(()=>{ if(histSync) send(23, HIST_ACK, 'hist_ack'); }, 800);
+    if(histAck){ clearTimeout(histAckTimer);          // read-only mode skips the ack/commit
+      histAckTimer=setTimeout(()=>{ if(histSync && histAck) send(23, HIST_ACK, 'hist_ack'); }, 800); }
   }
   if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex}); if(capture.length>CAP_MAX) capture.shift(); }
 }
@@ -320,21 +320,30 @@ async function toggleRealtimeHr(){
 // Historical sync (payloads per goose): get_data_range(34,[]) → send_historical_data(22,[]); the band
 // then streams HISTORICAL_DATA(47). We ack each burst with historical_data_result(23,[1,0,0,0,0,0,0,0,0])
 // to keep it flowing, and abort_historical_transmits(20) to stop.
-let histSync=false, histAckTimer=null, histCount=0;
+// histAck: when false (Read-only box ticked) we stream HISTORICAL_DATA(47) but never send the
+// historical_data_result(23) commit, so the band keeps the data for the official app to sync.
+let histSync=false, histAck=true, histAckTimer=null, histCount=0;
 const HIST_ACK=[1,0,0,0,0,0,0,0,0];
 async function syncHistory(){
   if(!deviceId){ log('connect first','err'); return; }
+  const ro=$('histro');
   if(histSync){ histSync=false; clearTimeout(histAckTimer);
     await send(20,[],'abort_historical_transmits');
     const b=$('synchist'); if(b){ b.textContent='Sync history'; b.classList.remove('live'); }
-    log(`history sync stopped — ${histCount} HISTORICAL packets captured. Dump & copy → send.`, 'ok'); return; }
+    if(ro) ro.disabled=false;
+    log(`history sync stopped — ${histCount} HISTORICAL packets (${histAck?'committed/acked':'read-only — NOT acked, left on band'}). Send to laptop.`, 'ok'); return; }
   histSync=true; histCount=0;
+  histAck = !(ro && ro.checked);
+  if(ro) ro.disabled=true;
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('synchist'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
-  log('history sync → get_data_range','cmd'); await send(34,[],'get_data_range');
+  log(histAck ? 'history sync (will acknowledge/commit each burst)'
+             : 'history sync — READ-ONLY: streaming but NOT acknowledging, so the data stays on the band for the official app', 'ok');
+  log('→ get_data_range','cmd'); await send(34,[],'get_data_range');
   await new Promise(r=>setTimeout(r,1200));
-  log('history sync → send_historical_data (streaming…)','cmd'); await send(22,[],'send_historical_data');
-  log('leave ~30–60s while HISTORICAL packets stream, then Dump & copy → send. Tap again to stop.','ok');
+  log('→ send_historical_data (streaming…)','cmd'); await send(22,[],'send_historical_data');
+  log(histAck ? 'leave ~30–60s while HISTORICAL packets stream, then Send to laptop. Tap again to stop.'
+             : 'leave ~30–60s. If HISTORICAL stays at 0, the band may need acks — untick Read-only and retry. Tap again to stop.','ok');
 }
 /* ===================== END DEV/SETUP ===================== */
 
