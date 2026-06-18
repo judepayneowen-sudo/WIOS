@@ -8,3 +8,4 @@ dist/
 .whoop-tokens.json
 .DS_Store
 captures/
+calibration/

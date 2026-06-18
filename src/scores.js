@@ -95,12 +95,12 @@ export function makeStrainAccumulator({ restingHr, maxHr, sex = 'm', scale = STR
 // HRV is the dominant driver, then resting HR (inverted), then respiratory rate
 // (inverted), with a small sleep-performance nudge. Each term is a z-score vs the
 // person's own baseline, combined and squashed to 0–100%.
-export const RECOVERY_WEIGHTS = { hrv: 1.1, rhr: 0.6, resp: 0.3, sleep: 0.5 }; // CALIBRATE
+export const RECOVERY_WEIGHTS = { hrv: 1.1, rhr: 0.6, resp: 0.3, sleep: 0.5, bias: 0 }; // CALIBRATE
 export function recoveryScore({
   hrv, hrvBase, rhr, rhrBase, respRate = null, respBase = null,
   sleepPerformance = null, weights = RECOVERY_WEIGHTS,
 } = {}) {
-  let s = 0;
+  let s = weights.bias || 0; // intercept: shifts the baseline-day recovery off 50% (CALIBRATE)
   if (hrv != null && hrvBase) s += weights.hrv * zScore(hrv, hrvBase);
   if (rhr != null && rhrBase) s -= weights.rhr * zScore(rhr, rhrBase);   // lower RHR is better
   if (respRate != null && respBase) s -= weights.resp * zScore(respRate, respBase); // lower is better

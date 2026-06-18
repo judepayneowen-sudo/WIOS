@@ -15,7 +15,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs';
 
 const AUTH  = 'https://api.prod.whoop.com/oauth/oauth2/auth';
 const TOKEN = 'https://api.prod.whoop.com/oauth/oauth2/token';
@@ -26,6 +26,8 @@ const SCOPES = ['read:recovery','read:cycles','read:sleep','read:profile','offli
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ENV_FILE = path.join(ROOT, '.whoop.env');
 const TOK_FILE = path.join(ROOT, '.whoop-tokens.json');
+const CAL_DIR  = path.join(ROOT, 'calibration');
+const DATA_OUT = path.join(CAL_DIR, 'whoop-data.json');
 
 function cfg(){
   let id = process.env.WHOOP_CLIENT_ID, secret = process.env.WHOOP_CLIENT_SECRET;
@@ -110,6 +112,7 @@ async function get(pathname, token, params={}){
 
 const day = (d)=> new Date(d).toISOString().slice(0,10);
 const cell = (v,suf='',w=9)=> ((v==null||Number.isNaN(v)) ? '—' : (v+suf)).padEnd(w);
+const mins = (milli)=> milli==null ? null : +(milli/60000).toFixed(1);   // ms → minutes
 
 async function pull(days){
   const token = await accessToken();
@@ -119,21 +122,58 @@ async function pull(days){
     get('/recovery', token, p), get('/cycle', token, p),
     get('/activity/sleep', token, p), get('/user/profile/basic', token),
   ]);
+
   const rows = {};
-  const row = (k)=> (rows[k] ||= {});
-  for(const c of (cycles.records||[]))   { const r=row(day(c.start)); r.strain=c.score?.strain; }
-  for(const x of (recovery.records||[])) { const r=row(day(x.created_at)); r.rec=x.score?.recovery_score; r.hrv=x.score?.hrv_rmssd_milli; r.rhr=x.score?.resting_heart_rate; }
-  for(const s of (sleep.records||[]))    { const r=row(day(s.end||s.start)); r.sleep=s.score?.sleep_performance_percentage; }
+  const row = (k)=> (rows[k] ||= { date:k });
+
+  // Cycle → strain + HR summary
+  for(const c of (cycles.records||[])){
+    const r=row(day(c.start)), s=c.score||{};
+    r.strain=s.strain; r.avgHr=s.average_heart_rate; r.maxHr=s.max_heart_rate; r.kilojoule=s.kilojoule;
+  }
+  // Recovery → recovery%, HRV, RHR, SpO2, skin temp
+  for(const x of (recovery.records||[])){
+    const r=row(day(x.created_at)), s=x.score||{};
+    r.recovery=s.recovery_score; r.hrv=s.hrv_rmssd_milli!=null?Math.round(s.hrv_rmssd_milli):null;
+    r.rhr=s.resting_heart_rate; r.spo2=s.spo2_percentage; r.skinTemp=s.skin_temp_celsius;
+    r.calibrating=s.user_calibrating||false;
+  }
+  // Sleep → keep the main night (non-nap, longest in-bed) per day; pull every field
+  const nights={};
+  for(const s of (sleep.records||[])){
+    if(s.nap) continue;
+    const k=day(s.end||s.start), inbed=s.score?.stage_summary?.total_in_bed_time_milli ?? 0;
+    if(!nights[k] || inbed>nights[k]._inbed) nights[k]={ rec:s, _inbed:inbed };
+  }
+  for(const [k,{rec}] of Object.entries(nights)){
+    const r=row(k), sc=rec.score||{}, st=sc.stage_summary||{}, nd=sc.sleep_needed||{};
+    const asleep=(st.total_light_sleep_time_milli||0)+(st.total_slow_wave_sleep_time_milli||0)+(st.total_rem_sleep_time_milli||0);
+    const need=(nd.baseline_milli||0)+(nd.need_from_sleep_debt_milli||0)+(nd.need_from_recent_strain_milli||0)-(nd.need_from_recent_nap_milli||0);
+    r.sleepPerf=sc.sleep_performance_percentage; r.sleepEff=sc.sleep_efficiency_percentage;
+    r.sleepConsistency=sc.sleep_consistency_percentage; r.resp=sc.respiratory_rate;
+    r.asleepMin=mins(asleep); r.inBedMin=mins(st.total_in_bed_time_milli); r.awakeMin=mins(st.total_awake_time_milli);
+    r.lightMin=mins(st.total_light_sleep_time_milli); r.swsMin=mins(st.total_slow_wave_sleep_time_milli); r.remMin=mins(st.total_rem_sleep_time_milli);
+    r.needMin=mins(need); r.needBaselineMin=mins(nd.baseline_milli); r.needDebtMin=mins(nd.need_from_sleep_debt_milli);
+    r.needStrainMin=mins(nd.need_from_recent_strain_milli); r.needNapMin=mins(nd.need_from_recent_nap_milli);
+  }
+
+  const ordered = Object.keys(rows).sort();                 // ascending for the JSON
+  const data = ordered.map(k=>rows[k]);
+  mkdirSync(CAL_DIR, { recursive:true });
+  writeFileSync(DATA_OUT, JSON.stringify(data, null, 2));
 
   console.log(`\nWHOOP official scores — ${profile.first_name||''} ${profile.last_name||''} (last ${days} days)`);
-  console.log('Paste this with your WHOOP Core capture so the scores can be calibrated:\n');
-  console.log('date         recovery  strain   sleep%   HRV       RHR');
-  console.log('-----------  --------  -------  -------  --------  -----');
-  for(const k of Object.keys(rows).sort().reverse()){
-    const r = rows[k];
-    console.log(k.padEnd(13)+cell(r.rec,'%',10)+cell(r.strain?.toFixed?.(1),'',9)+cell(r.sleep,'%',9)+cell(r.hrv!=null?Math.round(r.hrv):null,'',10)+cell(r.rhr,'',5));
+  console.log(`Wrote ${path.relative(ROOT, DATA_OUT)} (${data.length} days, all fields) → run: npm run calibrate\n`);
+  console.log('date         recovery  strain   sleep%   HRV   RHR   RESP   sleep   need');
+  console.log('-----------  --------  -------  -------  ----  ----  -----  ------  ------');
+  for(const k of ordered.reverse()){
+    const r=rows[k];
+    console.log(
+      k.padEnd(13)+cell(r.recovery,'%',10)+cell(r.strain?.toFixed?.(1),'',9)+cell(r.sleepPerf,'%',9)+
+      cell(r.hrv,'',6)+cell(r.rhr,'',6)+cell(r.resp?.toFixed?.(1),'',7)+
+      cell(r.asleepMin!=null?(r.asleepMin/60).toFixed(1)+'h':null,'',8)+cell(r.needMin!=null?(r.needMin/60).toFixed(1)+'h':null,'',8));
   }
-  console.log('\n(HRV is rmssd in the API\'s native units — compare relative trend to the app\'s HRV.)');
+  console.log('\n(HRV = rmssd ms · RESP = breaths/min · sleep/need in hours. All fields are in the JSON above.)');
 }
 
 const arg = process.argv[2];
