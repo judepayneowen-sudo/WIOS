@@ -71,7 +71,7 @@ function parseFrame(dv){
     payOk = got[0]===(c&0xFF)&&got[1]===((c>>>8)&0xFF)&&got[2]===((c>>>16)&0xFF)&&got[3]===((c>>>24)&0xFF); }
   const pt=payload[0];
   return { packetType:pt, name:PKT[pt]||('?'+pt), sequence:payload[1], code:payload[2],
-           headOk, payOk, truncated, payloadHex:hex(payload), rawHex:hex(f) };
+           headOk, payOk, truncated, payloadHex:hex(payload), rawHex:hex(f), payloadBytes:payload };
 }
 
 /* ----------------------------- HRV (RMSSD) -------------------------------- */
@@ -257,6 +257,14 @@ function renderRt(){ const el=$('rt'); if(!el) return;
 function onFrame(label, dv){
   const info=parseFrame(dv); logFrame('RX['+label+']', info);
   if(!info.error){ const k=info.name; rt.counts[k]=(rt.counts[k]||0)+1; renderRt(); }
+  // REALTIME_DATA(40) decoded from real captures: [8]=HR bpm, [9]=RR-present flag,
+  // [10..12)=RR interval ms (verified: mean HR byte ≈ 60000/mean RR).
+  if(info.packetType===40 && info.payloadBytes && info.payloadBytes.length>=12){
+    const p=info.payloadBytes, hr=p[8], rr=(p[9]===1)?(p[10]|(p[11]<<8)):0;
+    if(hr>0){ state.hr=hr; setHTML('ov-hr', hr+'<small>bpm</small>'); setField('str-hrnow','live '+hr+' bpm'); }
+    if(rr>0){ pushRR(rr); state.hrvMs=rmssd(); }
+    log(`  → HR ${hr} bpm${rr?('  RR '+rr+' ms'):''}`, 'ok');
+  }
   if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex}); if(capture.length>CAP_MAX) capture.shift(); }
 }
 function dumpCapture(){
