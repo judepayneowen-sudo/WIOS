@@ -117,108 +117,268 @@ function setRing(id, pct, color){ const el=$(id); if(!el) return;
   el.style.strokeDasharray=RING_C; el.style.strokeDashoffset=RING_C*(1-pct/100);
   if(color) el.style.stroke=color; }
 
-// Representative sample data so the WHOOP-style layout + graphs are fully visible
-// until real captures are decoded. Replaced by live/decoded values once available.
+// Rich representative data so every screen + interactive graph is fully populated until real
+// captures/decoding fill them in. Replaced by live/decoded values once available.
+const STAGE={ awake:{c:'var(--st-awake)',nm:'Awake',lane:0}, rem:{c:'var(--st-rem)',nm:'REM',lane:1},
+  light:{c:'var(--st-light)',nm:'Light',lane:2}, sws:{c:'var(--st-sws)',nm:'Deep (SWS)',lane:3} };
+const ZONE_COL=['#1d6fae','#2a8fd8','#3aa0ff','#7c5cff','#ff9f3a','#ff3b5c'];
+const ZONE_NM=['Zone 0','Zone 1','Zone 2','Zone 3','Zone 4','Zone 5'];
+const ZONE_DESC=['Restorative','Very light','Light','Moderate','Hard','Max'];
+const ZONE_PCT=['50–60%','60–70%','70–80%','80–90%','90–100%','Max'];
+
+let _s=12345; const rnd=()=>{ _s=(_s*1103515245+12345)&0x7fffffff; return _s/0x7fffffff; };
+// 24h HR @ 5-min resolution (288 pts) with clock labels — drives the scrollable HR graph.
+function genHR24(){
+  const a=[]; _s=99;
+  for(let i=0;i<288;i++){ const min=i*5, h=min/60;
+    const hh=String(Math.floor(min/60)).padStart(2,'0'), mm=String(min%60).padStart(2,'0');
+    let v;
+    if(h<6.7)        v=50+Math.sin(h/6.7*Math.PI)*6 + (rnd()-0.5)*4;             // asleep
+    else if(h<7.5)   v=58+(h-6.7)*18;                                           // waking
+    else if(h>16.8&&h<18.1) v=120+58*Math.exp(-Math.pow(h-17.4,2)/0.05);        // workout spike
+    else             v=70+Math.sin((h-7)/24*2*Math.PI)*10 + (rnd()-0.5)*9;      // daytime
+    a.push({t:hh+':'+mm, v:Math.max(46,Math.round(v))});
+  }
+  return a;
+}
+function bars(seed,n,base,amp){ const a=[]; _s=seed; for(let i=0;i<n;i++) a.push({v:Math.max(8,Math.min(100,Math.round(base+amp*Math.sin(i/2.3)+(rnd()-0.5)*22))), t:'-'+(n-i-1)+'d'}); return a; }
+
 const SAMPLE = {
   recovery:{ pct:64, vow:'HRV is in your normal range and resting heart rate is low — you’re recovered and primed for moderate-to-high strain today.',
+    hrv:78, rhr:51, resp:14.2, spo2:96, skin:33.8,
     metrics:[
       {nm:'Heart rate variability', val:78,   unit:'ms',  lo:55,   hi:95,   today:78},
       {nm:'Resting heart rate',     val:51,   unit:'bpm', lo:47,   hi:58,   today:51},
       {nm:'Respiratory rate',       val:14.2, unit:'rpm', lo:13.4, hi:15.4, today:14.2},
       {nm:'Blood oxygen',           val:96,   unit:'%',   lo:95,   hi:99,   today:96},
       {nm:'Skin temperature',       val:33.8, unit:'°C', lo:33.1, hi:34.5, today:33.8} ],
-    trend:[71,58,66,49,74,62,80,55,69,64,72,60,67,64] },
-  strain:{ day:11.3, cal:2150, avg:78, max:152,
+    trend:[71,58,66,49,74,62,80,55,69,64,72,60,67,64].map((v,i)=>({v,t:'-'+(13-i)+'d'})) },
+  strain:{ day:11.3, optLo:10.5, optHi:14.5, cal:2150, avg:78, max:152, maxHr:186,
     vow:'A moderate day. You’re tracking just under your optimal strain — a short session would top it off.',
     zones:[5400,4200,3000,2400,1200,360],
-    hr:[58,60,61,63,72,96,138,120,90,78,74,82,112,150,128,92,74,67,80,104,88,70,63,60] },
-  sleep:{ perf:88, debtMin:62, eff:92,
+    workouts:[ {nm:'Running', t:'5:12 pm', dur:46*60, strain:9.8, cal:540, avg:148, max:175},
+               {nm:'Walking', t:'8:30 am', dur:32*60, strain:3.1, cal:160, avg:96,  max:118} ] },
+  sleep:{ perf:88, eff:92, consistency:74, respiratory:14.2, debtMin:62, inBedMin:455, disturbances:11,
     segs:[{s:'awake',m:8},{s:'light',m:55},{s:'rem',m:25},{s:'sws',m:40},{s:'light',m:35},
           {s:'sws',m:30},{s:'rem',m:30},{s:'light',m:45},{s:'awake',m:6},{s:'rem',m:35},
-          {s:'light',m:40},{s:'sws',m:18},{s:'rem',m:25}] }
+          {s:'light',m:40},{s:'sws',m:18},{s:'rem',m:25}],
+    need:{ baseline:432, debt:62, strain:24, nap:-38 } },
+  stress:{ now:1.4 },
+  health:[
+    {nm:'Heart rate',         key:'hr',   unit:' bpm', lo:48,  hi:160,  val:null, live:true},
+    {nm:'HRV (rmssd)',        key:'hrv',  unit:' ms',  lo:55,  hi:95,   val:78},
+    {nm:'Resting heart rate', key:'rhr',  unit:' bpm', lo:47,  hi:58,   val:51},
+    {nm:'Respiratory rate',   key:'resp', unit:' rpm', lo:13.4,hi:15.4, val:14.2},
+    {nm:'Blood oxygen',       key:'spo2', unit:'%',    lo:95,  hi:99,   val:96},
+    {nm:'Skin temperature',   key:'skin', unit:'°C',lo:33.1,hi:34.5,val:33.8} ],
+  trends:{
+    '1W':{ rec:bars(1,7,64,18),  strain:bars(2,7,11,5),  sleep:bars(3,7,82,12) },
+    '1M':{ rec:bars(4,30,62,20), strain:bars(5,30,11,6), sleep:bars(6,30,80,14) },
+    '6M':{ rec:bars(7,26,63,16), strain:bars(8,26,12,5), sleep:bars(9,26,81,12) },
+  },
 };
-const STAGE={ awake:{c:'var(--st-awake)',nm:'Awake',lane:0}, rem:{c:'var(--st-rem)',nm:'REM',lane:1},
-  light:{c:'var(--st-light)',nm:'Light',lane:2}, sws:{c:'var(--st-sws)',nm:'Deep (SWS)',lane:3} };
-const ZONE_COL=['#1d6fae','#2a8fd8','#3aa0ff','#7c5cff','#ff9f3a','#ff3b5c'];
-const ZONE_NM=['Restorative','Very light','Light','Moderate','Hard','Max'];
+SAMPLE.strain.hr24 = genHR24();
+SAMPLE.strain.hr   = SAMPLE.strain.hr24.filter((_,i)=>i%12===0);    // hourly sparkline
+SAMPLE.stress.day  = SAMPLE.strain.hr24.map(p=>({t:p.t, v:Math.max(0,Math.min(3,(p.v-52)/40))}));
 
-function lineChart(values,{color='#3aa0ff',h=64,fill=true}={}){
-  if(!values||!values.length) return '';
-  const w=320,p=5,mn=Math.min(...values),mx=Math.max(...values),rg=(mx-mn)||1;
-  const X=i=>p+i*(w-2*p)/(values.length-1), Y=v=>p+(1-(v-mn)/rg)*(h-2*p);
-  const pts=values.map((v,i)=>`${X(i).toFixed(1)},${Y(v).toFixed(1)}`);
-  const area=`M${X(0).toFixed(1)},${h-p} L`+pts.join(' L')+` L${X(values.length-1).toFixed(1)},${h-p} Z`;
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px">`+
-    (fill?`<path d="${area}" fill="${color}" opacity="0.13"/>`:'')+
-    `<path d="M${pts.join(' L')}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+/* ----------------------------- chart components --------------------------- */
+// SVG presentation attributes don't resolve CSS var() on WebKit — map our theme vars to hex.
+const CSSVAR={'var(--rec-green)':'#16ec84','var(--rec-yellow)':'#ffde2e','var(--rec-red)':'#ff3b5c',
+  'var(--sleep)':'#7c5cff','var(--strain)':'#3aa0ff','var(--st-awake)':'#9aa0a8','var(--st-rem)':'#9b8cff',
+  'var(--st-light)':'#4a78d6','var(--st-sws)':'#27408b'};
+const cssColor=(c)=> CSSVAR[c]||c;
+// Interactive, horizontally-scrollable line chart with a drag-to-read scrub readout.
+// host: container el · series: [{t,v}] or [number] · opts: {color,h,fill,min,max,unit,fmt,ppP,bands}
+let _chartId=0;
+function interactiveChart(host, series, opts={}){
+  if(!host) return;
+  const o=Object.assign({color:'#3aa0ff',h:130,fill:true,min:null,max:null,unit:'',fmt:v=>Math.round(v),ppP:0,bands:null}, opts);
+  o.color=cssColor(o.color);
+  const pts=series.map((s,i)=> (typeof s==='number')?{t:'',v:s}:{t:s.t||'',v:s.v});
+  const n=pts.length; if(!n){ host.innerHTML=''; return; }
+  const vals=pts.map(p=>p.v);
+  const mn=o.min!=null?o.min:Math.min(...vals), mx=o.max!=null?o.max:Math.max(...vals), rg=(mx-mn)||1;
+  const cw=Math.max(240,(host.clientWidth||320));
+  const innerW=o.ppP? Math.max(cw, Math.round(n*o.ppP)) : cw;
+  const H=o.h, padT=16, padB=18, P=8;
+  const X=i=> P + i*(innerW-2*P)/Math.max(1,n-1);
+  const Y=v=> padT + (1-(v-mn)/rg)*(H-padT-padB);
+  let line=''; pts.forEach((p,i)=>{ line+=(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.v).toFixed(1)+' '; });
+  const area=`M${X(0).toFixed(1)} ${H-padB} `+pts.map((p,i)=>'L'+X(i).toFixed(1)+' '+Y(p.v).toFixed(1)).join(' ')+` L${X(n-1).toFixed(1)} ${H-padB} Z`;
+  let bands=''; if(o.bands) for(const b of o.bands){ const y1=Y(b.hi),y2=Y(b.lo);
+    bands+=`<rect x="0" y="${y1.toFixed(1)}" width="${innerW}" height="${Math.max(0,y2-y1).toFixed(1)}" fill="${b.c}" opacity="0.10"/>`; }
+  let ticks=''; const step=Math.max(1,Math.round(n/6));
+  for(let i=0;i<n;i+=step){ if(pts[i].t) ticks+=`<text x="${X(i).toFixed(1)}" y="${H-4}" fill="var(--dimmer)" font-size="9" text-anchor="middle">${pts[i].t}</text>`; }
+  const id='ch'+(++_chartId);
+  host.innerHTML=
+    `<div class="ichart"><div class="ichart-scroll"><svg id="${id}" width="${innerW}" height="${H}" viewBox="0 0 ${innerW} ${H}" style="display:block;touch-action:pan-x">
+      ${bands}${o.fill?`<path d="${area}" fill="${o.color}" opacity="0.14"/>`:''}
+      <path d="${line}" fill="none" stroke="${o.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${ticks}<line class="scrub" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#fff" stroke-width="1" opacity="0"/>
+      <circle class="scrubdot" r="4" fill="#fff" stroke="${o.color}" stroke-width="2" opacity="0"/>
+    </svg></div><div class="ichart-tip"></div></div>`;
+  const svg=host.querySelector('svg'), scrub=svg.querySelector('.scrub'), dot=svg.querySelector('.scrubdot'),
+        tip=host.querySelector('.ichart-tip'), scroller=host.querySelector('.ichart-scroll');
+  const at=(clientX)=>{ const r=svg.getBoundingClientRect(); const sx=clientX-r.left;
+    let i=Math.round((sx-P)/((innerW-2*P)/Math.max(1,n-1))); i=Math.max(0,Math.min(n-1,i));
+    const x=X(i), y=Y(pts[i].v);
+    scrub.setAttribute('x1',x); scrub.setAttribute('x2',x); scrub.setAttribute('opacity','0.45');
+    dot.setAttribute('cx',x); dot.setAttribute('cy',y); dot.setAttribute('opacity','1');
+    tip.innerHTML=`<b>${o.fmt(pts[i].v)}${o.unit}</b>${pts[i].t?`<span>${pts[i].t}</span>`:''}`; tip.style.opacity='1';
+    const vis=x-scroller.scrollLeft, tw=tip.offsetWidth||56;
+    tip.style.left=Math.max(2,Math.min(scroller.clientWidth-tw-2, vis-tw/2))+'px'; };
+  const end=()=>{ scrub.setAttribute('opacity','0'); dot.setAttribute('opacity','0'); tip.style.opacity='0'; };
+  svg.addEventListener('pointerdown',e=>at(e.clientX));
+  svg.addEventListener('pointermove',e=>{ if(e.buttons||e.pressure>0) at(e.clientX); });
+  svg.addEventListener('pointerup',end); svg.addEventListener('pointercancel',end); svg.addEventListener('pointerleave',end);
 }
 function hypnogram(segs){
   const tot=segs.reduce((a,s)=>a+s.m,0)||1, w=320,h=96,lh=h/4; let x=0,r='';
   for(const s of segs){ const sw=s.m/tot*w, L=STAGE[s.s].lane;
-    r+=`<rect x="${x.toFixed(1)}" y="${(L*lh+3).toFixed(1)}" width="${Math.max(sw-1,1).toFixed(1)}" height="${(lh-6).toFixed(1)}" rx="2" fill="${STAGE[s.s].c}"/>`;
+    r+=`<rect x="${x.toFixed(1)}" y="${(L*lh+3).toFixed(1)}" width="${Math.max(sw-1,1).toFixed(1)}" height="${(lh-6).toFixed(1)}" rx="2" fill="${cssColor(STAGE[s.s].c)}"/>`;
     x+=sw; }
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" style="height:${h}px">${r}</svg>`;
 }
 function metricRows(ms){
   return ms.map(m=>{
+    const today=(m.today!=null?m.today:m.val);
     const span=(m.hi-m.lo)||1, pad=span*0.6, lo2=m.lo-pad, tr=(m.hi+pad)-lo2;
-    const bandL=(m.lo-lo2)/tr*100, bandW=(m.hi-m.lo)/tr*100, mk=Math.max(2,Math.min(98,(m.today-lo2)/tr*100));
-    const ok=m.today>=m.lo&&m.today<=m.hi, flag=ok?'var(--rec-green)':'var(--rec-yellow)';
+    const bandL=(m.lo-lo2)/tr*100, bandW=(m.hi-m.lo)/tr*100, mk=Math.max(2,Math.min(98,(today-lo2)/tr*100));
+    const ok=today>=m.lo&&today<=m.hi, flag=ok?'var(--rec-green)':'var(--rec-yellow)';
+    const shown=(m.val==null?'—':m.val);
     return `<div class="mrow"><div class="top"><span class="nm">${m.nm}<span class="flag" style="background:${flag}"></span></span>`+
-      `<span class="vv">${m.val}<small> ${m.unit}</small></span></div>`+
+      `<span class="vv">${shown}<small> ${m.unit}</small></span></div>`+
       `<div class="rng"><div class="band" style="left:${bandL}%;width:${bandW}%"></div><div class="mk" style="left:${mk}%;background:${flag}"></div></div>`+
       `<div class="sub"><span>typical ${m.lo}–${m.hi} ${m.unit}</span><span>vs 30-day</span></div></div>`;
   }).join('');
 }
+function zoneRows(zones,maxHr){
+  const mx=Math.max(...zones)||1;
+  return zones.map((s,i)=>`<div class="zrow"><span class="zlab" style="color:${ZONE_COL[i]}">${ZONE_NM[i]}</span>`+
+    `<span class="zdesc">${ZONE_DESC[i]} · ${ZONE_PCT[i]}</span><span class="zb"><i style="width:${(s/mx*100).toFixed(0)}%;background:${ZONE_COL[i]}"></i></span>`+
+    `<span class="zt">${fmtDur(s)}</span></div>`).join('');
+}
+function stressGauge(v){
+  const pct=Math.max(2,Math.min(98, v/3*100)), lab=v<1?'Low':v<2?'Moderate':'High',
+        col=v<1?'var(--rec-green)':v<2?'var(--rec-yellow)':'var(--rec-red)';
+  return `<div class="gauge"><div class="gbar"><div class="gmk" style="left:${pct}%;border-color:${col}"></div></div>`+
+    `<div class="gscale"><span>Low</span><span>Moderate</span><span>High</span></div>`+
+    `<div class="gval">${v.toFixed(1)}<small> / 3</small> · <span style="color:${col}">${lab}</span></div></div>`;
+}
+
+/* ----------------------------- screen renders ----------------------------- */
+const sleepTotals=(segs)=>{ const t={awake:0,light:0,rem:0,sws:0}; for(const x of segs) t[x.s]+=x.m; return t; };
+function recState(p){ return p>=67?'Recovered':p>=34?'Adequate':'Low'; }
 
 function renderOverview(){
-  const S=SAMPLE; const asleep=S.sleep.segs.filter(x=>x.s!=='awake').reduce((a,x)=>a+x.m,0);
+  const S=SAMPLE; const t=sleepTotals(S.sleep.segs); const asleep=t.light+t.rem+t.sws;
   setRing('ov-arc', S.recovery.pct, recColor(S.recovery.pct)); setField('ov-rec', S.recovery.pct);
-  setField('ov-rec-state', S.recovery.pct>=67?'Recovered':S.recovery.pct>=34?'Adequate':'Low');
+  setField('ov-rec-state', recState(S.recovery.pct));
   setHTML('ov-sleep', S.sleep.perf+'<small>%</small>'); setField('ov-sleep-sub', fmtMs(asleep)+' asleep');
   setField('ov-strain', S.strain.day.toFixed(1));
   setHTML('ov-hr',  (state.hr!=null?state.hr:'—')+'<small>bpm</small>');
-  setHTML('ov-hrv', (state.hrvMs!=null?state.hrvMs:S.recovery.metrics[0].val)+'<small>ms</small>');
+  setHTML('ov-hrv', (state.hrvMs!=null?state.hrvMs:S.recovery.hrv)+'<small>ms</small>');
+  interactiveChart($('ov-hrcurve'), S.strain.hr, {color:'#3aa0ff',h:90,unit:' bpm'});
+  renderHealth(); renderStress();
+}
+function renderHealth(){
+  const host=$('ov-health'); if(!host) return;
+  const rows=SAMPLE.health.map(m=>{
+    let v=m.val; if(m.key==='hr') v=state.hr; else if(m.key==='hrv'&&state.hrvMs!=null) v=state.hrvMs;
+    const shown=(v==null?'—':v);
+    const ok=v==null?true:(v>=m.lo&&v<=m.hi), flag=v==null?'var(--dimmer)':(ok?'var(--rec-green)':'var(--rec-yellow)');
+    return `<div class="hrow"><span class="hk"><span class="flag" style="background:${flag}"></span>${m.nm}${m.live?' <i class="livedot"></i>':''}</span>`+
+      `<span class="hv">${shown}<small>${m.unit}</small></span><span class="hr-rng">${m.lo}–${m.hi}</span></div>`;
+  }).join('');
+  host.innerHTML=rows;
+}
+function renderStress(){
+  const host=$('ov-stress'); if(!host) return;
+  let v=SAMPLE.stress.now;
+  if(state.hr!=null){ const hrComp=Math.max(0,Math.min(3,(state.hr-52)/40));
+    const hrvComp=state.hrvMs!=null?Math.max(0,Math.min(3,(70-state.hrvMs)/22)):hrComp;
+    v=Math.round((hrComp*0.6+hrvComp*0.4)*10)/10; }
+  host.innerHTML=stressGauge(v);
 }
 function renderRecovery(){
-  const R=SAMPLE.recovery;
-  setField('rec-pct', R.pct); setRing('rec-arc', R.pct, recColor(R.pct));
-  setField('rec-state', R.pct>=67?'Recovered':R.pct>=34?'Adequate':'Low');
-  setField('rec-vow', R.vow);
+  const R=SAMPLE.recovery, c=recColor(R.pct);
+  setField('rec-pct', R.pct); setRing('rec-arc', R.pct, c);
+  setField('rec-state', recState(R.pct)); setField('rec-vow', R.vow);
   setHTML('rec-metrics', metricRows(R.metrics));
-  setHTML('rec-trend', lineChart(R.trend,{color:recColor(R.pct),h:64}));
-  setField('rec-trend-avg', 'avg '+Math.round(R.trend.reduce((a,b)=>a+b,0)/R.trend.length)+'%');
+  interactiveChart($('rec-trend'), R.trend, {color:c,h:120,unit:'%',min:0,max:100});
+  setField('rec-trend-avg', 'avg '+Math.round(R.trend.reduce((a,b)=>a+b.v,0)/R.trend.length)+'%');
 }
 function renderStrain(){
   const S=SAMPLE.strain, live=state.strainAcc?state.strainAcc.strain:null;
   setField('str-val', S.day.toFixed(1));
   const mk=$('str-mk'); if(mk) mk.style.left=(S.day/21*100)+'%';
+  const opt=$('str-opt'); if(opt){ opt.style.left=(S.optLo/21*100)+'%'; opt.style.width=((S.optHi-S.optLo)/21*100)+'%'; }
+  setField('str-optlbl', `optimal ${S.optLo}–${S.optHi}`);
   setField('str-vow', S.vow);
   setField('str-hrnow', state.hr!=null?('live '+state.hr+' bpm'):(live!=null?('live strain '+live.toFixed(1)):'live —'));
-  setHTML('str-hrcurve', lineChart(S.hr,{color:'#3aa0ff',h:72}));
-  const zc=$('str-zones'); if(zc){ const mx=Math.max(...S.zones)||1;
-    zc.innerHTML=S.zones.map((s,i)=>`<div class="zone"><span class="lab" style="width:74px">${ZONE_NM[i]}</span><span class="zb"><i style="width:${(s/mx*100).toFixed(0)}%;background:${ZONE_COL[i]}"></i></span><span class="zt">${fmtDur(s)}</span></div>`).join(''); }
+  interactiveChart($('str-hrcurve'), S.hr24||[], {color:'#3aa0ff',h:140,unit:' bpm',ppP:5,
+    bands:[{lo:0,hi:S.maxHr*0.6,c:ZONE_COL[0]},{lo:S.maxHr*0.9,hi:300,c:ZONE_COL[5]}]});
+  setHTML('str-zones', zoneRows(S.zones, S.maxHr));
   setField('str-cal', S.cal); setField('str-avg', S.avg); setField('str-max', S.max);
+  const wk=$('str-workouts');
+  if(wk) wk.innerHTML=S.workouts.map(w=>`<div class="wk"><div class="wk-top"><span class="wk-nm">${w.nm}</span><span class="wk-str">${w.strain.toFixed(1)}</span></div>`+
+    `<div class="wk-sub">${w.t} · ${fmtDur(w.dur)} · ${w.cal} cal · avg ${w.avg} · max ${w.max} bpm</div></div>`).join('');
 }
 function renderSleep(){
-  const S=SAMPLE.sleep, tot={awake:0,light:0,rem:0,sws:0};
-  for(const x of S.segs) tot[x.s]+=x.m;
-  const asleep=tot.light+tot.rem+tot.sws, inbed=asleep+tot.awake;
+  const S=SAMPLE.sleep, t=sleepTotals(S.segs);
+  const asleep=t.light+t.rem+t.sws, inbed=asleep+t.awake;
   setField('slp-pct', S.perf); setRing('slp-arc', S.perf, 'var(--sleep)');
-  setField('slp-hours', fmtMs(asleep)+' asleep');
+  setField('slp-hours', fmtMs(asleep)+' asleep · '+fmtMs(inbed)+' in bed');
   setHTML('slp-hypno', hypnogram(S.segs));
   setHTML('slp-stages', ['rem','sws','light','awake'].map(k=>`<div class="stg"><span class="sw" style="background:${STAGE[k].c}"></span>`+
-    `<span class="nm">${STAGE[k].nm}</span><span class="tm">${fmtMs(tot[k])}</span><span class="pc">${Math.round(tot[k]/inbed*100)}%</span></div>`).join(''));
+    `<span class="nm">${STAGE[k].nm}</span><span class="tm">${fmtMs(t[k])}</span><span class="pc">${Math.round(t[k]/inbed*100)}%</span></div>`).join(''));
+  // sleep need breakdown
+  const need=S.need, needTot=Math.max(1,need.baseline+need.debt+need.strain);
+  const nb=$('slp-needbar');
+  if(nb) nb.innerHTML=[['baseline',need.baseline,'var(--sleep)'],['sleep debt',need.debt,'#ff9f3a'],['recent strain',need.strain,'#3aa0ff']]
+    .map(p=>`<i style="width:${(p[1]/needTot*100).toFixed(1)}%;background:${p[2]}" title="${p[0]}"></i>`).join('');
+  setHTML('slp-needrows', [['Baseline need',need.baseline],['From sleep debt',need.debt],['From recent strain',need.strain],['Credited from naps',need.nap]]
+    .map(p=>`<div class="metric"><span class="k">${p[0]}</span><span class="v">${p[1]<0?'−':''}${fmtMs(Math.abs(p[1]))}</span></div>`).join(''));
   setField('slp-need', fmtMs(sleepNeedMinutes({dayStrain:SAMPLE.strain.day})));
   setField('slp-debt', fmtMs(S.debtMin)); setField('slp-eff', S.eff+'%');
+  setField('slp-consistency', S.consistency+'%'); setField('slp-resp', S.respiratory.toFixed(1));
+  setField('slp-disturb', S.disturbances); setField('slp-inbed', fmtMs(S.inBedMin));
 }
-function renderAll(){ renderOverview(); renderRecovery(); renderStrain(); renderSleep(); }
+let trendPeriod='1W';
+function renderTrends(){
+  const d=SAMPLE.trends[trendPeriod];
+  document.querySelectorAll('#trend-seg button').forEach(b=>b.classList.toggle('active', b.dataset.period===trendPeriod));
+  const avg=(a)=>Math.round(a.reduce((x,y)=>x+y.v,0)/a.length);
+  interactiveChart($('tr-rec'), d.rec, {color:recColor(avg(d.rec)),h:120,unit:'%',min:0,max:100});
+  setField('tr-rec-avg','avg '+avg(d.rec)+'%');
+  interactiveChart($('tr-strain'), d.strain, {color:'#3aa0ff',h:120,fmt:v=>v.toFixed(1),min:0,max:21});
+  setField('tr-strain-avg','avg '+(d.strain.reduce((x,y)=>x+y.v,0)/d.strain.length).toFixed(1));
+  interactiveChart($('tr-sleep'), d.sleep, {color:'var(--sleep)',h:120,unit:'%',min:0,max:100});
+  setField('tr-sleep-avg','avg '+avg(d.sleep)+'%');
+}
 
 /* ----------------------------- tabs --------------------------------------- */
+let curTab='overview';
+function renderScreen(name){
+  if(name==='overview') renderOverview();
+  else if(name==='recovery') renderRecovery();
+  else if(name==='strain') renderStrain();
+  else if(name==='sleep') renderSleep();
+  else if(name==='trends') renderTrends();
+}
+function renderAll(){ renderScreen(curTab); }
+// Live updates from the BLE feed — patch only the cheap fields, never rebuild charts.
+function updateLive(){
+  setHTML('ov-hr',  (state.hr!=null?state.hr:'—')+'<small>bpm</small>');
+  setHTML('ov-hrv', (state.hrvMs!=null?state.hrvMs:SAMPLE.recovery.hrv)+'<small>ms</small>');
+  if(curTab==='overview'){ renderHealth(); renderStress(); }
+  if(curTab==='strain') setField('str-hrnow', state.hr!=null?('live '+state.hr+' bpm'):'live —');
+}
 function showTab(name){
+  curTab=name;
   document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id==='s-'+name));
   document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
-  window.scrollTo(0,0); renderAll();
+  window.scrollTo(0,0); renderScreen(name);
 }
 
 /* ----------------------------- live HR feed ------------------------------- */
@@ -230,7 +390,7 @@ function onHR(dv){
   state.restHr = state.restHr==null? hr : Math.min(state.restHr, hr);
   if(state.strainAcc && dt>0 && dt<15) state.strainAcc.add(hr, dt);
   state.hrvMs = rmssd();
-  renderAll();
+  updateLive();
 }
 
 /* ===================== DEV / SETUP (remove after extraction) =====================
@@ -261,8 +421,9 @@ function onFrame(label, dv){
   // [10..12)=RR interval ms (verified: mean HR byte ≈ 60000/mean RR).
   if(info.packetType===40 && info.payloadBytes && info.payloadBytes.length>=12){
     const p=info.payloadBytes, hr=p[8], rr=(p[9]===1)?(p[10]|(p[11]<<8)):0;
-    if(hr>0){ state.hr=hr; setHTML('ov-hr', hr+'<small>bpm</small>'); setField('str-hrnow','live '+hr+' bpm'); }
+    if(hr>0) state.hr=hr;
     if(rr>0){ pushRR(rr); state.hrvMs=rmssd(); }
+    if(hr>0||rr>0) updateLive();
     log(`  → HR ${hr} bpm${rr?('  RR '+rr+' ms'):''}`, 'ok');
   }
   if(histSync && (info.packetType===47 || info.packetType===48)){
@@ -577,6 +738,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   SplashScreen.hide().catch(()=>{});
   document.querySelectorAll('#tabs button').forEach(b=> b.onclick=()=>showTab(b.dataset.tab));
   document.querySelectorAll('[data-go]').forEach(el=> el.onclick=()=>showTab(el.dataset.go));
+  document.querySelectorAll('#trend-seg button').forEach(b=> b.onclick=()=>{ trendPeriod=b.dataset.period; renderTrends(); });
   fillProfileForm();
   if($('laphost')) $('laphost').value = loadLapHost();
   selfTest();

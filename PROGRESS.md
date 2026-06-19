@@ -4,6 +4,15 @@ Standalone iOS app that reads a **WHOOP 5.0** directly over Bluetooth. Independe
 other project. This file is the portable context: read it on your phone (GitHub) or hand it
 to Claude on `claude.ai/code` pointed at this repo to continue with full context.
 
+## UI overhaul (v0.2.0)
+WHOOP-style dashboard rebuilt against the official app: **interactive, horizontally-scrollable
+charts with a drag-to-read scrub readout** (HR 24h, recovery/strain/sleep trends), a new **Trends**
+tab (1W/1M/6M segmented toggle), **Health Monitor** + **Stress** cards on Overview, **HR-zone
+breakdown** with personalized %-of-max ranges + an optimal-strain band, an **Activities** list, and a
+**Sleep-need breakdown** (baseline/debt/strain/nap) with efficiency·consistency·respiratory·
+disturbances·time-in-bed. All sample-driven preview until decoding fills it in; live HR/HRV/stress
+patch in real time. Charts in `src/app.js` (`interactiveChart`), screens in `www/index.html`.
+
 ## TL;DR — where we are (updated 2026-06-18)
 - ✅ **App is LIVE on the iPhone — WHOOP Core v0.1.6.** Installed via **SideStore**; updates
   **over-the-air** from the `wios-awe.pages.dev` source — no cable.

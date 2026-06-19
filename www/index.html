@@ -118,6 +118,58 @@
   .stg .pc{color:var(--dim);font-size:11px;width:40px;text-align:right}
   .statgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;text-align:center}
   .statgrid .v{font-size:22px;font-weight:700} .statgrid .k{font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);margin-top:3px}
+
+  /* ---- interactive scrollable chart ---- */
+  .ichart{position:relative}
+  .ichart-scroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .ichart-scroll::-webkit-scrollbar{display:none}
+  .ichart-tip{position:absolute;top:-2px;pointer-events:none;opacity:0;transition:opacity .12s;
+    background:#06070a;border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:11px;
+    white-space:nowrap;font-variant-numeric:tabular-nums;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+  .ichart-tip b{font-size:13px} .ichart-tip span{color:var(--dim);margin-left:6px}
+  .chart-hint{font-size:10px;color:var(--dimmer);text-align:center;margin-top:6px;letter-spacing:.5px}
+
+  /* ---- heart-rate zones ---- */
+  .zrow{display:grid;grid-template-columns:58px 1fr 56px;grid-template-rows:auto auto;gap:2px 8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  .zrow:last-child{border-bottom:0}
+  .zlab{font-size:13px;font-weight:600} .zdesc{grid-column:2;font-size:10px;color:var(--dim);order:3}
+  .zrow .zb{grid-row:1;grid-column:2;height:8px;background:#1f2228;border-radius:4px;overflow:hidden}
+  .zrow .zb > i{display:block;height:100%;border-radius:4px}
+  .zrow .zt{grid-row:1;grid-column:3;text-align:right;font-variant-numeric:tabular-nums;font-weight:600;font-size:13px}
+
+  /* ---- health monitor rows ---- */
+  .hrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--line)}
+  .hrow:last-child{border-bottom:0}
+  .hrow .hk{flex:1;font-size:13px;display:flex;align-items:center}
+  .hrow .hv{font-size:17px;font-weight:700;font-variant-numeric:tabular-nums} .hrow .hv small{font-size:11px;color:var(--dim);font-weight:500}
+  .hrow .hr-rng{width:64px;text-align:right;color:var(--dimmer);font-size:11px;font-variant-numeric:tabular-nums}
+  .livedot{width:7px;height:7px;border-radius:50%;background:var(--rec-red);margin-left:6px;animation:pulse 1.4s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+
+  /* ---- stress gauge ---- */
+  .gauge .gbar{position:relative;height:10px;border-radius:6px;background:linear-gradient(90deg,var(--rec-green),var(--rec-yellow),var(--rec-red))}
+  .gauge .gmk{position:absolute;top:-5px;width:18px;height:18px;border-radius:50%;background:#fff;border:3px solid var(--rec-yellow);transform:translateX(-50%);box-shadow:0 0 8px rgba(0,0,0,.5)}
+  .gauge .gscale{display:flex;justify-content:space-between;color:var(--dimmer);font-size:10px;margin-top:7px}
+  .gauge .gval{text-align:center;font-size:15px;font-weight:700;margin-top:8px} .gauge .gval small{color:var(--dim);font-weight:500;font-size:11px}
+
+  /* ---- workouts ---- */
+  .wk{padding:11px 0;border-bottom:1px solid var(--line)} .wk:last-child{border-bottom:0}
+  .wk-top{display:flex;justify-content:space-between;align-items:baseline}
+  .wk-nm{font-size:14px;font-weight:600} .wk-str{font-size:18px;font-weight:700;color:var(--strain);font-variant-numeric:tabular-nums}
+  .wk-sub{font-size:11px;color:var(--dim);margin-top:3px}
+
+  /* ---- sleep need stacked bar ---- */
+  .needbar{display:flex;height:14px;border-radius:5px;overflow:hidden;margin:4px 0 10px}
+  .needbar > i{height:100%}
+
+  /* ---- optimal-strain band on the 0-21 scale ---- */
+  .scale .opt{position:absolute;top:0;bottom:0;background:rgba(255,255,255,.22);border-left:1px solid #fff;border-right:1px solid #fff}
+
+  /* ---- segmented period toggle ---- */
+  .seg{display:flex;background:#0a0b0e;border:1px solid var(--line);border-radius:10px;padding:3px;margin-bottom:14px}
+  .seg button{flex:1;background:none;border:0;color:var(--dim);font:inherit;font-size:12px;font-weight:600;
+    letter-spacing:1px;padding:8px 0;border-radius:8px}
+  .seg button.active{background:var(--card);color:var(--text)}
 </style>
 </head>
 <body>
@@ -139,6 +191,22 @@
       <div class="tile go" data-go="strain"><div class="k">Day Strain</div><div class="v" id="ov-strain" style="color:var(--strain)">—</div><div class="await">0–21 scale</div></div>
       <div class="tile"><div class="k">Heart rate</div><div class="v" id="ov-hr">—<small>bpm</small></div><div class="await">live</div></div>
       <div class="tile"><div class="k">HRV</div><div class="v" id="ov-hrv">—<small>ms</small></div><div class="await">rmssd</div></div>
+    </div>
+
+    <div class="card">
+      <div class="hd" style="margin-bottom:6px"><div class="t">Heart rate · today</div></div>
+      <div id="ov-hrcurve"></div>
+      <div class="chart-hint">drag across the graph to read any point</div>
+    </div>
+
+    <div class="card">
+      <div class="hd" style="margin-bottom:4px"><div class="t">Health monitor</div><span class="muted">typical range</span></div>
+      <div id="ov-health"></div>
+    </div>
+
+    <div class="card">
+      <div class="hd" style="margin-bottom:12px"><div class="t">Stress</div><span class="muted">live · 0–3</span></div>
+      <div id="ov-stress"></div>
     </div>
   </section>
 
@@ -162,18 +230,24 @@
     <div class="card" style="text-align:center">
       <div id="str-val" style="font-size:58px;font-weight:700;color:var(--strain);line-height:1">—</div>
       <div class="muted" style="letter-spacing:2px">DAY STRAIN</div>
-      <div class="scale"><div class="mk" id="str-mk"></div></div>
+      <div class="scale"><div class="opt" id="str-opt"></div><div class="mk" id="str-mk"></div></div>
       <div class="scaleticks"><span>0</span><span>7</span><span>14</span><span>21</span></div>
+      <div class="muted" id="str-optlbl" style="margin-top:8px;letter-spacing:1px">optimal —</div>
       <p class="vow" id="str-vow"></p>
     </div>
     <div class="card"><div class="hd"><div class="t">Heart rate · today</div><span class="muted" id="str-hrnow">live —</span></div>
-      <div id="str-hrcurve"></div></div>
+      <div id="str-hrcurve"></div>
+      <div class="chart-hint">scroll the graph · drag to read bpm at any time</div></div>
     <div class="card"><div class="t" style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Time in heart-rate zones</div>
       <div id="str-zones"></div></div>
     <div class="card statgrid">
       <div><div class="v" id="str-cal">—</div><div class="k">calories</div></div>
       <div><div class="v" id="str-avg">—</div><div class="k">avg hr</div></div>
       <div><div class="v" id="str-max">—</div><div class="k">max hr</div></div>
+    </div>
+    <div class="card">
+      <div class="hd" style="margin-bottom:6px"><div class="t">Activities</div></div>
+      <div id="str-workouts"></div>
     </div>
   </section>
 
@@ -190,11 +264,37 @@
     <div class="card"><div class="t" style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:12px">Sleep stages</div>
       <div id="slp-hypno"></div>
       <div id="slp-stages" style="margin-top:8px"></div></div>
-    <div class="card statgrid">
-      <div><div class="v" id="slp-need">—</div><div class="k">need</div></div>
-      <div><div class="v" id="slp-debt">—</div><div class="k">debt</div></div>
-      <div><div class="v" id="slp-eff">—</div><div class="k">efficiency</div></div>
+    <div class="card">
+      <div class="hd" style="margin-bottom:8px"><div class="t">Sleep need</div><span class="muted" id="slp-need">—</span></div>
+      <div class="needbar" id="slp-needbar"></div>
+      <div id="slp-needrows"></div>
     </div>
+    <div class="card statgrid">
+      <div><div class="v" id="slp-eff">—</div><div class="k">efficiency</div></div>
+      <div><div class="v" id="slp-consistency">—</div><div class="k">consistency</div></div>
+      <div><div class="v" id="slp-debt">—</div><div class="k">debt</div></div>
+    </div>
+    <div class="card statgrid">
+      <div><div class="v" id="slp-resp">—</div><div class="k">resp · rpm</div></div>
+      <div><div class="v" id="slp-disturb">—</div><div class="k">disturbances</div></div>
+      <div><div class="v" id="slp-inbed">—</div><div class="k">time in bed</div></div>
+    </div>
+  </section>
+
+  <section class="screen" id="s-trends">
+    <div class="hd"><div class="t">Trends</div><span class="preview">preview · sample</span></div>
+    <div class="seg" id="trend-seg">
+      <button class="active" data-period="1W">1 WEEK</button>
+      <button data-period="1M">1 MONTH</button>
+      <button data-period="6M">6 MONTHS</button>
+    </div>
+    <div class="card"><div class="hd"><div class="t">Recovery</div><span class="muted" id="tr-rec-avg"></span></div>
+      <div id="tr-rec"></div></div>
+    <div class="card"><div class="hd"><div class="t">Day strain</div><span class="muted" id="tr-strain-avg"></span></div>
+      <div id="tr-strain"></div></div>
+    <div class="card"><div class="hd"><div class="t">Sleep performance</div><span class="muted" id="tr-sleep-avg"></span></div>
+      <div id="tr-sleep"></div></div>
+    <div class="chart-hint">drag across any graph to read a day’s value</div>
   </section>
 
   <!-- ===================== DEV / SETUP (remove after extraction) =====================
@@ -322,6 +422,7 @@
     <button data-tab="recovery"><span class="ic">♥</span>Recovery</button>
     <button data-tab="strain"><span class="ic">▲</span>Strain</button>
     <button data-tab="sleep"><span class="ic">☾</span>Sleep</button>
+    <button data-tab="trends"><span class="ic">📈</span>Trends</button>
     <button class="dev" data-tab="setup"><span class="ic">⚙</span>Setup</button>
   </nav>
 
