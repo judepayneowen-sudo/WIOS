@@ -280,6 +280,9 @@
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
       <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Pull full night (read-only)</b> — the plain sync above only returns the oldest ~30 records because the read pointer never advances without a commit. This walks the pointer forward burst-by-burst with <b>set_read_pointer</b> and pulls the <b>whole</b> buffer, while <b>never</b> committing/acking — so nothing is wiped and the official WHOOP app can still sync. It auto-detects the pointer format on the first run, so the first attempt may take a minute. Leave it until it logs <b>PULL DONE</b>, then <b>Save file</b>.</p>
       <button class="act" id="pullnight" disabled>Pull full night</button>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Trim test (safe)</b> — settles the key question: does acking a history burst <b>delete</b> it off the band? It auto-captures, pokes only the <b>oldest ~60 records</b> (read oldest-first, so it never touches last night), sends one ack, then re-checks the band's data range. It prints a verdict in the log — <b>NON-DESTRUCTIVE</b> (safe to do a full acked sync) or <b>DESTRUCTIVE</b> (we need another way). Worst case it only disturbs ~1 minute of yesterday-morning data. Then <b>Save file</b>.</p>
+      <button class="act" id="trimtest" disabled>Trim test (safe)</button>
     </div>
 
     <div class="card">

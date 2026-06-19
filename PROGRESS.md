@@ -27,9 +27,20 @@ to Claude on `claude.ai/code` pointed at this repo to continue with full context
   so nothing is wiped and the official WHOOP app can still sync. cmd 33's payload format is unknown,
   so it **auto-probes** (`idx-u32` → `idx-u64` → `ts-u32`) on the first run and locks the winner.
   Logic validated against a simulated band; needs a real-band run to confirm the encoding.
-- 🔜 **Next:** run **Pull full night** on the band → confirm cmd 33 encoding + full-buffer pull →
-  decode HISTORICAL_DATA(47) HR for **Strain** (the one score the WHOOP cloud API can't give us —
-  see `CLAUDE.md`). Recovery + Sleep calibrate from the cloud alone; accumulate ~2–3 weeks for those.
+- ✅ **Capture decoded (2026-06-19, `whoopcapture20260619T124557`).** `(47)` HR decodes perfectly
+  (idx 72551→, 1/s, HR 80→72). `get_data_range` shows the band buffers **~25 h** (oldest Jun-18 11:28
+  → now), so **last night is on the band**. **Key finding:** read-only stalls at ~30 not because of
+  the pointer but because of **flow control** — the band's own console log says it dumped `Data: 601`
+  but only 30 crossed BLE; it sends a ~30-record window then **waits for `historical_data_result(23)`**
+  before sending more. So a full pull *requires* acks. The pointer (`~5370`) never moved on the
+  `set_read_pointer` guesses (wrong number space — pointer lives near 5370, not the 72551 record idx).
+- 🔜 **Open question → `Trim test (safe)` button (v0.1.9):** does the ack also **commit/trim**
+  (which would stop WHOOP syncing the same day = no answer-key)? The test pokes only the oldest ~60
+  records, sends one ack, re-reads `get_data_range`, and prints **NON-DESTRUCTIVE** vs **DESTRUCTIVE**.
+  - If non-destructive → a normal acked **Sync history** is safe; use it for the full nightly pull.
+  - If destructive → need a non-committing flow-control ack (probe cmd-23 payload) or pointer-seek.
+- 🔜 **Then:** decode `(47)` HR for **Strain** (the one score the WHOOP cloud API can't give —
+  see `CLAUDE.md`). Recovery + Sleep calibrate from the cloud alone; accumulate ~2–3 weeks.
 
 ## Working from your phone — temp handover (next few days)
 

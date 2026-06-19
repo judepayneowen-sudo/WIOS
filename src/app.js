@@ -271,6 +271,9 @@ function onFrame(label, dv){
       histAckTimer=setTimeout(()=>{ if(histSync && histAck) send(23, HIST_ACK, 'hist_ack'); }, 800); }
   }
   if(pulling && info.packetType===47 && info.payloadBytes) onPullRecord(info.payloadBytes);
+  if(info.packetType===36 && info.code===0x22 && info.payloadBytes){     // get_data_range response → grab oldest buffered ts
+    const ts=parseDataRangeOldest(info.payloadBytes); if(ts) dataRangeOldestTs=ts;
+  }
   if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex}); if(capture.length>CAP_MAX) capture.shift(); }
 }
 const captureText = ()=> capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
@@ -331,7 +334,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','pullnight','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','pullnight','trimtest','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -447,6 +450,61 @@ async function pullNight(){
   }catch(e){ log('pull error: '+e.message,'err'); }
   finally{ pulling=false; const bb=$('pullnight'); if(bb){ bb.textContent='Pull full night'; bb.classList.remove('live'); } }
 }
+
+/* --- Trim test: is the ack destructive? (one-button, safe) -----------------------------
+   To get past the ~30-record window the band wants an ack (historical_data_result/23) for flow
+   control. The open question is whether that ack also COMMITS/trims the buffer (which would stop
+   the official WHOOP app from syncing the same data → no calibration answer-key). This test pokes
+   ONLY the oldest ~60 records (read oldest-first, so it never reaches last night), then re-reads
+   the data range to see if the oldest buffered timestamp moved. Oldest unchanged ⇒ ack is
+   non-destructive; oldest advanced ⇒ ack deleted what we read. Either way it stops after 2 windows. */
+let dataRangeOldestTs=null;
+// Scan a get_data_range payload for the oldest plausible record timestamp (u32 within now±window).
+function parseDataRangeOldest(p){
+  const nowS=Math.floor(Date.now()/1000), lo=nowS-3*86400, hi=nowS+3600; let oldest=null;
+  for(let o=3;o+4<=p.length;o++){ const v=(p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
+    if(v>=lo && v<=hi && (oldest===null||v<oldest)) oldest=v; }
+  return oldest;
+}
+async function readOldest(){ dataRangeOldestTs=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
+const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
+
+async function trimTest(){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ log('a pull/test is already running — stop it first','err'); return; }
+  if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } }
+  const b=$('trimtest'); if(b){ b.disabled=true; b.textContent='Trim test…'; b.classList.add('live'); }
+  log('TRIM TEST — pokes only the OLDEST ~60 records (never last night). Checks if acking deletes data.','ok');
+  pulling=true; pullRecords.length=0; pullSeen.clear();
+  try{
+    const before=await readOldest();
+    log(`oldest BEFORE: ${tsStr(before)}`,'cmd');
+
+    log('→ send_historical_data (window 1, no ack)…','cmd');
+    await send(22,[],'send_historical_data'); await waitBurst();
+    const w1=pullRecords.length;
+    log(`window 1: ${w1} record(s)`, w1?'ok':'err');
+
+    log('→ historical_data_result ACK [01 00×8] (flow-control, commit-pointer 0)…','cmd');
+    await send(23,HIST_ACK,'hist_ack'); await waitBurst();
+    const w2=pullRecords.length;
+    log(`after ack: ${w2} total — ${w2>w1?('+'+(w2-w1)+' new ⇒ flow control WORKS'):'no new records'}`, w2>w1?'ok':'err');
+
+    log('→ abort_historical_transmits','cmd');
+    await send(20,[],'abort_historical_transmits'); await delay(1000);
+
+    const after=await readOldest();
+    log(`oldest AFTER:  ${tsStr(after)}`,'cmd');
+
+    if(before && after){
+      const moved=after-before;
+      if(moved<=2) log(`✅ NON-DESTRUCTIVE: oldest unchanged (Δ${moved}s) — acking does NOT delete. A normal acked Sync history is safe and keeps the data for WHOOP.`,'ok');
+      else log(`⚠️ DESTRUCTIVE: oldest jumped +${moved}s — the ack DELETED window 1. Don't acked-sync real data; we need a non-committing path.`,'err');
+    } else log('could not parse data range — Save file and send it to me.','err');
+    log(`TRIM TEST DONE — w1=${w1}, w2=${w2}, oldestΔ=${(before&&after)?(after-before)+'s':'?'}. Now Save file / Send to laptop.`,'ok');
+  }catch(e){ log('trim test error: '+e.message,'err'); }
+  finally{ pulling=false; const bb=$('trimtest'); if(bb){ bb.disabled=false; bb.textContent='Trim test (safe)'; bb.classList.remove('live'); } }
+}
 /* ===================== END DEV/SETUP ===================== */
 
 /* ----------------------------- BLE flow ----------------------------------- */
@@ -494,6 +552,7 @@ async function onDisconnect(){ setStatus('disconnected'); enableDev(false);
   rtHrOn=false; const b=$('rthr'); if(b){ b.textContent='Realtime HR: off'; b.classList.remove('live'); }
   histSync=false; clearTimeout(histAckTimer); const sb=$('synchist'); if(sb){ sb.textContent='Sync history'; sb.classList.remove('live'); }
   pulling=false; const pb=$('pullnight'); if(pb){ pb.textContent='Pull full night'; pb.classList.remove('live'); }
+  const tb=$('trimtest'); if(tb){ tb.textContent='Trim test (safe)'; tb.classList.remove('live'); }
   log('device disconnected.','err'); }
 
 function selfTest(){
@@ -529,6 +588,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('rthr').onclick       = toggleRealtimeHr;
   $('synchist').onclick   = syncHistory;
   $('pullnight').onclick   = pullNight;
+  $('trimtest').onclick    = trimTest;
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }
