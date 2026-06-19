@@ -55,12 +55,32 @@ export function decodeRealtime(payload){
   return { hr: hr>0?hr:null, rr: rr>0?rr:null };
 }
 
-// HISTORICAL_DATA(47): the band's buffered full-day samples — what strain calibration
-// really wants (a whole active day, not just the connected window). The record stride
-// is NOT yet verified from a real (47) capture, so this returns null for now. Once an
-// overnight read-only capture exists, decode the [timestamp, HR, …] records here and the
-// harness picks them up automatically (decodeCapture already routes through this).
-export function decodeHistorical(/* payload */){ return null; } // TODO: needs a real (47) capture
+// HISTORICAL_DATA(47): the band's buffered per-second samples — a whole active day, not
+// just the connected window. Layout verified against a real read-only Sync-history capture
+// (band serial 5A00977378, fw 50.36.2.0; records 72551.. @ 2026-06-18 11:28, 1 s apart):
+//   [0]      = 0x2f packet type
+//   [1]=seq, [2]=0x80 sub-code
+//   [3..6]   = record index    (u32 LE, monotonic +1)
+//   [7..10]  = unix timestamp   (u32 LE seconds) — verified +1 s per record
+//   [11..12] = block/marker (0x2666 / 0x251e) — not needed
+//   [14]     = heart rate (bpm) — verified: smooth trend, and 60000/RR ≈ HR
+//   [15]     = RR count, then [16..] = RR intervals (u16 LE ms)  ← TENTATIVE
+//   [~25..]  = IEEE-754 floats (accel/orientation, for sleep activity) — not decoded yet
+// One (47) frame = one 1-second record → returns a single sample; decodeCapture aggregates.
+export function decodeHistorical(payload){
+  if(!payload || payload[0]!==47 || payload.length<15) return null;
+  const u32 = (o)=> (payload[o]|(payload[o+1]<<8)|(payload[o+2]<<16)|(payload[o+3]<<24))>>>0;
+  const ts = u32(7);
+  if(ts < 1500000000 || ts > 4000000000) return null;       // sane unix window (2017..2096)
+  const hr = payload[14];
+  // RR (tentative): count at [15], then u16 LE ms; kept only when physiologically plausible.
+  const rr = [];
+  const n = payload[15];
+  if(n>0 && n<=4 && payload.length >= 16+2*n){
+    for(let i=0;i<n;i++){ const v = payload[16+2*i] | (payload[17+2*i]<<8); if(v>250 && v<2500) rr.push(v); }
+  }
+  return [{ t: ts*1000, hr: hr>0?hr:null, rr: rr.length?rr:null }];
+}
 
 /* ----------------------------- capture replay ----------------------------- */
 /** One capture line → { t:ms, channel, frame } | null */
