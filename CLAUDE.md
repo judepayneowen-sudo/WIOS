@@ -46,6 +46,13 @@ only Strain — requires pulling the **raw continuous HR** off the band ourselve
 
 ## Workflow rules
 - Read **`PROGRESS.md`** first for current state. Update it when state changes.
+- ⚠️ **Band historical sync is DESTRUCTIVE (verified 2026-06-19).** `send_historical_data(22)` runs the
+  band's read pointer to the end of its buffer; `historical_data_result(23)` with the `[01 …]` payload
+  then **commits to that pointer = wipes the whole buffer** (data does NOT go to WHOOP's cloud — it's
+  just gone). Read-only (no ack) only ever yields the oldest ~30 records (one BLE window). So there is
+  **no proven non-destructive full pull** — do NOT send the `01` ack on real data. Open probe: a
+  `status=0` ack may flow without committing. Fallback for Strain: calibrate the zone→strain curve from
+  the WHOOP API `/activity/workout` `zone_durations` (cloud-only, no band raw).
 - `git fetch` before working — both the laptop and phone/web push to this repo.
 - Ship a phone build: bump `version` in `package.json` → run `release.yml` (publishes to
   `wios-awe.pages.dev`; SideStore updates OTA).

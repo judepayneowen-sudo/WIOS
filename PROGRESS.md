@@ -43,11 +43,21 @@ patch in real time. Charts in `src/app.js` (`interactiveChart`), screens in `www
   but only 30 crossed BLE; it sends a ~30-record window then **waits for `historical_data_result(23)`**
   before sending more. So a full pull *requires* acks. The pointer (`~5370`) never moved on the
   `set_read_pointer` guesses (wrong number space — pointer lives near 5370, not the 72551 record idx).
-- 🔜 **Open question → `Trim test (safe)` button (v0.1.9):** does the ack also **commit/trim**
-  (which would stop WHOOP syncing the same day = no answer-key)? The test pokes only the oldest ~60
-  records, sends one ack, re-reads `get_data_range`, and prints **NON-DESTRUCTIVE** vs **DESTRUCTIVE**.
-  - If non-destructive → a normal acked **Sync history** is safe; use it for the full nightly pull.
-  - If destructive → need a non-committing flow-control ack (probe cmd-23 payload) or pointer-seek.
+- ⚠️ **Trim test ANSWERED (2026-06-19, DESTRUCTIVE).** `historical_data_result(23)` with the
+  `[01 …]` payload = **commit up to the read pointer = wipe the whole buffer**. Proof: a single ack
+  moved `get_data_range`'s oldest from Jun‑18 11:28 → "now" (+28.8 h), and a follow‑up **read‑only
+  sync returned 0 records**. Mechanism: `send_historical_data(22)` makes the band internally read its
+  *entire* buffer (read pointer races to the end; console: `Data: 601 … Dump Complete`), streaming
+  ~30‑record windows gated by acks — and the ack commits to that end pointer. **Consequences:** acked
+  sync = full wipe (and the data never reached WHOOP's cloud either, so it's gone); read‑only = max
+  ~30 (one BLE window) because only an ack releases the next window. Net: **no non‑destructive full
+  pull yet.** The ~29 h buffer (incl. that night) was lost in the test.
+- 🔜 **Next probe (low‑stakes NOW — buffer is near‑empty post‑wipe):** the ack's **first byte is a
+  commit flag**; we sent `01` (commit). Test `00` = acknowledge/flow **without** commit. If a `status=0`
+  ack releases the next window WITHOUT moving `get_data_range`'s oldest → non‑destructive pagination is
+  possible (data stays for WHOOP too → resolves the answer‑key conflict). If `00` also wipes → pivot
+  Strain to **cloud‑only**: fit the zone→strain curve from WHOOP API `/activity/workout`
+  `zone_durations` + workout `strain` (no band raw, no data‑loss risk).
 - 🔜 **Then:** decode `(47)` HR for **Strain** (the one score the WHOOP cloud API can't give —
   see `CLAUDE.md`). Recovery + Sleep calibrate from the cloud alone; accumulate ~2–3 weeks.
 
