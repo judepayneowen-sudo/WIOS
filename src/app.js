@@ -250,7 +250,7 @@ function logFrame(dir, info){
 function setStatus(t, on){ setField('status', t); const d=$('dot'); if(d) d.classList.toggle('on', !!on); }
 
 const rt = { counts:{} };
-let capturing=false; const capture=[]; const CAP_MAX=20000;
+let capturing=false; const capture=[]; const CAP_MAX=100000;  // big enough to hold a full overnight pull for file export
 function renderRt(){ const el=$('rt'); if(!el) return;
   const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
   el.textContent = rows.length ? rows.join('   ') : 'none yet'; }
@@ -272,12 +272,35 @@ function onFrame(label, dv){
   }
   if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex}); if(capture.length>CAP_MAX) capture.shift(); }
 }
+const captureText = ()=> capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
 function dumpCapture(){
-  const text=capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
+  const text=captureText();
   const ta=$('dump'); ta.value=text||'(nothing captured)'; ta.style.display='block'; ta.focus(); ta.select();
   navigator.clipboard?.writeText(text).then(
     ()=>log('copied to clipboard ('+capture.length+' frames) — paste it to Claude','ok'),
     ()=>log('shown below — select all & copy ('+capture.length+' frames)','dim'));
+}
+// Save the whole capture as a .txt file via the iOS share sheet ("Save to Files" / AirDrop),
+// so large overnight pulls bypass the clipboard's size limit. Falls back to a blob download.
+async function downloadCapture(){
+  const text=captureText();
+  if(!text){ log('nothing captured yet — connect and capture first','err'); return; }
+  const fname=`whoop-capture-${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.txt`;
+  try{
+    const file=new File([text], fname, { type:'text/plain' });
+    if(navigator.canShare && navigator.canShare({ files:[file] })){
+      await navigator.share({ files:[file], title:fname });
+      log(`shared ${capture.length} frames as ${fname} — choose “Save to Files”, then upload it to Claude`,'ok');
+      return;
+    }
+  }catch(e){ if(e && e.name==='AbortError'){ log('save cancelled','dim'); return; } }  // else fall through to blob
+  try{
+    const url=URL.createObjectURL(new Blob([text],{type:'text/plain'}));
+    const a=document.createElement('a'); a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    log(`saved ${fname} (${capture.length} frames) — find it in Files, then upload to Claude`,'ok');
+  }catch(e){ log('save failed: '+e.message,'err'); }
 }
 // Drop-box: POST the capture straight to the laptop helper (tools/whoop-dropbox.py) over LAN.
 // CapacitorHttp (enabled in capacitor.config.json) routes this natively, bypassing the
@@ -288,7 +311,7 @@ async function sendToLaptop(){
   const host=(($('laphost')&&$('laphost').value)||'').trim();
   if(!/^[\w.\-]+:\d{2,5}$/.test(host)){ log('enter laptop as IP:port, e.g. 192.168.0.196:8787','err'); return; }
   try{ localStorage.setItem(LKEY, host); }catch(e){}
-  const text=capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
+  const text=captureText();
   if(!text){ log('nothing captured yet — connect and capture first','err'); return; }
   const url=`http://${host}/capture`;
   log(`sending ${capture.length} frames → ${url} …`,'cmd');
@@ -436,6 +459,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
     $('capture').textContent=capturing?'Stop capture':'Start capture'; $('capture').classList.toggle('live',capturing);
     log('capture '+(capturing?'started':'stopped')+' ('+capture.length+' frames held)', capturing?'ok':'dim'); };
   $('dumpbtn').onclick    = dumpCapture;
+  $('savefile').onclick   = downloadCapture;
   $('sendlap').onclick    = sendToLaptop;
   $('clear').onclick      = ()=>{ const el=logEl(); if(el) el.innerHTML=''; };
   enableDev(false);
