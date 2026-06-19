@@ -277,6 +277,9 @@
         <input type="checkbox" id="histro" style="margin-top:2px">
         <span><b>Read-only</b> — stream the history but don't acknowledge/commit it, so it stays on the band for the official WHOOP app to sync. Safer when you still want WHOOP's own scores as a reference. May stall if the band needs acks to keep streaming — if <b>HISTORICAL</b> stays at 0, untick this and retry.</span>
       </label>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Pull full night (read-only)</b> — the plain sync above only returns the oldest ~30 records because the read pointer never advances without a commit. This walks the pointer forward burst-by-burst with <b>set_read_pointer</b> and pulls the <b>whole</b> buffer, while <b>never</b> committing/acking — so nothing is wiped and the official WHOOP app can still sync. It auto-detects the pointer format on the first run, so the first attempt may take a minute. Leave it until it logs <b>PULL DONE</b>, then <b>Save file</b>.</p>
+      <button class="act" id="pullnight" disabled>Pull full night</button>
     </div>
 
     <div class="card">

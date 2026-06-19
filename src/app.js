@@ -270,6 +270,7 @@ function onFrame(label, dv){
     if(histAck){ clearTimeout(histAckTimer);          // read-only mode skips the ack/commit
       histAckTimer=setTimeout(()=>{ if(histSync && histAck) send(23, HIST_ACK, 'hist_ack'); }, 800); }
   }
+  if(pulling && info.packetType===47 && info.payloadBytes) onPullRecord(info.payloadBytes);
   if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex}); if(capture.length>CAP_MAX) capture.shift(); }
 }
 const captureText = ()=> capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
@@ -330,7 +331,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','pullnight','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -367,6 +368,84 @@ async function syncHistory(){
   log('→ send_historical_data (streaming…)','cmd'); await send(22,[],'send_historical_data');
   log(histAck ? 'leave ~30–60s while HISTORICAL packets stream, then Send to laptop. Tap again to stop.'
              : 'leave ~30–60s. If HISTORICAL stays at 0, the band may need acks — untick Read-only and retry. Tap again to stop.','ok');
+}
+
+/* --- Full-night pull: read-only pagination via set_read_pointer (cmd 33) ------------
+   The plain sync only returns the oldest ~30 records because get_data_range(34) resets the
+   read pointer and nothing advances it without a commit. This walks the pointer forward
+   burst-by-burst with set_read_pointer and pulls the whole buffer — WITHOUT ever sending the
+   historical_data_result(23) commit/ack, so the band keeps everything for the official app.
+   cmd 33's payload encoding is unknown, so the first run AUTO-PROBES: after each burst stalls
+   it tries each candidate encoding of (lastRecordIndex+1) until one actually advances, then
+   locks onto the winner for the rest of the pull. (47) layout: [3..6]=record idx u32 LE,
+   [7..10]=unix ts u32 LE, [14]=HR — per tools/whoop-decode.mjs.                              */
+const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
+const QUIET_MS = 1500, BURST_MAX_MS = 9000;
+const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
+const u64le = (n)=> [...u32le(n>>>0), ...u32le(Math.floor(n/4294967296))];
+// Candidate set_read_pointer payloads, tried in order until one advances the stream.
+const POINTER_ENCODINGS = [
+  { id:'idx-u32', bytes:(idx,ts)=> u32le(idx) },
+  { id:'idx-u64', bytes:(idx,ts)=> u64le(idx) },
+  { id:'ts-u32',  bytes:(idx,ts)=> u32le(ts)  },
+];
+let pulling=false; const pullRecords=[]; const pullSeen=new Set();
+let burstResolve=null, burstQuietT=null, burstHardT=null;
+const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
+function onPullRecord(p){
+  if(p.length<11) return;
+  const idx=u32at(p,3), ts=u32at(p,7), hr=p.length>14?p[14]:0;
+  if(!pullSeen.has(idx)){ pullSeen.add(idx); pullRecords.push({idx,ts,hr}); }
+  if(burstResolve){ clearTimeout(burstQuietT);     // each record resets the inter-burst quiet timer
+    burstQuietT=setTimeout(()=>{ const r=burstResolve; burstResolve=null; clearTimeout(burstHardT); r&&r(); }, QUIET_MS); }
+}
+// Resolve when the current burst goes quiet (QUIET_MS with no new 47) or BURST_MAX_MS elapses.
+function waitBurst(){
+  return new Promise(res=>{
+    burstResolve=res;
+    burstQuietT=setTimeout(()=>{ const r=burstResolve; burstResolve=null; clearTimeout(burstHardT); r&&r(); }, QUIET_MS);
+    burstHardT =setTimeout(()=>{ const r=burstResolve; burstResolve=null; clearTimeout(burstQuietT); r&&r(); }, BURST_MAX_MS);
+  });
+}
+const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0});
+const pullMinTs = ()=> pullRecords.reduce((m,r)=> r.ts<m?r.ts:m, Infinity);
+const pullMaxTs = ()=> pullRecords.reduce((m,r)=> r.ts>m?r.ts:m, 0);
+
+async function pullNight(){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ pulling=false; log('pull: stop requested — halting after this burst','dim');
+    const b=$('pullnight'); if(b){ b.textContent='Pull full night'; b.classList.remove('live'); } return; }
+  pulling=true; pullRecords.length=0; pullSeen.clear();
+  if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
+  const b=$('pullnight'); if(b){ b.textContent='Stop pull'; b.classList.add('live'); }
+  log('FULL-NIGHT PULL — read-only, auto-probing set_read_pointer. Never acks/commits (cmd 23), so nothing is wiped.','ok');
+  try{
+    log('→ get_data_range (open transfer)','cmd'); await send(34,[],'get_data_range'); await delay(1200);
+    log('→ send_historical_data (baseline burst)…','cmd'); await send(22,[],'send_historical_data'); await waitBurst();
+    let enc=null, max=pullMax().idx, guard=0;
+    log(`baseline: ${pullRecords.length} records, up to idx ${max>=0?max:'—'}`, 'ok');
+    if(max<0) log('no HISTORICAL(47) at all — reconnect, or nothing is buffered. Stopping.','err');
+    while(pulling && max>=0 && guard++<3000){
+      const cur=pullMax(); const target=cur.idx+1, ts=cur.ts+1;
+      let advanced=false;
+      for(const cand of (enc?[enc]:POINTER_ENCODINGS)){
+        if(!pulling) break;
+        log(`→ set_read_pointer[${cand.id}] → idx ${target}`,'cmd');
+        await send(33, cand.bytes(target,ts), 'set_read_pointer'); await delay(300);
+        await send(22,[],'send_historical_data'); await waitBurst();
+        const nm=pullMax().idx;
+        if(nm>max){ enc=cand; max=nm; advanced=true;
+          log(`  ✓ ${cand.id} advanced → idx ${max} (${pullRecords.length} records)`, 'ok'); break; }
+        log(`  ✗ ${cand.id}: no advance`, 'dim');
+      }
+      if(!advanced){ log(`reached the end (or no pointer format advanced past idx ${max}). Stopping.`, enc?'ok':'err'); break; }
+      if(pullRecords.length>120000){ log('record cap reached — stopping','dim'); break; }
+    }
+    const span = pullRecords.length ? `${new Date(pullMinTs()*1000).toLocaleString()} → ${new Date(pullMaxTs()*1000).toLocaleString()}` : '—';
+    const hrs  = pullRecords.length ? ((pullMaxTs()-pullMinTs())/3600).toFixed(1)+'h' : '0h';
+    log(`PULL DONE: ${pullRecords.length} records spanning ${hrs} (${span}); pointer format = ${enc?enc.id:'NONE FOUND'}. Now tap Save file / Send to laptop.`, 'ok');
+  }catch(e){ log('pull error: '+e.message,'err'); }
+  finally{ pulling=false; const bb=$('pullnight'); if(bb){ bb.textContent='Pull full night'; bb.classList.remove('live'); } }
 }
 /* ===================== END DEV/SETUP ===================== */
 
@@ -414,6 +493,7 @@ async function send(command, data=[], label=''){
 async function onDisconnect(){ setStatus('disconnected'); enableDev(false);
   rtHrOn=false; const b=$('rthr'); if(b){ b.textContent='Realtime HR: off'; b.classList.remove('live'); }
   histSync=false; clearTimeout(histAckTimer); const sb=$('synchist'); if(sb){ sb.textContent='Sync history'; sb.classList.remove('live'); }
+  pulling=false; const pb=$('pullnight'); if(pb){ pb.textContent='Pull full night'; pb.classList.remove('live'); }
   log('device disconnected.','err'); }
 
 function selfTest(){
@@ -448,6 +528,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('range').onclick      = ()=>send(34,[],'get_data_range');
   $('rthr').onclick       = toggleRealtimeHr;
   $('synchist').onclick   = syncHistory;
+  $('pullnight').onclick   = pullNight;
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }

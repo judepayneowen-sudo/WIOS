@@ -21,8 +21,15 @@ to Claude on `claude.ai/code` pointed at this repo to continue with full context
   (the ground-truth answer-key). The scores are computed in WHOOP's **cloud** — *not* on the band
   or in the app, so they can't be reverse-engineered out of goose/the binary. We reconstruct the
   published shapes and **fit** the constants. See `tools/CALIBRATE.md`.
-- 🔜 **Next:** accumulate ~2–3 weeks of WHOOP cloud days (recovery/sleep answer-key) · decode
-  HISTORICAL_DATA(47) for full-day strain · then run the calibration.
+- ✅ **Full-night pull** (v0.1.8): new **Pull full night** button walks the historical read pointer
+  forward with **set_read_pointer (cmd 33)**, burst-by-burst, to pull the *whole* buffer (the plain
+  sync only ever returned the oldest ~30). Still **read-only** — never sends the commit-ack (cmd 23),
+  so nothing is wiped and the official WHOOP app can still sync. cmd 33's payload format is unknown,
+  so it **auto-probes** (`idx-u32` → `idx-u64` → `ts-u32`) on the first run and locks the winner.
+  Logic validated against a simulated band; needs a real-band run to confirm the encoding.
+- 🔜 **Next:** run **Pull full night** on the band → confirm cmd 33 encoding + full-buffer pull →
+  decode HISTORICAL_DATA(47) HR for **Strain** (the one score the WHOOP cloud API can't give us —
+  see `CLAUDE.md`). Recovery + Sleep calibrate from the cloud alone; accumulate ~2–3 weeks for those.
 
 ## Working from your phone — temp handover (next few days)
 
