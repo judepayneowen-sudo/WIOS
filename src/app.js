@@ -495,7 +495,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','pullnight','trimtest','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','pullnight','fullsync','trimtest','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -618,6 +618,44 @@ async function pullNight(){
   finally{ pulling=false; const bb=$('pullnight'); if(bb){ bb.textContent='Pull full night'; bb.classList.remove('live'); } }
 }
 
+/* --- Full sync (acked, paced) — the Phase-2 standalone mechanism ------------------------
+   DESTRUCTIVE BY DESIGN: like WHOOP's own app, we ack every window so the band streams the WHOLE
+   buffer, committing/trimming as it goes. Everything is captured to the file first, so the trim is
+   harmless to us — but the data does NOT reach WHOOP's cloud, so only run when WE are the sole
+   consumer (post-subscription, or a sacrificial day). Confirm-gated. (cf. the trim test, which did
+   one-ack-then-abort and so wiped without delivering.) See CLAUDE.md. */
+async function fullSync(){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ pulling=false; const b=$('fullsync'); if(b){ b.textContent='Full sync (acked)'; b.classList.remove('live'); } log('full sync: stop requested','dim'); return; }
+  if(!confirm('FULL SYNC reads the WHOLE band buffer and COMMITS as it goes — it WIPES that data off the band, and it does NOT go to WHOOP. Everything is saved to the capture file. Only run on a period you don’t need WHOOP to score. Continue?')) return;
+  pulling=true; pullRecords.length=0; pullSeen.clear();
+  if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
+  const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
+  log('FULL SYNC (acked, paced) — pulling the whole buffer; band trims as it commits. Phase-2 standalone mechanism.','ok');
+  try{
+    log('→ get_data_range','cmd'); await send(34,[],'get_data_range'); await delay(1200);
+    log('→ send_historical_data','cmd'); await send(22,[],'send_historical_data'); await waitBurst();
+    let guard=0, stalls=0;
+    log(`window 1: ${pullRecords.length} record(s)`+(pullRecords.length?` up to idx ${pullMax().idx}`:''), pullRecords.length?'ok':'err');
+    while(pulling && guard++<8000){
+      const before=pullRecords.length;
+      await send(23, HIST_ACK, 'hist_ack');         // commit this window + release the next
+      await waitBurst();
+      if(pullRecords.length>before){ stalls=0; if(guard%15===0) log(`  …${pullRecords.length} records (idx ${pullMax().idx})`,'dim'); }
+      else if(++stalls>=3){ log('no new records after 3 acks — transfer complete','ok'); break; }
+      if(pullRecords.length>200000){ log('record cap reached — stopping','dim'); break; }
+    }
+    await send(20,[],'abort_historical_transmits');
+    const hv=pullRecords.filter(r=>r.hr>0).map(r=>r.hr);
+    const span=pullRecords.length?`${new Date(pullMinTs()*1000).toLocaleString()} → ${new Date(pullMaxTs()*1000).toLocaleString()}`:'—';
+    const hrs=pullRecords.length?((pullMaxTs()-pullMinTs())/3600).toFixed(1)+'h':'0h';
+    const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
+    log(`FULL SYNC DONE: ${pullRecords.length} records spanning ${hrs} (${span}); ${sane}. Save file / Send to laptop.`, pullRecords.length>60?'ok':'err');
+    if(pullRecords.length<=35) log('⚠ only ~one window delivered — commit-on-ack may halt transmission; we’ll iterate on the ack/pointer.','err');
+  }catch(e){ log('full sync error: '+e.message,'err'); }
+  finally{ pulling=false; const bb=$('fullsync'); if(bb){ bb.textContent='Full sync (acked)'; bb.classList.remove('live'); } }
+}
+
 /* --- Trim test: is the ack destructive? (one-button, safe) -----------------------------
    To get past the ~30-record window the band wants an ack (historical_data_result/23) for flow
    control. The open question is whether that ack also COMMITS/trims the buffer (which would stop
@@ -727,6 +765,7 @@ async function onDisconnect(){ setStatus('disconnected'); enableDev(false);
   rtHrOn=false; const b=$('rthr'); if(b){ b.textContent='Realtime HR: off'; b.classList.remove('live'); }
   histSync=false; clearTimeout(histAckTimer); const sb=$('synchist'); if(sb){ sb.textContent='Sync history'; sb.classList.remove('live'); }
   pulling=false; const pb=$('pullnight'); if(pb){ pb.textContent='Pull full night'; pb.classList.remove('live'); }
+  const fb=$('fullsync'); if(fb){ fb.textContent='Full sync (acked)'; fb.classList.remove('live'); }
   const tb=$('trimtest'); if(tb){ tb.textContent='Trim test (safe)'; tb.classList.remove('live'); }
   log('device disconnected.','err'); }
 
@@ -764,6 +803,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('rthr').onclick       = toggleRealtimeHr;
   $('synchist').onclick   = syncHistory;
   $('pullnight').onclick   = pullNight;
+  $('fullsync').onclick    = fullSync;
   $('trimtest').onclick    = trimTest;
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
