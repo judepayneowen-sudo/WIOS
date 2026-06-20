@@ -82,6 +82,27 @@ export function decodeHistorical(payload){
   return [{ t: ts*1000, hr: hr>0?hr:null, rr: rr.length?rr:null }];
 }
 
+// HISTORICAL via EVENT(48): on WHOOP 5.0 the buffered dump is NOT framed as HISTORICAL_DATA(47) —
+// the band streams its records as EVENT(48) frames between METADATA(49) HISTORY_START/END. Verified
+// against a real "Sync full history" capture (band 5A0097737378, fw 50.36.2.0; batch 3 = clean 30-s
+// periodic records 2026-05-11 02:15..02:23):
+//   [0]      = 0x30 packet type (48 EVENT)
+//   [1]=seq, [2]=subcode  (0x03 = periodic metrics record, 0x3f = its companion; other subcodes are
+//                          connection / device-info events that carry no sample timestamp)
+//   [3]      = 0x00
+//   [4..7]   = unix timestamp (u32 LE seconds) — verified +30 s per periodic record
+//   [8..11]  = sub-second counter (varies; not a monotonic +1 index)
+//   [12..]   = subtype-specific metric fields (HR/RR offsets not yet pinned — need a fuller capture)
+// Returns one sample per *timestamped* EVENT (untimestamped boot/info events are skipped). HR is left
+// null until its offset is validated against an overnight dump with a WHOOP-app reference.
+export function decodeHistoricalEvent(payload){
+  if(!payload || payload[0]!==48 || payload.length<8) return null;
+  const u32 = (o)=> (payload[o]|(payload[o+1]<<8)|(payload[o+2]<<16)|(payload[o+3]<<24))>>>0;
+  const ts = u32(4);
+  if(ts < 1500000000 || ts > 4000000000) return null;      // skip events with no sample timestamp
+  return { t: ts*1000, idx: u32(8), sub: payload[2], hr: null, rr: null };
+}
+
 // METADATA(49): frames the historical dump. [2]=type (1=HISTORY_START, 2=HISTORY_END,
 // 3=HISTORY_COMPLETE). HISTORY_END carries the `trim` (flash-record index to ack) — per the
 // community 4.0 spec it's a u32 LE at body offset 13. The 5.0 layout may differ, so we also surface
@@ -136,8 +157,8 @@ export function parseCaptureLine(line){
 
 /** Whole capture text → time-ordered HR samples, RR intervals, and historical-sync metadata. */
 export function decodeCapture(text){
-  const hr=[], rrs=[], meta=[];
-  let frames=0, realtime=0, historical=0, metadata=0;
+  const hr=[], rrs=[], meta=[], histEvents=[];
+  let frames=0, realtime=0, historical=0, metadata=0, inHistory=false;
   for(const line of text.split(/\r?\n/)){
     const c=parseCaptureLine(line); if(!c || c.frame.error) continue;
     frames++;
@@ -145,10 +166,14 @@ export function decodeCapture(text){
     const rt=decodeRealtime(p);
     if(rt){ realtime++; if(rt.hr) hr.push({ t:c.t, hr:rt.hr }); if(rt.rr) rrs.push({ t:c.t, rr:rt.rr }); }
     if(p && p[0]===47){ historical++; const h=decodeHistorical(p); if(h && h.length) for(const s of h){ if(s.hr) hr.push(s); } }
-    if(p && p[0]===49){ metadata++; const m=decodeMetadata(p); if(m) meta.push({ t:c.t, ...m }); }
+    if(p && p[0]===49){ metadata++; const m=decodeMetadata(p);
+      if(m){ meta.push({ t:c.t, ...m }); if(m.type===1) inHistory=true; else if(m.type===2||m.type===3) inHistory=false; } }
+    // EVENT(48) inside a HISTORY_START/END window = a 5.0 buffered record (see decodeHistoricalEvent).
+    if(p && p[0]===48 && inHistory){ const e=decodeHistoricalEvent(p);
+      if(e){ historical++; histEvents.push(e); if(e.hr) hr.push({ t:e.t, hr:e.hr }); } }
   }
-  hr.sort((a,b)=>a.t-b.t); rrs.sort((a,b)=>a.t-b.t);
-  return { hr, rrs, meta, stats:{ frames, realtime, historical, metadata } };
+  hr.sort((a,b)=>a.t-b.t); rrs.sort((a,b)=>a.t-b.t); histEvents.sort((a,b)=>a.t-b.t);
+  return { hr, rrs, meta, histEvents, stats:{ frames, realtime, historical, metadata } };
 }
 
 export const dayKey = (ms)=> new Date(ms).toISOString().slice(0,10);

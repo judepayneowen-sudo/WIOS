@@ -13,6 +13,27 @@ breakdown** with personalized %-of-max ranges + an optimal-strain band, an **Act
 disturbances·time-in-bed. All sample-driven preview until decoding fills it in; live HR/HRV/stress
 patch in real time. Charts in `src/app.js` (`interactiveChart`), screens in `www/index.html`.
 
+## ✅ REAL-BAND VALIDATION (2026-06-20, v1.0) — `drainHistory` works; 5.0 records are EVENT(48)
+
+First on-band "Sync full history" capture (`whoop-capture-2026-06-20T18-27-31.txt`, band 5A0097737378,
+fw 50.36.2.0). Decoded with `tools/whoop-decode.mjs`:
+
+1. **The ACK-loop drain runs end-to-end on the real 5.0 band.** Clean cycle:
+   `HISTORY_START → HISTORY_END → … → HISTORY_COMPLETE` over 3 batches. The loop terminated correctly.
+2. **5.0 trim offset = `@13`** (same as the documented 4.0 offset). Monotonic values **1 → 2 → 77**;
+   the auto-probe locks `HISTORY_END@13`. No mystery offset.
+3. **🔑 5.0 buffers its records as `EVENT(48)`, NOT `HISTORICAL_DATA(47)`.** The dump streams EVENT(48)
+   frames between the START/END markers: ts @ body `[4..7]` (verified **+30 s** cadence), subcode `[2]`
+   (`0x03` periodic metrics record + `0x3f` companion; other subcodes = connection/device-info events).
+   The shipped v1.0 only recorded `(47)`, so it logged **"0 records"** despite the perfect ACK-loop.
+   **Fix:** `onPullRecord` + `decodeCapture`/`decodeHistoricalEvent` now capture EVENT(48) too — this
+   capture yields **49 records** (2026-05-11 00:42→02:23, incl. 17 thirty-second `0x03`/`0x3f` pairs).
+4. **HR/RR offsets within EVENT(48) are still TBD** — not fabricated. The `0x03`/`0x3f` fields are
+   accumulators (monotonic counters) + ~constant sensor values; no clean HR byte in this short tail.
+   This dump was tiny (~tail only, trim≤77) because the official WHOOP app had already advanced the
+   cursor. **NEXT: an overnight worn capture taken *before* letting the WHOOP app sync** → thousands of
+   records → pin HR/RR against the WHOOP-app night reference, then feed `scores.js`.
+
 ## ⭐ BREAKTHROUGH (2026-06-20) — historical sync cracked + sleep approach settled
 
 After a strategic step-back we **stopped re-deriving from scratch and aggregated the community WHOOP

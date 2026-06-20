@@ -426,7 +426,8 @@ function onFrame(label, dv){
     if(hr>0||rr>0) updateLive();
     log(`  → HR ${hr} bpm${rr?('  RR '+rr+' ms'):''}`, 'ok');
   }
-  if(pulling && info.packetType===47 && info.payloadBytes) onPullRecord(info.payloadBytes);
+  // Buffered records arrive as HISTORICAL_DATA(47) on 4.0, but as EVENT(48) on 5.0 — capture both.
+  if(pulling && (info.packetType===47||info.packetType===48) && info.payloadBytes) onPullRecord(info.payloadBytes);
   if(pulling && info.packetType===49 && info.payloadBytes) onHistMeta(info.payloadBytes);  // METADATA: HISTORY_END trim / COMPLETE
   if(info.packetType===36 && info.code===0x22 && info.payloadBytes){     // get_data_range response → grab oldest buffered ts
     const ts=parseDataRangeOldest(info.payloadBytes); if(ts) dataRangeOldestTs=ts;
@@ -537,8 +538,15 @@ let burstResolve=null, burstQuietT=null, burstHardT=null;
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
-  const idx=u32at(p,3), ts=u32at(p,7), hr=p.length>14?p[14]:0;
-  if(!pullSeen.has(idx)){ pullSeen.add(idx); pullRecords.push({idx,ts,hr}); }
+  let idx, ts, hr, key;
+  if(p[0]===48){                                   // 5.0 EVENT(48) record: ts@4, counter@8, HR offset TBD
+    ts=u32at(p,4);
+    if(ts<1500000000||ts>4000000000) return;       // skip untimestamped boot/info events
+    idx=u32at(p,8); hr=0; key='e'+ts+':'+p[2];      // dedup by timestamp+subcode (counter isn't a clean idx)
+  }else{                                            // 4.0 HISTORICAL_DATA(47): idx@3, ts@7, HR@14
+    idx=u32at(p,3); ts=u32at(p,7); hr=p.length>14?p[14]:0; key='h'+idx;
+  }
+  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr}); }
   if(burstResolve){ clearTimeout(burstQuietT);     // each record resets the inter-burst quiet timer
     burstQuietT=setTimeout(()=>{ const r=burstResolve; burstResolve=null; clearTimeout(burstHardT); r&&r(); }, QUIET_MS); }
 }
