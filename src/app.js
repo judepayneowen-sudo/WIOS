@@ -632,8 +632,10 @@ async function fullSync(){
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
   log('FULL SYNC (acked, paced) — pulling the whole buffer; band trims as it commits. Phase-2 standalone mechanism.','ok');
+  let before=null;
   try{
-    log('→ get_data_range','cmd'); await send(34,[],'get_data_range'); await delay(1200);
+    before=await readOldest();
+    log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
     log('→ send_historical_data','cmd'); await send(22,[],'send_historical_data'); await waitBurst();
     let guard=0, stalls=0;
     log(`window 1: ${pullRecords.length} record(s)`+(pullRecords.length?` up to idx ${pullMax().idx}`:''), pullRecords.length?'ok':'err');
@@ -645,13 +647,22 @@ async function fullSync(){
       else if(++stalls>=3){ log('no new records after 3 acks — transfer complete','ok'); break; }
       if(pullRecords.length>200000){ log('record cap reached — stopping','dim'); break; }
     }
-    await send(20,[],'abort_historical_transmits');
-    const hv=pullRecords.filter(r=>r.hr>0).map(r=>r.hr);
-    const span=pullRecords.length?`${new Date(pullMinTs()*1000).toLocaleString()} → ${new Date(pullMaxTs()*1000).toLocaleString()}`:'—';
-    const hrs=pullRecords.length?((pullMaxTs()-pullMinTs())/3600).toFixed(1)+'h':'0h';
+    await send(20,[],'abort_historical_transmits'); await delay(400);
+    const after=await readOldest();
+    const n=pullRecords.length, hv=pullRecords.filter(r=>r.hr>0).map(r=>r.hr);
+    const span=n?`${new Date(pullMinTs()*1000).toLocaleString()} → ${new Date(pullMaxTs()*1000).toLocaleString()}`:'—';
+    const hrs=n?((pullMaxTs()-pullMinTs())/3600).toFixed(1)+'h':'0h';
     const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
-    log(`FULL SYNC DONE: ${pullRecords.length} records spanning ${hrs} (${span}); ${sane}. Save file / Send to laptop.`, pullRecords.length>60?'ok':'err');
-    if(pullRecords.length<=35) log('⚠ only ~one window delivered — commit-on-ack may halt transmission; we’ll iterate on the ack/pointer.','err');
+    const moved=(before&&after)?(after-before):null;
+    log(`FULL SYNC: ${n} records spanning ${hrs} (${span}); ${sane}.`, n?'ok':'err');
+    log(`oldest BEFORE: ${tsStr(before)} · AFTER: ${tsStr(after)}${moved!=null?` (moved ${moved>=0?'+':''}${(moved/3600).toFixed(1)}h)`:''}`,'cmd');
+    if(n>60)
+      log(`✅ FULL DELIVERY — pulled ${n} records over ${hrs}${moved>120?'; band trimmed as it committed (expected for Phase 2)':''}. Save file / Send to laptop.`,'ok');
+    else if(moved!=null && moved>120)
+      log(`⚠️ STALLED + WIPED — only ${n} records delivered, but the oldest jumped +${(moved/3600).toFixed(1)}h: the ack commits to the END after window 1, so we need an incremental-commit ack pointer. (What streamed is in the capture; the band buffer was trimmed.)`,'err');
+    else if(n<=35)
+      log(`ℹ️ Inconclusive — only ${n} records and the oldest barely moved (${moved!=null?(moved/3600).toFixed(1)+'h':'?'}). The band likely had little buffered — wear it on-wrist for a few hours (some activity) and retry. Save file anyway.`,'dim');
+    else log('Save file / Send to laptop.','ok');
   }catch(e){ log('full sync error: '+e.message,'err'); }
   finally{ pulling=false; const bb=$('fullsync'); if(bb){ bb.textContent='Full sync (acked)'; bb.classList.remove('live'); } }
 }
