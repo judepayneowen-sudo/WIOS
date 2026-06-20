@@ -495,7 +495,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','pullnight','fullsync','trimtest','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','pullnight','fullsync','rewind','trimtest','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -667,6 +667,53 @@ async function fullSync(){
   finally{ pulling=false; const bb=$('fullsync'); if(bb){ bb.textContent='Full sync (acked)'; bb.classList.remove('live'); } }
 }
 
+/* --- Rewind probe (read-only, non-destructive) ----------------------------------------
+   The wear data is on the band but behind a read pointer parked at the end (post our commit).
+   WHOOP's app rewinds the pointer before syncing; we must too. set_read_pointer (cmd 33) is accepted
+   (responds 0x21) but the payload is unknown — try candidate seeks (timestamps / in-range pointers /
+   indices) read-only and report which surfaces records. No acks → nothing is committed/wiped. */
+async function rewindProbe(){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ pulling=false; const b=$('rewind'); if(b){ b.textContent='Rewind probe'; b.classList.remove('live'); } log('rewind probe: stopped','dim'); return; }
+  if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
+  const b=$('rewind'); if(b){ b.textContent='Stop probe'; b.classList.add('live'); }
+  log('REWIND PROBE — read-only (no acks, nothing wiped). Seeking the read pointer so the buffered wear becomes readable.','ok');
+  pulling=true;
+  const now=Math.floor(Date.now()/1000);
+  const cands=[
+    {id:'ts -3h u32',  d:u32le(now-3*3600)},
+    {id:'ts -6h u32',  d:u32le(now-6*3600)},
+    {id:'ts -12h u32', d:u32le(now-12*3600)},
+    {id:'ts -24h u32', d:u32le(now-24*3600)},
+    {id:'ts -12h u64', d:u64le(now-12*3600)},
+    {id:'flag0+ts-12h',d:[0,...u32le(now-12*3600)]},
+    {id:'flag1+ts-12h',d:[1,...u32le(now-12*3600)]},
+    {id:'ptr 0x4f5c',  d:u32le(0x4f5c)},
+    {id:'idx 240000',  d:u32le(240000)},
+    {id:'u32 zero',    d:u32le(0)},
+  ];
+  let win=null;
+  try{
+    await send(34,[],'get_data_range'); await delay(900);
+    for(const c of cands){
+      if(!pulling) break;
+      pullRecords.length=0; pullSeen.clear();
+      log(`→ set_read_pointer[${c.id}] → read-only read…`,'cmd');
+      await send(33, c.d, 'set_read_pointer'); await delay(400);
+      await send(22,[],'send_historical_data'); await waitBurst();
+      const n=pullRecords.length;
+      if(n>5){ win=c;
+        log(`  ✅ ${c.id}: ${n} records — span ${((pullMaxTs()-pullMinTs())/3600).toFixed(1)}h (${new Date(pullMinTs()*1000).toLocaleTimeString()} → ${new Date(pullMaxTs()*1000).toLocaleTimeString()})`,'ok');
+        break; }
+      log(`  ✗ ${c.id}: ${n} records`,'dim');
+      await send(20,[],'abort_historical_transmits'); await delay(200);
+    }
+    if(win) log(`🎯 REWIND WORKS via ${win.id} — a read-only seek surfaces the buffer (non-destructive). This is the Phase-2 pull. Save file / Send to laptop.`,'ok');
+    else log('No candidate surfaced records — Save file / Send to laptop; I’ll mine the data_range pointers + cmd33 responses for the right seek.','err');
+  }catch(e){ log('rewind probe error: '+e.message,'err'); }
+  finally{ pulling=false; const bb=$('rewind'); if(bb){ bb.textContent='Rewind probe'; bb.classList.remove('live'); } }
+}
+
 /* --- Trim test: is the ack destructive? (one-button, safe) -----------------------------
    To get past the ~30-record window the band wants an ack (historical_data_result/23) for flow
    control. The open question is whether that ack also COMMITS/trims the buffer (which would stop
@@ -777,6 +824,7 @@ async function onDisconnect(){ setStatus('disconnected'); enableDev(false);
   histSync=false; clearTimeout(histAckTimer); const sb=$('synchist'); if(sb){ sb.textContent='Sync history'; sb.classList.remove('live'); }
   pulling=false; const pb=$('pullnight'); if(pb){ pb.textContent='Pull full night'; pb.classList.remove('live'); }
   const fb=$('fullsync'); if(fb){ fb.textContent='Full sync (acked)'; fb.classList.remove('live'); }
+  const rb=$('rewind'); if(rb){ rb.textContent='Rewind probe'; rb.classList.remove('live'); }
   const tb=$('trimtest'); if(tb){ tb.textContent='Trim test (safe)'; tb.classList.remove('live'); }
   log('device disconnected.','err'); }
 
@@ -815,6 +863,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('synchist').onclick   = syncHistory;
   $('pullnight').onclick   = pullNight;
   $('fullsync').onclick    = fullSync;
+  $('rewind').onclick      = rewindProbe;
   $('trimtest').onclick    = trimTest;
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);

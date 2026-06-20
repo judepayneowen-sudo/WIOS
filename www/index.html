@@ -384,6 +384,9 @@
       <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Full sync (acked)</b> — the <b>Phase‑2 / standalone</b> mechanism: acks every window so the band streams the <b>whole</b> buffer, exactly like WHOOP's own app. Everything is captured to the file first. <b>⚠️ Destructive by design</b> — the band <b>trims as it commits</b>, and this data does <b>not</b> go to WHOOP's cloud, so only run it on a period you don't need WHOOP to score (it's confirm‑gated). Leave it until <b>FULL SYNC DONE</b>, then <b>Save file</b>.</p>
       <button class="act" id="fullsync" disabled>Full sync (acked)</button>
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Rewind probe (read-only)</b> — the wear data is on the band but behind a read pointer parked at the end. This auto-tries ~10 candidate <b>set_read_pointer</b> seeks (timestamps, in-range pointers) <b>read-only</b> — nothing is acked or wiped — and reports which one makes your buffered records readable. Leave it ~1 min, then <b>Save file</b>.</p>
+      <button class="act" id="rewind" disabled>Rewind probe</button>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
       <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Trim test (safe)</b> — settles the key question: does acking a history burst <b>delete</b> it off the band? It auto-captures, pokes only the <b>oldest ~60 records</b> (read oldest-first, so it never touches last night), sends one ack, then re-checks the band's data range. It prints a verdict in the log — <b>NON-DESTRUCTIVE</b> (safe to do a full acked sync) or <b>DESTRUCTIVE</b> (we need another way). Worst case it only disturbs ~1 minute of yesterday-morning data. Then <b>Save file</b>.</p>
       <button class="act" id="trimtest" disabled>Trim test (safe)</button>
     </div>
