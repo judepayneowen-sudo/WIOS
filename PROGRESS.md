@@ -52,12 +52,17 @@ patch in real time. Charts in `src/app.js` (`interactiveChart`), screens in `www
   sync = full wipe (and the data never reached WHOOP's cloud either, so it's gone); read‑only = max
   ~30 (one BLE window) because only an ack releases the next window. Net: **no non‑destructive full
   pull yet.** The ~29 h buffer (incl. that night) was lost in the test.
-- 🔜 **Next probe (low‑stakes NOW — buffer is near‑empty post‑wipe):** the ack's **first byte is a
-  commit flag**; we sent `01` (commit). Test `00` = acknowledge/flow **without** commit. If a `status=0`
-  ack releases the next window WITHOUT moving `get_data_range`'s oldest → non‑destructive pagination is
-  possible (data stays for WHOOP too → resolves the answer‑key conflict). If `00` also wipes → pivot
-  Strain to **cloud‑only**: fit the zone→strain curve from WHOOP API `/activity/workout`
-  `zone_durations` + workout `strain` (no band raw, no data‑loss risk).
+- ✅ **Reconciled (2026-06-20): destructive ack is FINE for the end goal — it's the standalone sync
+  mechanism, not a dead end.** The product must run **without a WHOOP subscription**, which removes API
+  access → so band-raw extraction is **essential** (NOT retired). Two phases (see `CLAUDE.md`):
+  **Phase 1 calibration** = cloud-only (let WHOOP sync; don't destructively touch the band).
+  **Phase 2 standalone** = WHOOP Core *becomes the band's sync client* — a **paced acked sync** wipes
+  as it commits, which is exactly what WHOOP's app does. The disaster was running a destructive ack
+  during Phase 1 + a broken one-ack-then-abort. The official WHOOP app reliably re-synced/recovered
+  the band afterward (3 days back). App safety: acked sync is now **confirm-gated**; trim test disabled.
+- 🔜 **Phase-2 band-RE (develop on sacrificial days, parallel to cloud calibration):** verify a full
+  **paced acked sync** delivers the whole buffer (trim test only did one ack+abort); finish the
+  `(47)` decode (RR/HRV + sleep staging); validate by HR sanity/consistency (not WHOOP same-day).
 - 🔜 **Then:** decode `(47)` HR for **Strain** (the one score the WHOOP cloud API can't give —
   see `CLAUDE.md`). Recovery + Sleep calibrate from the cloud alone; accumulate ~2–3 weeks.
 

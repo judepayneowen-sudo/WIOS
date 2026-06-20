@@ -522,6 +522,12 @@ async function syncHistory(){
     log(`history sync stopped — ${histCount} HISTORICAL packets (${histAck?'committed/acked':'read-only — NOT acked, left on band'}). Send to laptop.`, 'ok'); return; }
   histSync=true; histCount=0;
   histAck = !(ro && ro.checked);
+  // Acked sync COMMITS = wipes the buffer off the band (and it won't reach WHOOP's cloud). That's the
+  // Phase-2 standalone mechanism (we become the band's sync client) — NOT for the calibration phase.
+  // Confirm-gate it so it can't wipe by accident during calibration. See CLAUDE.md.
+  if(histAck && !confirm('Acked sync COMMITS history = it WIPES that data off the band, and it will NOT reach WHOOP\'s cloud. Only do this when YOU are the sole consumer (after cancelling WHOOP). Continue?')){
+    histAck=false; if(ro) ro.checked=true; log('kept read-only — acked sync cancelled','dim');
+  }
   if(ro) ro.disabled=true;
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('synchist'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
@@ -630,7 +636,15 @@ function parseDataRangeOldest(p){
 async function readOldest(){ dataRangeOldestTs=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
 const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
 
+// Answered (2026-06-20): the ack COMMITS to the read pointer = wipes the buffer. That's expected — it
+// is the normal full-sync mechanism for Phase 2 / standalone (we become the band's sync client). This
+// destructive one-shot test is disabled so we don't wipe during the cloud-calibration phase; use
+// "Sync history" (acked, confirm-gated) deliberately when you're the sole consumer. See CLAUDE.md.
 async function trimTest(){
+  log('Trim test already answered: the ack COMMITS = wipes the band buffer (the normal Phase-2 full-sync mechanism). Disabled here to avoid wiping during calibration — use Sync history (acked) deliberately when you\'re the sole consumer.', 'dim');
+  return;
+}
+async function _trimTest_disabled(){
   if(!deviceId){ log('connect first','err'); return; }
   if(pulling){ log('a pull/test is already running — stop it first','err'); return; }
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } }
