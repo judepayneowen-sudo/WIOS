@@ -126,10 +126,81 @@ export function sleepPerformance(asleepMin, needMin) {
   return clamp(asleepMin / needMin, 0, 1);
 }
 
-// Stage classification needs decoded actigraphy (IMU) + HR/PPG epochs we don't have yet.
-// Placeholder so the pipeline is wired end-to-end; returns null until real epoch features
-// arrive. summarizeStages tallies minutes per stage from a sequence of epochs.
-export function classifySleepStage(/* epoch */) { return null; } // TODO: needs decoded IMU/PPG
+// --- Stage classifier (heuristic, calibratable) ---------------------------------
+// We CANNOT match WHOOP's exact hypnogram — WHOOP stages sleep in its cloud with a proprietary,
+// PSG-trained model that leaves with the subscription. So, like the open-source WHOOP projects, we
+// run our own cardiopulmonary + actigraphy classifier on the band's raw overnight stream and CALIBRATE
+// its thresholds to match WHOOP's per-night stage SUMMARY (REM/SWS/Light/Wake minutes) during Phase 1.
+//
+// Per-epoch (30 s) features, relative to that night's own baselines:
+//   hrRel  = (hr − restingHr) / restingHr     elevation above the night's sleeping-resting HR
+//   hrvRel = rmssd / nightMedianRMSSD          parasympathetic tone (high in deep, low in REM/wake)
+//   move   = HR volatility proxy (until the accel tail of (47)/HISTORICAL_IMU(52) is decoded)
+// Decision (established wearable approach): movement/HR-driven WAKE; low-HR + high-HRV ⇒ DEEP(SWS);
+// low-movement + elevated/variable HR + lower HRV ⇒ REM; otherwise LIGHT. A min-duration smoothing pass
+// removes 30 s flicker (real hypnograms hold a stage for minutes).
+export const SLEEP_STAGE_PARAMS = {
+  restHrPct: 0.10,   // resting HR = this percentile of the night's epoch HRs (CALIBRATE)
+  wakeMove:  3.0,    // movement proxy above this ⇒ Wake (CALIBRATE)
+  wakeHrRel: 0.20,   // HR ≥ resting×(1+this) ⇒ Wake (CALIBRATE)
+  deepHrRel: 0.06,   // HR within resting×(1+this) ⇒ Deep candidate (CALIBRATE)
+  deepHrv:   1.05,   // rmssd ≥ this×median ⇒ Deep candidate (CALIBRATE)
+  remHrRel:  0.08,   // HR ≥ resting×(1+this) with low move ⇒ REM candidate (CALIBRATE)
+  remHrv:    0.95,   // rmssd ≤ this×median ⇒ REM candidate (CALIBRATE)
+  smoothEpochs: 3,   // min consecutive epochs a stage must persist (median smoothing)
+};
+
+/** p-th percentile (0..1) of a numeric array, linear interpolation. */
+export function percentile(xs, p) {
+  const a = xs.filter((x) => x != null).slice().sort((m, n) => m - n);
+  if (!a.length) return null;
+  const i = clamp(p, 0, 1) * (a.length - 1), lo = Math.floor(i), hi = Math.ceil(i);
+  return a[lo] + (a[hi] - a[lo]) * (i - lo);
+}
+
+/** Night baselines from the epoch stream: sleeping-resting HR + median HRV. */
+export function nightBaselines(epochs, params = SLEEP_STAGE_PARAMS) {
+  const hrs = epochs.map((e) => e.hr).filter((x) => x > 0);
+  const rmssds = epochs.map((e) => e.rmssd).filter((x) => x > 0);
+  return {
+    restHr: percentile(hrs, params.restHrPct) ?? (hrs.length ? Math.min(...hrs) : 60),
+    hrvMed: percentile(rmssds, 0.5) ?? null,
+  };
+}
+
+/** Classify one epoch given the night's baselines. Returns a STAGE value. */
+export function classifySleepStage(epoch, base, params = SLEEP_STAGE_PARAMS) {
+  if (!epoch || !(epoch.hr > 0) || !base) return STAGE.LIGHT;
+  const hrRel = (epoch.hr - base.restHr) / Math.max(1, base.restHr);
+  const hrvRel = (base.hrvMed && epoch.rmssd > 0) ? epoch.rmssd / base.hrvMed : 1;
+  const move = epoch.move ?? 0;
+  if (move >= params.wakeMove || hrRel >= params.wakeHrRel) return STAGE.AWAKE;
+  if (hrRel <= params.deepHrRel && hrvRel >= params.deepHrv) return STAGE.SWS;
+  if (hrRel >= params.remHrRel && hrvRel <= params.remHrv) return STAGE.REM;
+  return STAGE.LIGHT;
+}
+
+/** Median-smooth a stage sequence so no stage persists fewer than `win` epochs. */
+export function smoothStages(stages, win = SLEEP_STAGE_PARAMS.smoothEpochs) {
+  if (win <= 1 || stages.length < win) return stages.slice();
+  const out = stages.slice();
+  for (let i = 0; i < stages.length; i++) {
+    const a = Math.max(0, i - Math.floor(win / 2)), b = Math.min(stages.length, a + win);
+    const counts = {};
+    for (let j = a; j < b; j++) counts[stages[j]] = (counts[stages[j]] || 0) + 1;
+    out[i] = Object.keys(counts).reduce((m, k) => (counts[k] > (counts[m] || 0) ? k : m), out[i]);
+  }
+  return out;
+}
+
+/** Full hypnogram from an epoch stream → array of STAGE values (smoothed). */
+export function classifySleepStages(epochs, params = SLEEP_STAGE_PARAMS) {
+  if (!epochs || !epochs.length) return [];
+  const base = nightBaselines(epochs, params);
+  return smoothStages(epochs.map((e) => classifySleepStage(e, base, params)), params.smoothEpochs);
+}
+
+// summarizeStages tallies minutes per stage from a sequence of epochs.
 export function summarizeStages(stages, epochSeconds = 30) {
   const min = { awake: 0, light: 0, sws: 0, rem: 0 };
   for (const s of stages) if (s && min[s] != null) min[s] += epochSeconds / 60;

@@ -82,6 +82,46 @@ export function decodeHistorical(payload){
   return [{ t: ts*1000, hr: hr>0?hr:null, rr: rr.length?rr:null }];
 }
 
+// METADATA(49): frames the historical dump. [2]=type (1=HISTORY_START, 2=HISTORY_END,
+// 3=HISTORY_COMPLETE). HISTORY_END carries the `trim` (flash-record index to ack) — per the
+// community 4.0 spec it's a u32 LE at body offset 13. The 5.0 layout may differ, so we also surface
+// the u32 candidates at a few offsets to confirm which one the band actually wants as the ack trim.
+export const META = { 1:'HISTORY_START', 2:'HISTORY_END', 3:'HISTORY_COMPLETE' };
+export function decodeMetadata(payload){
+  if(!payload || payload[0]!==49) return null;
+  const type = payload[2];
+  const u32 = (o)=> (o+4<=payload.length) ? ((payload[o]|(payload[o+1]<<8)|(payload[o+2]<<16)|(payload[o+3]<<24))>>>0) : null;
+  const out = { type, name: META[type]||('?'+type) };
+  if(type===2){ // HISTORY_END — expose trim candidates for offline confirmation of the 5.0 offset
+    out.trim = u32(13);                     // documented (4.0) primary
+    out.trimCandidates = { '@3':u32(3), '@5':u32(5), '@9':u32(9), '@13':u32(13), '@17':u32(17) };
+    out.unix = u32(3);
+  }
+  return out;
+}
+
+// Build 30-second sleep epochs from decoded HR + RR streams: mean HR, HRV (RMSSD over the epoch's RR),
+// and a movement proxy (HR volatility) until the accelerometer tail of (47)/HISTORICAL_IMU(52) is
+// decoded. These epochs feed scores.classifySleepStages(). epochSeconds default 30 (one PSG epoch).
+export function buildSleepEpochs(hr, rrs, epochSeconds = 30){
+  if(!hr || !hr.length) return [];
+  const W = epochSeconds*1000;
+  const t0 = hr[0].t, tN = hr[hr.length-1].t;
+  const epochs = [];
+  for(let start=t0; start<=tN; start+=W){
+    const end = start+W;
+    const hh = hr.filter(s=> s.t>=start && s.t<end).map(s=>s.hr);
+    const rr = rrs.filter(s=> s.t>=start && s.t<end).map(s=>s.rr);
+    if(!hh.length) continue;
+    const mean = hh.reduce((a,b)=>a+b,0)/hh.length;
+    const sd = hh.length>1 ? Math.sqrt(hh.reduce((a,b)=>a+(b-mean)**2,0)/(hh.length-1)) : 0;
+    let rmssd = null;
+    if(rr.length>2){ let s=0,n=0; for(let i=1;i<rr.length;i++){ const d=rr[i]-rr[i-1]; s+=d*d; n++; } rmssd = n?Math.sqrt(s/n):null; }
+    epochs.push({ t:start, hr:Math.round(mean), rmssd: rmssd!=null?Math.round(rmssd):null, move:+sd.toFixed(2) });
+  }
+  return epochs;
+}
+
 /* ----------------------------- capture replay ----------------------------- */
 /** One capture line → { t:ms, channel, frame } | null */
 export function parseCaptureLine(line){
@@ -94,10 +134,10 @@ export function parseCaptureLine(line){
   return { t, channel, frame: parseFrame(hexStr) };
 }
 
-/** Whole capture text → time-ordered HR samples and RR intervals. */
+/** Whole capture text → time-ordered HR samples, RR intervals, and historical-sync metadata. */
 export function decodeCapture(text){
-  const hr=[], rrs=[];
-  let frames=0, realtime=0, historical=0;
+  const hr=[], rrs=[], meta=[];
+  let frames=0, realtime=0, historical=0, metadata=0;
   for(const line of text.split(/\r?\n/)){
     const c=parseCaptureLine(line); if(!c || c.frame.error) continue;
     frames++;
@@ -105,9 +145,10 @@ export function decodeCapture(text){
     const rt=decodeRealtime(p);
     if(rt){ realtime++; if(rt.hr) hr.push({ t:c.t, hr:rt.hr }); if(rt.rr) rrs.push({ t:c.t, rr:rt.rr }); }
     if(p && p[0]===47){ historical++; const h=decodeHistorical(p); if(h && h.length) for(const s of h){ if(s.hr) hr.push(s); } }
+    if(p && p[0]===49){ metadata++; const m=decodeMetadata(p); if(m) meta.push({ t:c.t, ...m }); }
   }
   hr.sort((a,b)=>a.t-b.t); rrs.sort((a,b)=>a.t-b.t);
-  return { hr, rrs, stats:{ frames, realtime, historical } };
+  return { hr, rrs, meta, stats:{ frames, realtime, historical, metadata } };
 }
 
 export const dayKey = (ms)=> new Date(ms).toISOString().slice(0,10);

@@ -44,17 +44,31 @@ deleted. What actually happens:
 - After we commit, `get_data_range` shows oldest = "now" and our read-only returns 0 — that's the
   **cursor position**, not deletion. To re-read past data we must **rewind the cursor** ourselves.
 
-**So the whole standalone path hinges on one unknown: `set_read_pointer (cmd 33)`** — the command is
-accepted (responds `0x21`) but we don't yet know the payload to seek/rewind. The **Rewind probe**
-(read-only, in the Setup tab) auto-tries candidate seeks (timestamps / in-range pointers / indices) to
-surface the buffered records. Once we can rewind, Phase 2 = rewind → stream the buffer → decode →
-`scores.js`. No data-loss risk experimenting; the acked sync is confirm-gated only as a courtesy.
+**UPDATE 2026-06-20 — the standalone pull is SOLVED (see the Historical-sync section below).** We don't
+need to "rewind" at all: the dump is a per-batch **ACK-loop** and the bug was acking with `trim=0`
+instead of the `HISTORY_END` flash index. `set_read_pointer (cmd 33)` is **not** part of the protocol —
+ignore it. Phase 2 = `drainHistory()` (send 22 → ack each batch's trim → `HISTORY_COMPLETE`) → decode →
+`scores.js`. No data-loss risk (the ack advances a cursor; WHOOP re-reads by rewinding its own).
+
+### ⭐ Historical sync — SOLVED (2026-06-20), `set_read_pointer` was a red herring
+The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data(22)` → batches of
+`HISTORICAL_DATA(47)` framed by `METADATA(49)` `HISTORY_START(1)`/`HISTORY_END(2)`; ack each with
+`historical_data_result(23) = [01][u32le trim][u32le 0]` where **`trim` = the `HISTORY_END` flash index**
+(old bug: we acked `trim=0`); loop until `HISTORY_COMPLETE(3)`. Implemented as `drainHistory()` in
+`src/app.js` (auto-probes the 5.0 trim offset on batch 1, then locks it). **`cmd 33` is NOT part of this.**
 
 ### Remaining band-RE work for Phase 2 (develop in parallel; nothing is at risk)
-- **Crack `set_read_pointer (cmd 33)`** — the right seek to rewind the read cursor (Rewind probe).
-- Finish the **`HISTORICAL_DATA(47)` decode** (HR confirmed: `[3..6]`=idx, `[7..10]`=ts, `[14]`=HR;
-  RR/HRV + sleep staging next).
+- **Validate `drainHistory` on the real band** — confirm the 5.0 trim strategy/offset (worn-night "Sync
+  full history" run; `decodeMetadata` exposes the `HISTORY_END` trim candidates from the capture).
+- Decode the **accel/IMU tail of `(47)` / `HISTORICAL_IMU(52)`** → true actigraphy for sleep movement
+  (classifier currently uses an HR-volatility proxy). HR confirmed: `[3..6]`=idx, `[7..10]`=ts, `[14]`=HR.
 - Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV).
+
+### Sleep — exact WHOOP match is impossible standalone (cloud-staged); target is calibrated-close
+WHOOP computes staging in its cloud, so the band has only raw HR/RR/accel. We run our own
+`classifySleepStages()` (cardiopulmonary + actigraphy; tunable `SLEEP_STAGE_PARAMS`) and **calibrate it to
+WHOOP's per-night stage SUMMARY** during Phase 1 (`tools/calibrate.mjs` "Sleep stages" block) — the
+openwhoop/noop approach and the agreed target. Do not chase byte-identical hypnograms.
 
 ### Misconceptions to correct if they resurface
 - **"Don't sync to WHOOP cloud — it loses calibration data."** Backwards in Phase 1: the cloud sync
@@ -62,17 +76,19 @@ surface the buffered records. Once we can rewind, Phase 2 = rewind → stream th
 - **"We're cloud-only / band-raw is retired."** NO. Cloud is only for the one-time calibration.
   Standalone operation (the end goal) REQUIRES band-raw — cancelling WHOOP removes the API.
 - **"The ack deletes data / band reads are destructive."** NO (corrected 2026-06-20). The ack moves a
-  cursor; the data persists in a rolling multi-day buffer and WHOOP re-reads it. The real blocker is
-  rewinding our own cursor (`set_read_pointer`, cmd 33).
+  cursor; the data persists in a rolling multi-day buffer and WHOOP re-reads it.
+- **"The blocker is `set_read_pointer` (cmd 33)."** NO (resolved 2026-06-20) — red herring. The dump is a
+  per-batch ack-loop; ack `historical_data_result(23)` with the `HISTORY_END` **trim** (we wrongly used
+  `trim=0`). See the Historical-sync section.
 
 ---
 
 ## Workflow rules
 - Read **`PROGRESS.md`** first for current state. Update it when state changes.
-- ℹ️ **Band reads are recoverable, not destructive (2026-06-20).** `historical_data_result(23)` advances
-  a read/commit cursor (not a delete); the band keeps a rolling multi-day buffer and the WHOOP app
-  re-syncs it by rewinding its cursor. After we commit, re-reading needs `set_read_pointer (cmd 33)` to
-  rewind. The app's acked sync is confirm-gated as a courtesy; it does not lose data or block WHOOP.
+- ℹ️ **Historical pull is the documented ACK-loop (2026-06-20).** `send_historical_data(22)` → ack each
+  batch with `historical_data_result(23)=[01][u32le trim][u32le 0]` (trim = `HISTORY_END` flash index) →
+  until `HISTORY_COMPLETE`. Non-destructive (cursor advance; WHOOP re-reads by rewinding its own).
+  `set_read_pointer (cmd 33)` is **not** used. Implemented as `drainHistory()` in `src/app.js`.
 - `git fetch` before working — both the laptop and phone/web push to this repo.
 - Ship a phone build: bump `version` in `package.json` → run `release.yml` (publishes to
   `wios-awe.pages.dev`; SideStore updates OTA).

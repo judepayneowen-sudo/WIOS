@@ -9,7 +9,8 @@ regression, not trial-and-error.
 |-------|---------------|---------------|----------------------|
 | **Recovery** | HRV (lnRMSSD), resting HR, **respiratory rate**, sleep% → weights + bias | API `recovery_score` | ✅ yes — API gives inputs *and* answer |
 | **Strain** | HR stream → TRIMP load → `STRAIN_SCALE` | API `cycle.strain` | ❌ needs ≥1 capture day |
-| **Sleep** | baseline need + min-per-strain; validates asleep ÷ need | API `sleep_needed` + `sleep_performance` | ✅ yes — fit from the API breakdown |
+| **Sleep need** | baseline need + min-per-strain; validates asleep ÷ need | API `sleep_needed` + `sleep_performance` | ✅ yes — fit from the API breakdown |
+| **Sleep stages** | `SLEEP_STAGE_PARAMS` thresholds → hypnogram | API per-night REM/SWS/Light/Wake minutes | ❌ needs an overnight `(47)` capture |
 
 ## What known science it's built on
 
@@ -19,6 +20,13 @@ regression, not trial-and-error.
 - **Strain** — logarithmic **0–21** scale (Borg-derived) over **HR-zone-weighted load**; we
   accumulate Banister **TRIMP** (time × intensity, exponential toward high zones) and map it
   through `21·(1 − e^(−load/scale))`. (WHOOP "Strain 101".)
+
+- **Sleep stages** — WHOOP stages sleep in its **cloud**, so it's not on the band and we *cannot* match
+  it exactly. Instead we run a local **cardiopulmonary + actigraphy** classifier (`classifySleepStages`):
+  per-30 s epoch we compare HR to the night's sleeping-resting HR, HRV (RMSSD) to the night median, and a
+  movement proxy → Deep (low HR, high HRV) / REM (HR up, HRV down, still) / Wake (movement) / Light. The
+  harness then tunes `SLEEP_STAGE_PARAMS` to match WHOOP's per-night **stage minutes** — "calibrated-close,
+  not byte-identical" (the openwhoop/noop approach).
 
 The harness fits the free constants in those shapes — it does not invent the algorithm.
 
@@ -48,10 +56,10 @@ Optional — drop your profile so strain load uses your real zones:
 ## Step 2 — (for strain) capture a real day
 
 Connect the band in WHOOP Core, leave **Start capture** running through an active day, then
-tap **Send to laptop** (drop-box → `captures/*.txt`). The harness reads HR from
-`REALTIME_DATA(40)` frames. A short capture only covers the connected window, so its load is
-*partial* and the fitted scale is provisional — a full-day `HISTORICAL_DATA(47)` capture is
-the real anchor (its decode is the one remaining TODO in `whoop-decode.mjs`).
+tap **Send to laptop** (drop-box → `captures/*.txt`). The harness reads HR from both
+`REALTIME_DATA(40)` and `HISTORICAL_DATA(47)` frames. A short realtime capture only covers the
+connected window (partial load → provisional scale); the real anchor is a full-day **Sync full
+history** pull, which `(47)` decodes to per-second HR + RR for the whole day and overnight.
 
 ## Step 3 — fit
 
@@ -71,11 +79,19 @@ It prints before/after RMSE per score and writes `calibration/coeffs.json`, e.g.
 — Sleep —
   baseline need 478 min (8.0h) · minPerStrain 3.4 min/pt
   performance formula (asleep ÷ need) vs WHOOP: RMSE 0.6%
+— Sleep stages —
+  fit on 6 night(s) · stage-minute RMSE 41.0 → 18.3 min
+  params: wakeMove 2.80  wakeHrRel 0.22  deepHrRel 0.05  deepHrv 1.12  remHrRel 0.09  remHrv 0.93
 ```
+
+The **Sleep stages** line only appears once you have an overnight `HISTORICAL_DATA(47)` capture
+(`Sync full history` → `Send to laptop`) for a night WHOOP also scored — until then it prints a note
+and the classifier keeps its default thresholds.
 
 ## Step 4 — adopt the constants
 
-Paste the printed values into `src/scores.js` (`RECOVERY_WEIGHTS`, `STRAIN_SCALE`, `SLEEP_NEED`), then:
+Paste the printed values into `src/scores.js` (`RECOVERY_WEIGHTS`, `STRAIN_SCALE`, `SLEEP_NEED`,
+`SLEEP_STAGE_PARAMS`), then:
 
 ```sh
 npm test          # sanity ranges still hold

@@ -5,6 +5,7 @@ import {
   maxHeartRate, hrReserveFraction, hrZone, trimpIncrement, strainFromLoad,
   makeStrainAccumulator, rollingStats, zScore, recoveryScore,
   sleepNeedMinutes, sleepPerformance, summarizeStages,
+  percentile, nightBaselines, classifySleepStage, classifySleepStages, STAGE,
 } from '../src/scores.js';
 
 let pass = 0, fail = 0;
@@ -44,6 +45,29 @@ ok(approx(sleepPerformance(450, 500) * 100, 90), 'sleep performance 450/500 = 90
 ok(sleepPerformance(600, 500) === 1, 'performance caps at 1');
 const stages = summarizeStages(['light', 'light', 'sws', 'rem', 'awake'], 30);
 ok(approx(stages.light, 1) && approx(stages.sws, 0.5), 'stage minutes tally');
+
+/* sleep-stage classifier */
+ok(approx(percentile([1, 2, 3, 4, 5], 0.5), 3, 1e-9), 'percentile median');
+ok(percentile([10, 20, 30], 0) === 10 && percentile([10, 20, 30], 1) === 30, 'percentile ends');
+// Single-epoch classification against an explicit night baseline (restHr 50, median HRV 55).
+const base = { restHr: 50, hrvMed: 55 };
+ok(classifySleepStage({ hr: 50, rmssd: 85, move: 0.4 }, base) === STAGE.SWS, 'deep: low HR + high HRV → SWS');
+ok(classifySleepStage({ hr: 56, rmssd: 38, move: 1.0 }, base) === STAGE.REM, 'REM: HR up, HRV down, still → REM');
+ok(classifySleepStage({ hr: 72, rmssd: 40, move: 6.0 }, base) === STAGE.AWAKE, 'wake: high movement → AWAKE');
+ok(classifySleepStage({ hr: 55, rmssd: 55, move: 1.0 }, base) === STAGE.LIGHT, 'intermediate → LIGHT');
+// Whole-night hypnogram: runs of each stage survive smoothing and all four stages appear.
+const night = [];
+const push = (n, e) => { for (let i = 0; i < n; i++) night.push({ t: night.length * 30000, ...e }); };
+push(10, { hr: 50, rmssd: 85, move: 0.4 });  // deep
+push(10, { hr: 55, rmssd: 55, move: 1.0 });  // light
+push(10, { hr: 56, rmssd: 38, move: 1.0 });  // rem
+push(6,  { hr: 72, rmssd: 40, move: 6.0 });  // wake
+const bl = nightBaselines(night);
+ok(bl.restHr <= 52 && bl.hrvMed > 0, `night baselines sane (restHr ${bl.restHr|0}, hrvMed ${bl.hrvMed|0})`);
+const hypno = classifySleepStages(night);
+const tally = summarizeStages(hypno);
+ok(tally.sws > 0 && tally.light > 0 && tally.rem > 0 && tally.awake > 0, `all four stages present (${JSON.stringify(tally)})`);
+ok(hypno.length === night.length, 'one stage per epoch');
 
 console.log(`\nscores: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

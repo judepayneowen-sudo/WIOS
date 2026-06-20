@@ -13,6 +13,37 @@ breakdown** with personalized %-of-max ranges + an optimal-strain band, an **Act
 disturbances·time-in-bed. All sample-driven preview until decoding fills it in; live HR/HRV/stress
 patch in real time. Charts in `src/app.js` (`interactiveChart`), screens in `www/index.html`.
 
+## ⭐ BREAKTHROUGH (2026-06-20) — historical sync cracked + sleep approach settled
+
+After a strategic step-back we **stopped re-deriving from scratch and aggregated the community WHOOP
+RE** ([whoof](https://github.com/madhursatija/whoof) — full protocol incl. the dump state machine;
+[openwhoop](https://github.com/bWanShiTong/openwhoop) / [noop](https://github.com/noop-app/noop) —
+local recovery/strain/sleep; [goose](https://github.com/b-nnett/goose) — WHOOP 5.0 on iOS). Two facts
+changed everything:
+
+1. **The historical dump is a documented ACK-loop — `set_read_pointer`/cmd 33 was a RED HERRING.**
+   Mechanism: `send_historical_data(22)` → band streams batches of `HISTORICAL_DATA(47)` framed by
+   `METADATA(49)` `HISTORY_START(1)`…`HISTORY_END(2)`. The host acks each batch with
+   `historical_data_result(23) = [01][u32le trim][u32le 0]`, where **`trim` = the flash-record index
+   from that batch's `HISTORY_END`**. That frees the records, advances the read cursor, and releases
+   the next batch — looping until `METADATA(49) HISTORY_COMPLETE(3)`. **Our long-standing bug: we acked
+   with `trim=0` (`HIST_ACK=[1,0,…]`), which never walked the buffer.** Confirmed offline:
+   `decodeMetadata` extracts `trim=5368` from a `HISTORY_END` — exactly the band's console "Trim: …5368".
+   Now implemented as **`drainHistory()`** in `src/app.js` (auto-probes the 5.0 trim offset on batch 1,
+   then locks it). **Non-destructive** (cursor advance; the WHOOP app re-reads by rewinding its own).
+
+2. **WHOOP stages sleep (and computes Strain/Recovery) in its CLOUD, not on the band.** The strap only
+   stores raw 1 Hz HR + RR + accel. So an **exact** WHOOP sleep-stage match is **impossible standalone**
+   — the algorithm leaves with the subscription. Settled target (user-approved): a **local
+   cardiopulmonary + actigraphy classifier calibrated to match WHOOP's per-night stage SUMMARY** during
+   Phase 1 — "calibrated-close, not byte-identical", exactly as openwhoop/noop do. Implemented as
+   `classifySleepStages()` in `src/scores.js` (HR-rel / HRV-rel / movement features, tunable
+   `SLEEP_STAGE_PARAMS`), with stage-summary fitting wired into `tools/calibrate.mjs`.
+
+   ⚠️ **Needs a real-band run to validate:** the corrected drain is built against the documented 4.0
+   spec + a 5.0 auto-probe; a "Sync full history" run over a worn night will confirm the trim offset and
+   feed the first real overnight epochs into the sleep calibration.
+
 ## TL;DR — where we are (updated 2026-06-18)
 - ✅ **App is LIVE on the iPhone — WHOOP Core v0.1.6.** Installed via **SideStore**; updates
   **over-the-air** from the `wios-awe.pages.dev` source — no cable.
@@ -156,10 +187,22 @@ payload :  [ packetType, sequence, command/event, ...data ]
   byte[8] ≈ 60000 / mean RR. (Replayed offline by `tools/whoop-decode.mjs`.)
 
 ## NEXT STEPS (in order)
-1. **(passive) Accumulate the answer-key.** Wear the band daily; keep the official WHOOP app syncing to the cloud for ~2–3 weeks → builds the Recovery/Sleep ground-truth. (Realtime stream + decode are DONE.)
-2. **Decode HISTORICAL_DATA(47).** Run a **read-only** Sync-history capture overnight (band keeps the data for the official app), **Dump/Send**, then decode the (47) record stride (timestamp + HR + …) in `tools/whoop-decode.mjs` (the `decodeHistorical` stub) → full-day HR for strain + overnight HRV/sleep.
-3. **Calibrate (laptop).** `node tools/whoop-api.mjs auth` → `node tools/whoop-api.mjs 60` → `npm run calibrate` → paste the printed `RECOVERY_WEIGHTS` / `STRAIN_SCALE` / `SLEEP_NEED` into `src/scores.js` → `npm test && npm run sync`. Full guide in `tools/CALIBRATE.md`.
-4. **Ship it.** Bump `package.json` version → run `release.yml` → SideStore updates the phone OTA.
+1. **Validate the corrected drain on the real band (THE unblock).** Wear it a few hours / a night, quit
+   the WHOOP app, Connect → **Sync full history** → leave until **SYNC COMPLETE** → **Save file / Send to
+   laptop**. The log prints the winning `trim` strategy + record count. If it stalls at the first window
+   (`trim strategy=NONE`), the 5.0 `HISTORY_END` layout differs — the capture's `METADATA(49)` frames
+   (now decoded by `decodeMetadata`, with `trimCandidates` at offsets 3/5/9/13/17) tell us the right
+   offset to lock.
+2. **(passive) Accumulate the answer-key.** Keep the official WHOOP app syncing to the cloud for ~2–3
+   weeks → Recovery/Sleep ground-truth (incl. per-stage minutes). Realtime + (47) HR decode are DONE.
+3. **Calibrate (laptop).** `node tools/whoop-api.mjs auth` → `node tools/whoop-api.mjs 60` →
+   `npm run calibrate` → paste `RECOVERY_WEIGHTS` / `STRAIN_SCALE` / `SLEEP_NEED` / `SLEEP_STAGE_PARAMS`
+   into `src/scores.js` → `npm test && npm run sync`. The new **Sleep-stages** block fits our hypnogram
+   classifier to WHOOP's stage minutes once an overnight capture exists. Guide in `tools/CALIBRATE.md`.
+4. **Finish the (47) tail decode for sleep movement.** Today the sleep classifier uses an HR-volatility
+   movement proxy; decode the accel/IMU tail of `(47)` / `HISTORICAL_IMU(52)` for true actigraphy → better
+   Wake/REM separation.
+5. **Ship it.** Bump `package.json` version → run `release.yml` → SideStore updates the phone OTA.
 
 ## Code map
 - `src/app.js` — protocol (CRC/build/parse), BLE flow via `@capacitor-community/bluetooth-le`, UI wiring, capture/dump, drop-box send, read-only historical sync, guardrailed custom sender.
@@ -169,5 +212,11 @@ payload :  [ packetType, sequence, command/event, ...data ]
 - `.github/workflows/` — `build.yml` (unsigned `.ipa`) · `release.yml` (signed source + `.ipa` → `wios-awe.pages.dev` for SideStore OTA).
 
 ## Notes
-- Protocol was reverse-engineered **clean-room** (from frame fixtures + observed behaviour). Do not copy the abandoned, `UNLICENSED` third-party "goose" project's code — reference only.
+- Protocol is **clean-room**: we reference the *documented* wire protocol + observed behaviour from the
+  community RE (whoof/openwhoop/noop/goose) and reimplement it ourselves. Protocol facts (command
+  numbers, frame/byte layouts, the dump state machine) aren't copyrightable; **do not copy code**,
+  especially from the `UNLICENSED` goose project — reference only.
+- **cmd 33 / `set_read_pointer` is NOT used** by the historical dump (was a red herring). The dump is the
+  `send_historical_data(22)` → per-batch `historical_data_result(23)` ack-loop, ended by
+  `METADATA(49) HISTORY_COMPLETE`. See the BREAKTHROUGH section above.
 - Reading your own band's data this way is outside WHOOP's ToS (gray area) — fine for personal use on your own device.

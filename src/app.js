@@ -426,12 +426,8 @@ function onFrame(label, dv){
     if(hr>0||rr>0) updateLive();
     log(`  → HR ${hr} bpm${rr?('  RR '+rr+' ms'):''}`, 'ok');
   }
-  if(histSync && (info.packetType===47 || info.packetType===48)){
-    if(info.packetType===47) histCount++;
-    if(histAck){ clearTimeout(histAckTimer);          // read-only mode skips the ack/commit
-      histAckTimer=setTimeout(()=>{ if(histSync && histAck) send(23, HIST_ACK, 'hist_ack'); }, 800); }
-  }
   if(pulling && info.packetType===47 && info.payloadBytes) onPullRecord(info.payloadBytes);
+  if(pulling && info.packetType===49 && info.payloadBytes) onHistMeta(info.payloadBytes);  // METADATA: HISTORY_END trim / COMPLETE
   if(info.packetType===36 && info.code===0x22 && info.payloadBytes){     // get_data_range response → grab oldest buffered ts
     const ts=parseDataRangeOldest(info.payloadBytes); if(ts) dataRangeOldestTs=ts;
   }
@@ -495,7 +491,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','pullnight','fullsync','rewind','trimtest','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','fullsync','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -505,60 +501,37 @@ async function toggleRealtimeHr(){
   await send(3,[rtHrOn?0x01:0x00], rtHrOn?'toggle_realtime_hr ON':'toggle_realtime_hr OFF');
   const b=$('rthr'); if(b){ b.textContent='Realtime HR: '+(rtHrOn?'on':'off'); b.classList.toggle('live',rtHrOn); }
 }
-// Historical sync (payloads per goose): get_data_range(34,[]) → send_historical_data(22,[]); the band
-// then streams HISTORICAL_DATA(47). We ack each burst with historical_data_result(23,[1,0,0,0,0,0,0,0,0])
-// to keep it flowing, and abort_historical_transmits(20) to stop.
-// histAck: when false (Read-only box ticked) we stream HISTORICAL_DATA(47) but never send the
-// historical_data_result(23) commit, so the band keeps the data for the official app to sync.
-let histSync=false, histAck=true, histAckTimer=null, histCount=0;
-const HIST_ACK=[1,0,0,0,0,0,0,0,0];
+// Historical sync — WHOOP's documented dump protocol (clean-room; per community RE + our 5.0 captures).
+// send_historical_data(22) makes the band stream batches of HISTORICAL_DATA(47), each framed by a
+// METADATA(49) HISTORY_START(1) … HISTORY_END(2). We acknowledge a batch with
+// historical_data_result(23) = [01][u32le trim][u32le 0], where `trim` is the flash-record index from
+// that batch's HISTORY_END. The band frees those records, advances its read cursor, and sends the next
+// batch — looping until METADATA(49) HISTORY_COMPLETE(3). NON-DESTRUCTIVE: the ack moves a cursor, not a
+// delete; the official WHOOP app re-reads by rewinding its own. (cmd 33/set_read_pointer is NOT part of
+// this protocol — earlier pointer guesses were a red herring; the real bug was acking with trim=0.)
+const META_HISTORY_START=1, META_HISTORY_END=2, META_HISTORY_COMPLETE=3;
+
+// Quick sync (read-only): stream just the first window, never ack — nothing changes on the band.
 async function syncHistory(){
   if(!deviceId){ log('connect first','err'); return; }
-  const ro=$('histro');
-  if(histSync){ histSync=false; clearTimeout(histAckTimer);
-    await send(20,[],'abort_historical_transmits');
-    const b=$('synchist'); if(b){ b.textContent='Sync history'; b.classList.remove('live'); }
-    if(ro) ro.disabled=false;
-    log(`history sync stopped — ${histCount} HISTORICAL packets (${histAck?'committed/acked':'read-only — NOT acked, left on band'}). Send to laptop.`, 'ok'); return; }
-  histSync=true; histCount=0;
-  histAck = !(ro && ro.checked);
-  // Acked sync COMMITS = wipes the buffer off the band (and it won't reach WHOOP's cloud). That's the
-  // Phase-2 standalone mechanism (we become the band's sync client) — NOT for the calibration phase.
-  // Confirm-gate it so it can't wipe by accident during calibration. See CLAUDE.md.
-  if(histAck && !confirm('Acked sync COMMITS history = it WIPES that data off the band, and it will NOT reach WHOOP\'s cloud. Only do this when YOU are the sole consumer (after cancelling WHOOP). Continue?')){
-    histAck=false; if(ro) ro.checked=true; log('kept read-only — acked sync cancelled','dim');
-  }
-  if(ro) ro.disabled=true;
+  if(pulling){ pulling=false; await send(20,[],'abort_historical_transmits');
+    const b=$('synchist'); if(b){ b.textContent='Quick sync (read-only)'; b.classList.remove('live'); }
+    log(`quick sync stopped — ${pullRecords.length} HISTORICAL record(s) captured (read-only, nothing acked). Save file / Send to laptop.`,'ok'); return; }
+  pulling=true; drain=null; pullRecords.length=0; pullSeen.clear();
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('synchist'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
-  log(histAck ? 'history sync (will acknowledge/commit each burst)'
-             : 'history sync — READ-ONLY: streaming but NOT acknowledging, so the data stays on the band for the official app', 'ok');
-  log('→ get_data_range','cmd'); await send(34,[],'get_data_range');
-  await new Promise(r=>setTimeout(r,1200));
-  log('→ send_historical_data (streaming…)','cmd'); await send(22,[],'send_historical_data');
-  log(histAck ? 'leave ~30–60s while HISTORICAL packets stream, then Send to laptop. Tap again to stop.'
-             : 'leave ~30–60s. If HISTORICAL stays at 0, the band may need acks — untick Read-only and retry. Tap again to stop.','ok');
+  log('QUICK SYNC — read-only: streaming the first window, NOT acknowledging, so nothing changes on the band.','ok');
+  log('→ get_data_range','cmd'); await send(34,[],'get_data_range'); await delay(1200);
+  log('→ send_historical_data (streaming…)','cmd'); await send(22,[0x00],'send_historical_data');
+  log('leave ~20–30s, then tap again to stop and Save file.','ok');
 }
 
-/* --- Full-night pull: read-only pagination via set_read_pointer (cmd 33) ------------
-   The plain sync only returns the oldest ~30 records because get_data_range(34) resets the
-   read pointer and nothing advances it without a commit. This walks the pointer forward
-   burst-by-burst with set_read_pointer and pulls the whole buffer — WITHOUT ever sending the
-   historical_data_result(23) commit/ack, so the band keeps everything for the official app.
-   cmd 33's payload encoding is unknown, so the first run AUTO-PROBES: after each burst stalls
-   it tries each candidate encoding of (lastRecordIndex+1) until one actually advances, then
-   locks onto the winner for the rest of the pull. (47) layout: [3..6]=record idx u32 LE,
-   [7..10]=unix ts u32 LE, [14]=HR — per tools/whoop-decode.mjs.                              */
+/* --- Historical pull plumbing (shared by quick sync + full drain) -------------------
+   HISTORICAL_DATA(47) layout (verified on 5.0): [3..6]=record idx u32 LE, [7..10]=unix ts u32 LE,
+   [14]=HR. We collect records; a "burst" is considered done after QUIET_MS of silence.            */
 const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
 const QUIET_MS = 1500, BURST_MAX_MS = 9000;
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
-const u64le = (n)=> [...u32le(n>>>0), ...u32le(Math.floor(n/4294967296))];
-// Candidate set_read_pointer payloads, tried in order until one advances the stream.
-const POINTER_ENCODINGS = [
-  { id:'idx-u32', bytes:(idx,ts)=> u32le(idx) },
-  { id:'idx-u64', bytes:(idx,ts)=> u64le(idx) },
-  { id:'ts-u32',  bytes:(idx,ts)=> u32le(ts)  },
-];
 let pulling=false; const pullRecords=[]; const pullSeen=new Set();
 let burstResolve=null, burstQuietT=null, burstHardT=null;
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
@@ -581,71 +554,62 @@ const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0}
 const pullMinTs = ()=> pullRecords.reduce((m,r)=> r.ts<m?r.ts:m, Infinity);
 const pullMaxTs = ()=> pullRecords.reduce((m,r)=> r.ts>m?r.ts:m, 0);
 
-async function pullNight(){
-  if(!deviceId){ log('connect first','err'); return; }
-  if(pulling){ pulling=false; log('pull: stop requested — halting after this burst','dim');
-    const b=$('pullnight'); if(b){ b.textContent='Pull full night'; b.classList.remove('live'); } return; }
-  pulling=true; pullRecords.length=0; pullSeen.clear();
-  if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
-  const b=$('pullnight'); if(b){ b.textContent='Stop pull'; b.classList.add('live'); }
-  log('FULL-NIGHT PULL — read-only, auto-probing set_read_pointer. Never acks/commits (cmd 23), so nothing is wiped.','ok');
-  try{
-    log('→ get_data_range (open transfer)','cmd'); await send(34,[],'get_data_range'); await delay(1200);
-    log('→ send_historical_data (baseline burst)…','cmd'); await send(22,[],'send_historical_data'); await waitBurst();
-    let enc=null, max=pullMax().idx, guard=0;
-    log(`baseline: ${pullRecords.length} records, up to idx ${max>=0?max:'—'}`, 'ok');
-    if(max<0) log('no HISTORICAL(47) at all — reconnect, or nothing is buffered. Stopping.','err');
-    while(pulling && max>=0 && guard++<3000){
-      const cur=pullMax(); const target=cur.idx+1, ts=cur.ts+1;
-      let advanced=false;
-      for(const cand of (enc?[enc]:POINTER_ENCODINGS)){
-        if(!pulling) break;
-        log(`→ set_read_pointer[${cand.id}] → idx ${target}`,'cmd');
-        await send(33, cand.bytes(target,ts), 'set_read_pointer'); await delay(300);
-        await send(22,[],'send_historical_data'); await waitBurst();
-        const nm=pullMax().idx;
-        if(nm>max){ enc=cand; max=nm; advanced=true;
-          log(`  ✓ ${cand.id} advanced → idx ${max} (${pullRecords.length} records)`, 'ok'); break; }
-        log(`  ✗ ${cand.id}: no advance`, 'dim');
-      }
-      if(!advanced){ log(`reached the end (or no pointer format advanced past idx ${max}). Stopping.`, enc?'ok':'err'); break; }
-      if(pullRecords.length>120000){ log('record cap reached — stopping','dim'); break; }
-    }
-    const span = pullRecords.length ? `${new Date(pullMinTs()*1000).toLocaleString()} → ${new Date(pullMaxTs()*1000).toLocaleString()}` : '—';
-    const hrs  = pullRecords.length ? ((pullMaxTs()-pullMinTs())/3600).toFixed(1)+'h' : '0h';
-    log(`PULL DONE: ${pullRecords.length} records spanning ${hrs} (${span}); pointer format = ${enc?enc.id:'NONE FOUND'}. Now tap Save file / Send to laptop.`, 'ok');
-  }catch(e){ log('pull error: '+e.message,'err'); }
-  finally{ pulling=false; const bb=$('pullnight'); if(bb){ bb.textContent='Pull full night'; bb.classList.remove('live'); } }
+// --- METADATA(49) tracking during a full drain: HISTORY_END trim + completion flag. ---
+let drain=null;
+const newDrain = ()=> ({ endTrim:null, endRaw:null, endSeen:false, complete:false, strategy:null });
+function onHistMeta(p){
+  if(!drain) return;
+  const code=p[2];
+  if(code===META_HISTORY_END){ drain.endRaw=p; drain.endTrim = p.length>=17 ? u32at(p,13) : null; drain.endSeen=true; }
+  else if(code===META_HISTORY_COMPLETE){ drain.complete=true; }
 }
+// The trim the ack must echo to release the next batch. Documented primary: HISTORY_END's u32 @ off 13.
+// 5.0's METADATA layout may differ, so on the FIRST batch we auto-probe these sources and lock whichever
+// advances the stream; thereafter we recompute it from each new batch using the locked strategy.
+const TRIM_STRATEGIES = [
+  { id:'HISTORY_END@13', get:()=> drain.endTrim },
+  { id:'HISTORY_END@9',  get:()=> drain.endRaw && drain.endRaw.length>=13 ? u32at(drain.endRaw,9) : null },
+  { id:'HISTORY_END@5',  get:()=> drain.endRaw && drain.endRaw.length>=9  ? u32at(drain.endRaw,5) : null },
+  { id:'maxRecordIdx',   get:()=> { const m=pullMax().idx; return m>=0?m:null; } },
+  { id:'maxRecordIdx+1', get:()=> { const m=pullMax().idx; return m>=0?m+1:null; } },
+];
+const ackPayload = (trim)=> [0x01, ...u32le(trim>>>0), 0,0,0,0];
 
-/* --- Full sync (acked, paced) — the Phase-2 standalone mechanism ------------------------
-   DESTRUCTIVE BY DESIGN: like WHOOP's own app, we ack every window so the band streams the WHOLE
-   buffer, committing/trimming as it goes. Everything is captured to the file first, so the trim is
-   harmless to us — but the data does NOT reach WHOOP's cloud, so only run when WE are the sole
-   consumer (post-subscription, or a sacrificial day). Confirm-gated. (cf. the trim test, which did
-   one-ack-then-abort and so wiped without delivering.) See CLAUDE.md. */
-async function fullSync(){
+// Sync full history: the documented ACK-loop drain. Non-destructive (advances the read cursor only).
+async function drainHistory(){
   if(!deviceId){ log('connect first','err'); return; }
-  if(pulling){ pulling=false; const b=$('fullsync'); if(b){ b.textContent='Full sync (acked)'; b.classList.remove('live'); } log('full sync: stop requested','dim'); return; }
-  if(!confirm('FULL SYNC reads the WHOLE band buffer and COMMITS as it goes — it WIPES that data off the band, and it does NOT go to WHOOP. Everything is saved to the capture file. Only run on a period you don’t need WHOOP to score. Continue?')) return;
-  pulling=true; pullRecords.length=0; pullSeen.clear();
+  if(pulling){ pulling=false; const b=$('fullsync'); if(b){ b.textContent='Sync full history'; b.classList.remove('live'); } log('sync: stop requested — halting after this batch','dim'); return; }
+  pulling=true; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
-  log('FULL SYNC (acked, paced) — pulling the whole buffer; band trims as it commits. Phase-2 standalone mechanism.','ok');
+  log('SYNC FULL HISTORY — documented ACK-loop drain: send_historical_data → ack each HISTORY_END with its trim → until HISTORY_COMPLETE. Non-destructive (advances the read cursor; the WHOOP app re-reads by rewinding its own).','ok');
   let before=null;
   try{
-    before=await readOldest();
-    log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
-    log('→ send_historical_data','cmd'); await send(22,[],'send_historical_data'); await waitBurst();
+    before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
+    log('→ send_historical_data','cmd'); await send(22,[0x00],'send_historical_data'); await waitBurst();
+    log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
     let guard=0, stalls=0;
-    log(`window 1: ${pullRecords.length} record(s)`+(pullRecords.length?` up to idx ${pullMax().idx}`:''), pullRecords.length?'ok':'err');
-    while(pulling && guard++<8000){
-      const before=pullRecords.length;
-      await send(23, HIST_ACK, 'hist_ack');         // commit this window + release the next
-      await waitBurst();
-      if(pullRecords.length>before){ stalls=0; if(guard%15===0) log(`  …${pullRecords.length} records (idx ${pullMax().idx})`,'dim'); }
-      else if(++stalls>=3){ log('no new records after 3 acks — transfer complete','ok'); break; }
-      if(pullRecords.length>200000){ log('record cap reached — stopping','dim'); break; }
+    while(pulling && guard++<10000){
+      if(drain.complete){ log('HISTORY_COMPLETE — whole buffer delivered ✓','ok'); break; }
+      const prev=pullRecords.length;
+      const strategies = drain.strategy ? TRIM_STRATEGIES.filter(s=>s.id===drain.strategy) : TRIM_STRATEGIES;
+      let advanced=false;
+      for(const st of strategies){
+        if(!pulling) break;
+        const trim=st.get(); if(trim==null) continue;
+        if(!drain.strategy) log(`→ ack trim via ${st.id} = ${trim}`,'cmd');
+        await send(23, ackPayload(trim), 'historical_data_result'); await waitBurst();
+        if(drain.complete || pullRecords.length>prev){
+          advanced=true;
+          if(!drain.strategy){ drain.strategy=st.id; log(`  ✓ ${st.id} advanced → ${pullRecords.length} records (idx ${pullMax().idx})`,'ok'); }
+          else if(guard%20===0) log(`  …${pullRecords.length} records (idx ${pullMax().idx})`,'dim');
+          break;
+        }
+        if(!drain.strategy) log(`  ✗ ${st.id}: no advance`,'dim');
+      }
+      if(!advanced){ if(++stalls>=2){ log(`stopped — ${drain.strategy?'no further batches (end of buffer)':'no trim format advanced the stream'}.`, drain.strategy?'ok':'err'); break; } }
+      else stalls=0;
+      if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }
     }
     await send(20,[],'abort_historical_transmits'); await delay(400);
     const after=await readOldest();
@@ -653,74 +617,15 @@ async function fullSync(){
     const span=n?`${new Date(pullMinTs()*1000).toLocaleString()} → ${new Date(pullMaxTs()*1000).toLocaleString()}`:'—';
     const hrs=n?((pullMaxTs()-pullMinTs())/3600).toFixed(1)+'h':'0h';
     const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
-    const moved=(before&&after)?(after-before):null;
-    log(`FULL SYNC: ${n} records spanning ${hrs} (${span}); ${sane}.`, n?'ok':'err');
-    log(`oldest BEFORE: ${tsStr(before)} · AFTER: ${tsStr(after)}${moved!=null?` (moved ${moved>=0?'+':''}${(moved/3600).toFixed(1)}h)`:''}`,'cmd');
-    if(n>60)
-      log(`✅ FULL DELIVERY — pulled ${n} records over ${hrs}${moved>120?'; band trimmed as it committed (expected for Phase 2)':''}. Save file / Send to laptop.`,'ok');
-    else if(moved!=null && moved>120)
-      log(`⚠️ STALLED + WIPED — only ${n} records delivered, but the oldest jumped +${(moved/3600).toFixed(1)}h: the ack commits to the END after window 1, so we need an incremental-commit ack pointer. (What streamed is in the capture; the band buffer was trimmed.)`,'err');
-    else if(n<=35)
-      log(`ℹ️ Inconclusive — only ${n} records and the oldest barely moved (${moved!=null?(moved/3600).toFixed(1)+'h':'?'}). The band likely had little buffered — wear it on-wrist for a few hours (some activity) and retry. Save file anyway.`,'dim');
-    else log('Save file / Send to laptop.','ok');
-  }catch(e){ log('full sync error: '+e.message,'err'); }
-  finally{ pulling=false; const bb=$('fullsync'); if(bb){ bb.textContent='Full sync (acked)'; bb.classList.remove('live'); } }
+    log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${n} records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, n>60?'ok':'err');
+    log(`oldest BEFORE ${tsStr(before)} · AFTER ${tsStr(after)}`,'cmd');
+    if(n>60) log(`✅ Pulled ${n} records over ${hrs}. Now Save file / Send to laptop.`,'ok');
+    else if(!drain.strategy) log('⚠️ Only the first window returned — no trim format advanced the stream. The 5.0 HISTORY_END layout may differ; Save file / Send to laptop so I can read the METADATA(49) offsets and lock the trim.','err');
+    else log('ℹ️ Little buffered — wear it on-wrist a few hours (some activity / a night) and retry. Save file anyway.','dim');
+  }catch(e){ log('sync error: '+e.message,'err'); }
+  finally{ pulling=false; const bb=$('fullsync'); if(bb){ bb.textContent='Sync full history'; bb.classList.remove('live'); } }
 }
 
-/* --- Rewind probe (read-only, non-destructive) ----------------------------------------
-   The wear data is on the band but behind a read pointer parked at the end (post our commit).
-   WHOOP's app rewinds the pointer before syncing; we must too. set_read_pointer (cmd 33) is accepted
-   (responds 0x21) but the payload is unknown — try candidate seeks (timestamps / in-range pointers /
-   indices) read-only and report which surfaces records. No acks → nothing is committed/wiped. */
-async function rewindProbe(){
-  if(!deviceId){ log('connect first','err'); return; }
-  if(pulling){ pulling=false; const b=$('rewind'); if(b){ b.textContent='Rewind probe'; b.classList.remove('live'); } log('rewind probe: stopped','dim'); return; }
-  if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
-  const b=$('rewind'); if(b){ b.textContent='Stop probe'; b.classList.add('live'); }
-  log('REWIND PROBE — read-only (no acks, nothing wiped). Seeking the read pointer so the buffered wear becomes readable.','ok');
-  pulling=true;
-  const now=Math.floor(Date.now()/1000);
-  const cands=[
-    {id:'ts -3h u32',  d:u32le(now-3*3600)},
-    {id:'ts -6h u32',  d:u32le(now-6*3600)},
-    {id:'ts -12h u32', d:u32le(now-12*3600)},
-    {id:'ts -24h u32', d:u32le(now-24*3600)},
-    {id:'ts -12h u64', d:u64le(now-12*3600)},
-    {id:'flag0+ts-12h',d:[0,...u32le(now-12*3600)]},
-    {id:'flag1+ts-12h',d:[1,...u32le(now-12*3600)]},
-    {id:'ptr 0x4f5c',  d:u32le(0x4f5c)},
-    {id:'idx 240000',  d:u32le(240000)},
-    {id:'u32 zero',    d:u32le(0)},
-  ];
-  let win=null;
-  try{
-    await send(34,[],'get_data_range'); await delay(900);
-    for(const c of cands){
-      if(!pulling) break;
-      pullRecords.length=0; pullSeen.clear();
-      log(`→ set_read_pointer[${c.id}] → read-only read…`,'cmd');
-      await send(33, c.d, 'set_read_pointer'); await delay(400);
-      await send(22,[],'send_historical_data'); await waitBurst();
-      const n=pullRecords.length;
-      if(n>5){ win=c;
-        log(`  ✅ ${c.id}: ${n} records — span ${((pullMaxTs()-pullMinTs())/3600).toFixed(1)}h (${new Date(pullMinTs()*1000).toLocaleTimeString()} → ${new Date(pullMaxTs()*1000).toLocaleTimeString()})`,'ok');
-        break; }
-      log(`  ✗ ${c.id}: ${n} records`,'dim');
-      await send(20,[],'abort_historical_transmits'); await delay(200);
-    }
-    if(win) log(`🎯 REWIND WORKS via ${win.id} — a read-only seek surfaces the buffer (non-destructive). This is the Phase-2 pull. Save file / Send to laptop.`,'ok');
-    else log('No candidate surfaced records — Save file / Send to laptop; I’ll mine the data_range pointers + cmd33 responses for the right seek.','err');
-  }catch(e){ log('rewind probe error: '+e.message,'err'); }
-  finally{ pulling=false; const bb=$('rewind'); if(bb){ bb.textContent='Rewind probe'; bb.classList.remove('live'); } }
-}
-
-/* --- Trim test: is the ack destructive? (one-button, safe) -----------------------------
-   To get past the ~30-record window the band wants an ack (historical_data_result/23) for flow
-   control. The open question is whether that ack also COMMITS/trims the buffer (which would stop
-   the official WHOOP app from syncing the same data → no calibration answer-key). This test pokes
-   ONLY the oldest ~60 records (read oldest-first, so it never reaches last night), then re-reads
-   the data range to see if the oldest buffered timestamp moved. Oldest unchanged ⇒ ack is
-   non-destructive; oldest advanced ⇒ ack deleted what we read. Either way it stops after 2 windows. */
 let dataRangeOldestTs=null;
 // Scan a get_data_range payload for the oldest plausible record timestamp (u32 within now±window).
 function parseDataRangeOldest(p){
@@ -732,50 +637,6 @@ function parseDataRangeOldest(p){
 async function readOldest(){ dataRangeOldestTs=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
 const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
 
-// Answered (2026-06-20): the ack COMMITS to the read pointer = wipes the buffer. That's expected — it
-// is the normal full-sync mechanism for Phase 2 / standalone (we become the band's sync client). This
-// destructive one-shot test is disabled so we don't wipe during the cloud-calibration phase; use
-// "Sync history" (acked, confirm-gated) deliberately when you're the sole consumer. See CLAUDE.md.
-async function trimTest(){
-  log('Trim test already answered: the ack COMMITS = wipes the band buffer (the normal Phase-2 full-sync mechanism). Disabled here to avoid wiping during calibration — use Sync history (acked) deliberately when you\'re the sole consumer.', 'dim');
-  return;
-}
-async function _trimTest_disabled(){
-  if(!deviceId){ log('connect first','err'); return; }
-  if(pulling){ log('a pull/test is already running — stop it first','err'); return; }
-  if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } }
-  const b=$('trimtest'); if(b){ b.disabled=true; b.textContent='Trim test…'; b.classList.add('live'); }
-  log('TRIM TEST — pokes only the OLDEST ~60 records (never last night). Checks if acking deletes data.','ok');
-  pulling=true; pullRecords.length=0; pullSeen.clear();
-  try{
-    const before=await readOldest();
-    log(`oldest BEFORE: ${tsStr(before)}`,'cmd');
-
-    log('→ send_historical_data (window 1, no ack)…','cmd');
-    await send(22,[],'send_historical_data'); await waitBurst();
-    const w1=pullRecords.length;
-    log(`window 1: ${w1} record(s)`, w1?'ok':'err');
-
-    log('→ historical_data_result ACK [01 00×8] (flow-control, commit-pointer 0)…','cmd');
-    await send(23,HIST_ACK,'hist_ack'); await waitBurst();
-    const w2=pullRecords.length;
-    log(`after ack: ${w2} total — ${w2>w1?('+'+(w2-w1)+' new ⇒ flow control WORKS'):'no new records'}`, w2>w1?'ok':'err');
-
-    log('→ abort_historical_transmits','cmd');
-    await send(20,[],'abort_historical_transmits'); await delay(1000);
-
-    const after=await readOldest();
-    log(`oldest AFTER:  ${tsStr(after)}`,'cmd');
-
-    if(before && after){
-      const moved=after-before;
-      if(moved<=2) log(`✅ NON-DESTRUCTIVE: oldest unchanged (Δ${moved}s) — acking does NOT delete. A normal acked Sync history is safe and keeps the data for WHOOP.`,'ok');
-      else log(`⚠️ DESTRUCTIVE: oldest jumped +${moved}s — the ack DELETED window 1. Don't acked-sync real data; we need a non-committing path.`,'err');
-    } else log('could not parse data range — Save file and send it to me.','err');
-    log(`TRIM TEST DONE — w1=${w1}, w2=${w2}, oldestΔ=${(before&&after)?(after-before)+'s':'?'}. Now Save file / Send to laptop.`,'ok');
-  }catch(e){ log('trim test error: '+e.message,'err'); }
-  finally{ pulling=false; const bb=$('trimtest'); if(bb){ bb.disabled=false; bb.textContent='Trim test (safe)'; bb.classList.remove('live'); } }
-}
 /* ===================== END DEV/SETUP ===================== */
 
 /* ----------------------------- BLE flow ----------------------------------- */
@@ -821,11 +682,9 @@ async function send(command, data=[], label=''){
 }
 async function onDisconnect(){ setStatus('disconnected'); enableDev(false);
   rtHrOn=false; const b=$('rthr'); if(b){ b.textContent='Realtime HR: off'; b.classList.remove('live'); }
-  histSync=false; clearTimeout(histAckTimer); const sb=$('synchist'); if(sb){ sb.textContent='Sync history'; sb.classList.remove('live'); }
-  pulling=false; const pb=$('pullnight'); if(pb){ pb.textContent='Pull full night'; pb.classList.remove('live'); }
-  const fb=$('fullsync'); if(fb){ fb.textContent='Full sync (acked)'; fb.classList.remove('live'); }
-  const rb=$('rewind'); if(rb){ rb.textContent='Rewind probe'; rb.classList.remove('live'); }
-  const tb=$('trimtest'); if(tb){ tb.textContent='Trim test (safe)'; tb.classList.remove('live'); }
+  pulling=false; drain=null;
+  const sb=$('synchist'); if(sb){ sb.textContent='Quick sync (read-only)'; sb.classList.remove('live'); }
+  const fb=$('fullsync'); if(fb){ fb.textContent='Sync full history'; fb.classList.remove('live'); }
   log('device disconnected.','err'); }
 
 function selfTest(){
@@ -861,10 +720,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('range').onclick      = ()=>send(34,[],'get_data_range');
   $('rthr').onclick       = toggleRealtimeHr;
   $('synchist').onclick   = syncHistory;
-  $('pullnight').onclick   = pullNight;
-  $('fullsync').onclick    = fullSync;
-  $('rewind').onclick      = rewindProbe;
-  $('trimtest').onclick    = trimTest;
+  $('fullsync').onclick    = drainHistory;
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }

@@ -30,8 +30,9 @@ import {
   maxHeartRate, makeStrainAccumulator, strainFromLoad, STRAIN_SCALE,
   rollingStats, recoveryScore, RECOVERY_WEIGHTS,
   sleepNeedMinutes, sleepPerformance, SLEEP_NEED,
+  classifySleepStages, summarizeStages, SLEEP_STAGE_PARAMS,
 } from '../src/scores.js';
-import { decodeCapture, dayKey } from './whoop-decode.mjs';
+import { decodeCapture, buildSleepEpochs, dayKey } from './whoop-decode.mjs';
 
 const ROOT     = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CAL_DIR  = path.join(ROOT, 'calibration');
@@ -114,6 +115,22 @@ function loadCaptures(profile){
     console.log(`  · ${f}: ${hr.length} HR samples across ${new Set(hr.map(s=>dayKey(s.t))).size} day(s)`);
   }
   return byDay;
+}
+
+// Overnight epochs per night for sleep-STAGE calibration. Decodes the historical HR+RR from every
+// capture, builds 30-s epochs, and groups them by the date the night *ends* (so a 23:00→07:00 sleep
+// keys to the wake-up day, matching how WHOOP dates a sleep). Returns { 'YYYY-MM-DD': epochs[] }.
+function loadSleepEpochs(){
+  if(!existsSync(CAP_DIR)) return {};
+  const byNight = {};
+  for(const f of readdirSync(CAP_DIR)){
+    if(!f.endsWith('.txt')) continue;
+    const { hr, rrs, stats } = decodeCapture(readFileSync(path.join(CAP_DIR, f), 'utf8'));
+    if(stats.historical===0 || !hr.length) continue;       // stages need the overnight historical stream
+    for(const e of buildSleepEpochs(hr, rrs)) (byNight[dayKey(e.t)] ||= []).push(e);
+  }
+  for(const k of Object.keys(byNight)) byNight[k].sort((a,b)=>a.t-b.t);
+  return byNight;
 }
 
 /* =============================== main ===================================== */
@@ -231,6 +248,40 @@ if(!sleepDays.length){
   console.log('  debtRepayFrac kept at '+SLEEP_NEED.debtRepayFrac+' (WHOOP doesn’t expose raw debt to fit it).');
 }
 
+/* ------------------------- SLEEP STAGES (hypnogram) ----------------------- */
+// We can't match WHOOP's exact stages (cloud model), so we fit OUR classifier's thresholds to match
+// WHOOP's per-night stage SUMMARY (REM/SWS/Light/Wake minutes). Needs overnight captures decoded into
+// epochs — i.e. a working "Sync full history" pull over a night that WHOOP also scored.
+console.log('\n— Sleep stages —');
+const stageNights = loadSleepEpochs();
+const stageRows = answers
+  .filter(d=> d.remMin!=null && d.swsMin!=null && d.lightMin!=null && stageNights[d.date]?.length>=20)
+  .map(d=> ({ date:d.date, epochs:stageNights[d.date],
+              whoop:{ rem:d.remMin, sws:d.swsMin, light:d.lightMin, awake:d.awakeMin||0 } }));
+if(!stageRows.length){
+  console.log('  no night has BOTH a decoded overnight epoch stream AND WHOOP stage minutes yet.');
+  console.log('  Get one: wear it overnight → "Sync full history" → Send to laptop → re-run. (Then this fits');
+  console.log('  SLEEP_STAGE_PARAMS to your own nights.) Until then the classifier uses its default thresholds.');
+} else {
+  // Fit the most impactful thresholds; keep restHrPct + smoothing fixed (structural, not data-driven).
+  const KEYS = ['wakeMove','wakeHrRel','deepHrRel','deepHrv','remHrRel','remHrv'];
+  const RANGES = { wakeMove:[1,6], wakeHrRel:[0.1,0.4], deepHrRel:[0.02,0.15], deepHrv:[0.9,1.4], remHrRel:[0.03,0.2], remHrv:[0.7,1.05] };
+  const toParams = (v)=> ({ ...SLEEP_STAGE_PARAMS, ...Object.fromEntries(KEYS.map((k,i)=>[k,v[i]])) });
+  // Loss = RMSE across all (night × stage) minute errors.
+  const loss = (v)=>{ const P=toParams(v); let s=0,n=0;
+    for(const r of stageRows){ const m=summarizeStages(classifySleepStages(r.epochs, P));
+      for(const st of ['rem','sws','light','awake']){ const e=m[st]-r.whoop[st]; if(Number.isFinite(e)){ s+=e*e; n++; } } }
+    return n? Math.sqrt(s/n) : NaN; };
+  const x0 = KEYS.map(k=> SLEEP_STAGE_PARAMS[k]);
+  const before = loss(x0);
+  const xv = coordDescent(loss, x0, KEYS.map(k=>RANGES[k]));
+  const fittedStages = toParams(xv);
+  for(const k of KEYS) fittedStages[k] = +fittedStages[k].toFixed(3);
+  fitted.sleepStageParams = fittedStages;
+  console.log(`  fit on ${stageRows.length} night(s) · stage-minute RMSE ${fix(before,1)} → ${fix(loss(xv),1)} min`);
+  console.log(`  params: ${KEYS.map(k=>`${k} ${fix(fittedStages[k],2)}`).join('  ')}`);
+}
+
 /* ----------------------------- write -------------------------------------- */
 if(!existsSync(CAL_DIR)) mkdirSync(CAL_DIR, { recursive:true });
 writeFileSync(OUT, JSON.stringify(fitted, null, 2));
@@ -239,4 +290,5 @@ console.log(`Wrote ${path.relative(ROOT, OUT)}. Paste into src/scores.js:`);
 console.log(`  export const RECOVERY_WEIGHTS = ${JSON.stringify(fitted.recovery)};`);
 console.log(`  export const STRAIN_SCALE = ${fitted.strainScale};`);
 console.log(`  export const SLEEP_NEED = ${JSON.stringify(fitted.sleepNeed)};`);
+if(fitted.sleepStageParams) console.log(`  export const SLEEP_STAGE_PARAMS = ${JSON.stringify(fitted.sleepStageParams)};`);
 console.log('Then: npm test && npm run sync\n');

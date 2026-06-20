@@ -371,24 +371,11 @@
     <div class="card">
       <div class="muted" style="margin-bottom:8px;color:#fff">Historical sync — for Recovery / Sleep / Strain</div>
       <p style="font-size:13px;line-height:1.5;margin:0 0 6px">Live heart rate is only “now”. Your <b>Recovery, Sleep and full-day Strain</b> are built from the band's stored history — recorded while you wear it, <b>especially overnight</b>. This pulls that buffered history off the band so it can be decoded into your real scores.</p>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">Wear it (including a night), then tap <b>Sync history</b>. It asks the band for its data range and streams the stored data back — watch <b>HISTORICAL</b> climb in the fd4b counter below. Give it ~30–60s, then tap <b>Send to laptop</b> (below). Tap again to stop.</p>
-      <button class="act" id="synchist" disabled>Sync history</button>
-      <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;font-size:13px;line-height:1.45">
-        <input type="checkbox" id="histro" style="margin-top:2px">
-        <span><b>Read-only</b> — stream the history but don't acknowledge/commit it, so it stays on the band for the official WHOOP app to sync. Safer when you still want WHOOP's own scores as a reference. May stall if the band needs acks to keep streaming — if <b>HISTORICAL</b> stays at 0, untick this and retry.</span>
-      </label>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">Wear it (including a night), then tap <b>Sync full history</b>. It uses WHOOP's own documented dump protocol: it streams each batch of records and acknowledges it with that batch's <b>trim</b> index (from the <code>HISTORY_END</code> marker) so the band releases the next batch, looping until <code>HISTORY_COMPLETE</code>. Watch <b>HISTORICAL</b> climb in the fd4b counter below. This is <b>non-destructive</b> — the ack only advances a read <i>cursor</i>; the official WHOOP app re-reads by rewinding its own. Leave it until it logs <b>SYNC COMPLETE</b>, then <b>Save file</b> / <b>Send to laptop</b>.</p>
+      <button class="act" id="fullsync" disabled>Sync full history</button>
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Pull full night (read-only)</b> — the plain sync above only returns the oldest ~30 records because the read pointer never advances without a commit. This walks the pointer forward burst-by-burst with <b>set_read_pointer</b> and pulls the <b>whole</b> buffer, while <b>never</b> committing/acking — so nothing is wiped and the official WHOOP app can still sync. It auto-detects the pointer format on the first run, so the first attempt may take a minute. Leave it until it logs <b>PULL DONE</b>, then <b>Save file</b>.</p>
-      <button class="act" id="pullnight" disabled>Pull full night</button>
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Full sync (acked)</b> — the <b>Phase‑2 / standalone</b> mechanism: acks every window so the band streams the <b>whole</b> buffer, exactly like WHOOP's own app. Everything is captured to the file first. <b>⚠️ Destructive by design</b> — the band <b>trims as it commits</b>, and this data does <b>not</b> go to WHOOP's cloud, so only run it on a period you don't need WHOOP to score (it's confirm‑gated). Leave it until <b>FULL SYNC DONE</b>, then <b>Save file</b>.</p>
-      <button class="act" id="fullsync" disabled>Full sync (acked)</button>
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Rewind probe (read-only)</b> — the wear data is on the band but behind a read pointer parked at the end. This auto-tries ~10 candidate <b>set_read_pointer</b> seeks (timestamps, in-range pointers) <b>read-only</b> — nothing is acked or wiped — and reports which one makes your buffered records readable. Leave it ~1 min, then <b>Save file</b>.</p>
-      <button class="act" id="rewind" disabled>Rewind probe</button>
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Trim test (safe)</b> — settles the key question: does acking a history burst <b>delete</b> it off the band? It auto-captures, pokes only the <b>oldest ~60 records</b> (read oldest-first, so it never touches last night), sends one ack, then re-checks the band's data range. It prints a verdict in the log — <b>NON-DESTRUCTIVE</b> (safe to do a full acked sync) or <b>DESTRUCTIVE</b> (we need another way). Worst case it only disturbs ~1 minute of yesterday-morning data. Then <b>Save file</b>.</p>
-      <button class="act" id="trimtest" disabled>Trim test (safe)</button>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Quick sync (read-only)</b> — streams just the first window <b>without</b> acknowledging anything, so absolutely nothing changes on the band. Useful for a fast sample capture. Tap to start, tap again to stop, then <b>Save file</b>.</p>
+      <button class="act" id="synchist" disabled>Quick sync (read-only)</button>
     </div>
 
     <div class="card">
