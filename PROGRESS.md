@@ -52,14 +52,13 @@ patch in real time. Charts in `src/app.js` (`interactiveChart`), screens in `www
   sync = full wipe (and the data never reached WHOOP's cloud either, so it's gone); read‑only = max
   ~30 (one BLE window) because only an ack releases the next window. Net: **no non‑destructive full
   pull yet.** The ~29 h buffer (incl. that night) was lost in the test.
-- ✅ **Reconciled (2026-06-20): destructive ack is FINE for the end goal — it's the standalone sync
-  mechanism, not a dead end.** The product must run **without a WHOOP subscription**, which removes API
-  access → so band-raw extraction is **essential** (NOT retired). Two phases (see `CLAUDE.md`):
-  **Phase 1 calibration** = cloud-only (let WHOOP sync; don't destructively touch the band).
-  **Phase 2 standalone** = WHOOP Core *becomes the band's sync client* — a **paced acked sync** wipes
-  as it commits, which is exactly what WHOOP's app does. The disaster was running a destructive ack
-  during Phase 1 + a broken one-ack-then-abort. The official WHOOP app reliably re-synced/recovered
-  the band afterward (3 days back). App safety: acked sync is now **confirm-gated**; trim test disabled.
+- ✅ **CORRECTION (2026-06-20): the ack is NOT destructive.** Earlier we concluded the historical ack
+  "wipes" the buffer — **wrong**. Proof: the official WHOOP app **re-synced 3 days** after we thought
+  it was lost. The ack advances a read/commit **cursor** to the end (not a delete); the band keeps a
+  rolling **multi-day** buffer; WHOOP re-reads by rewinding its own cursor. After we commit,
+  `get_data_range` shows oldest="now" and our read-only returns 0 — that's the cursor position, not
+  deletion. **So the only blocker is rewinding our own cursor:** `set_read_pointer (cmd 33)` (accepted,
+  responds `0x21`, payload unknown). No data-loss risk experimenting.
 - 🔜 **Phase-2 band-RE (develop on sacrificial days, parallel to cloud calibration):** verify a full
   **paced acked sync** delivers the whole buffer (trim test only did one ack+abort); finish the
   `(47)` decode (RR/HRV + sleep staging); validate by HR sanity/consistency (not WHOOP same-day).

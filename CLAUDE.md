@@ -25,51 +25,54 @@ are calibratable from the cloud:
 | **Day Strain** | `/activity/workout` `zone_durations` (z0–z5) + workout `strain` | `strain` (0–21) |
 
 During Phase 1: **wear the band + let the official WHOOP app sync** (fills the cloud answer-key over
-~2–3 weeks), then `node tools/whoop-api.mjs` → `npm run calibrate`. **Do NOT destructively sync the
-band yourself in this phase** — it denies WHOOP the data = no answer-key (we wiped ~29 h learning
-this). Cloud is the calibration source; the band stays untouched.
+~2–3 weeks), then `node tools/whoop-api.mjs` → `npm run calibrate`. No need to touch the band yourself
+for calibration — the cloud is the source. (Our band reads don't delete data or block WHOOP — see
+below — but there's simply no reason to read the band during calibration.)
 
 ### Phase 2 — STANDALONE (ongoing, after cancelling WHOOP) → band-raw
 No subscription = no API. The app reads the band directly and runs the calibrated `scores.js`:
 band → decode HR/HRV/sleep → `scores.js` → Recovery/Sleep/Strain. **This is why band-raw extraction is
 essential and is NOT retired.**
 
-**The band's historical sync is destructive (acked = commit = wipe) — and that is FINE in Phase 2.**
-Once WHOOP is cancelled there's no cloud to preserve data for, so WHOOP Core simply *becomes the
-band's sync client* (exactly what WHOOP's app did): a **paced acked sync** pulls the full buffer, the
-band trims as it commits, repeat before the ~24 h rolling buffer overflows. The earlier disaster
-happened only because we ran a destructive ack **during Phase 1** (wanting WHOOP to ALSO get the data)
-AND with a broken **one-ack-then-abort** that committed without delivering. A proper paced acked sync
-(ack every window to completion — like WHOOP's app, which reliably pulls days of data) delivers
-everything. The official WHOOP app also reliably re-syncs/recovers the band (verified 2026-06-20).
+### ⚠️ Read semantics — CORRECTED 2026-06-20 (the ack is NOT a destructive wipe)
+Earlier we wrongly concluded the historical ack "wipes" data. It does not. **PROOF: the official WHOOP
+app re-synced 3 days of data *after* we thought our ack had destroyed it** — impossible if it were
+deleted. What actually happens:
+- `historical_data_result(23)` advances a read/commit **cursor** to the end; it does **not** erase flash.
+- The band keeps a rolling **multi-day** buffer, so records persist; WHOOP re-reads them by **rewinding
+  its own cursor**. Our commit doesn't block WHOOP, and nothing is lost (until data ages out naturally).
+- After we commit, `get_data_range` shows oldest = "now" and our read-only returns 0 — that's the
+  **cursor position**, not deletion. To re-read past data we must **rewind the cursor** ourselves.
 
-### Remaining band-RE work for Phase 2 (develop in parallel, on sacrificial days)
-- Verify a full **paced acked sync** reliably delivers the whole buffer (the trim test only did one
-  ack + abort). Test on a day we accept not having WHOOP score (extraction denies WHOOP that day).
+**So the whole standalone path hinges on one unknown: `set_read_pointer (cmd 33)`** — the command is
+accepted (responds `0x21`) but we don't yet know the payload to seek/rewind. The **Rewind probe**
+(read-only, in the Setup tab) auto-tries candidate seeks (timestamps / in-range pointers / indices) to
+surface the buffered records. Once we can rewind, Phase 2 = rewind → stream the buffer → decode →
+`scores.js`. No data-loss risk experimenting; the acked sync is confirm-gated only as a courtesy.
+
+### Remaining band-RE work for Phase 2 (develop in parallel; nothing is at risk)
+- **Crack `set_read_pointer (cmd 33)`** — the right seek to rewind the read cursor (Rewind probe).
 - Finish the **`HISTORICAL_DATA(47)` decode** (HR confirmed: `[3..6]`=idx, `[7..10]`=ts, `[14]`=HR;
   RR/HRV + sleep staging next).
-- Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV) — not against
-  WHOOP's same-day score (can't have both, since extraction wipes what WHOOP would sync). `scores.js`
-  calibration comes from OTHER days' cloud data.
+- Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV).
 
 ### Misconceptions to correct if they resurface
 - **"Don't sync to WHOOP cloud — it loses calibration data."** Backwards in Phase 1: the cloud sync
   *creates* the answer-key. Let WHOOP sync.
 - **"We're cloud-only / band-raw is retired."** NO. Cloud is only for the one-time calibration.
   Standalone operation (the end goal) REQUIRES band-raw — cancelling WHOOP removes the API.
-- **"The destructive ack is a dead end."** Only during Phase 1. In Phase 2 it's the *correct*
-  mechanism — we're the sole sync client, so trimming is normal (it's what WHOOP's app does).
+- **"The ack deletes data / band reads are destructive."** NO (corrected 2026-06-20). The ack moves a
+  cursor; the data persists in a rolling multi-day buffer and WHOOP re-reads it. The real blocker is
+  rewinding our own cursor (`set_read_pointer`, cmd 33).
 
 ---
 
 ## Workflow rules
 - Read **`PROGRESS.md`** first for current state. Update it when state changes.
-- ⚠️ **Band historical sync is DESTRUCTIVE.** `send_historical_data(22)` runs the read pointer to the
-  end; `historical_data_result(23)` with `[01 …]` commits to that pointer = **wipes the buffer** (data
-  does NOT reach WHOOP's cloud — it's gone). This is the right mechanism for **Phase 2** (we're the
-  sole consumer) but **must not be used during Phase 1** (it denies WHOOP the answer-key). Read-only
-  (no ack) only yields the oldest ~30 records. The app's acked sync is **confirm-gated**; do not
-  bypass it during calibration.
+- ℹ️ **Band reads are recoverable, not destructive (2026-06-20).** `historical_data_result(23)` advances
+  a read/commit cursor (not a delete); the band keeps a rolling multi-day buffer and the WHOOP app
+  re-syncs it by rewinding its cursor. After we commit, re-reading needs `set_read_pointer (cmd 33)` to
+  rewind. The app's acked sync is confirm-gated as a courtesy; it does not lose data or block WHOOP.
 - `git fetch` before working — both the laptop and phone/web push to this repo.
 - Ship a phone build: bump `version` in `package.json` → run `release.yml` (publishes to
   `wios-awe.pages.dev`; SideStore updates OTA).
