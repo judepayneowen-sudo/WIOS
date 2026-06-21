@@ -492,7 +492,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','fullsync','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -584,20 +584,36 @@ const TRIM_STRATEGIES = [
   { id:'maxRecordIdx',   get:()=> { const m=pullMax().idx; return m>=0?m:null; } },
   { id:'maxRecordIdx+1', get:()=> { const m=pullMax().idx; return m>=0?m+1:null; } },
 ];
-const ackPayload = (trim)=> [0x01, ...u32le(trim>>>0), 0,0,0,0];
+// Ack payload variants for the historical drain. NORMAL is the real protocol ([01][trim][0]) and FREES
+// the acked records (DESTRUCTIVE to data WHOOP hasn't synced). The EXPERIMENT variants are guesses at an
+// "advance the stream WITHOUT freeing" ack — to be tried ONLY on data WHOOP has already synced. After a
+// run, compare the "oldest BEFORE/AFTER" log line: if the oldest didn't move, we advanced non-destructively.
+let ackMode = 'normal';
+const ACK_BUILDERS = {
+  normal:  (trim)=> [0x01, ...u32le(trim>>>0), 0,0,0,0],   // real protocol — frees records (DESTRUCTIVE)
+  status0: (trim)=> [0x00, ...u32le(trim>>>0), 0,0,0,0],   // experiment A: leading status 0x00 not 0x01
+  trim2nd: (trim)=> [0x01, 0,0,0,0, ...u32le(trim>>>0)],   // experiment B: trim in the 2nd u32 slot, 1st=0
+};
+const ackPayload = (trim)=> (ACK_BUILDERS[ackMode]||ACK_BUILDERS.normal)(trim>>>0);
 
-// Sync full history: the documented ACK-loop drain. Non-destructive (advances the read cursor only).
+// Sync full history: the ACK-loop drain. DESTRUCTIVE in 'normal' ack mode (frees the records it pulls).
 async function drainHistory(){
   if(!deviceId){ log('connect first','err'); return; }
   if(pulling){ pulling=false; const b=$('fullsync'); if(b){ b.textContent='Sync full history'; b.classList.remove('live'); } log('sync: stop requested — halting after this batch','dim'); return; }
   // ⚠️ DESTRUCTIVE: the ack-loop advances the band's commit cursor and frees the acked records. If the
   // official WHOOP app has NOT already synced this data, it is permanently lost from WHOOP (observed
-  // 2026-06-21: a full night was pulled here, then WHOOP only had post-pull data). Guard it.
-  if(!window.confirm('⚠️ Sync full history advances the band’s sync cursor and frees the records it pulls. Any data the official WHOOP app has NOT already synced will be PERMANENTLY LOST from WHOOP.\n\nMake sure the WHOOP app has fully synced FIRST, then continue.\n\nProceed with the full (destructive) drain?')) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
+  // 2026-06-21: a full night was pulled here, then WHOOP only had post-pull data). Guard it. The
+  // experiment ack modes are guesses at a non-destructive advance — only safe on already-synced data.
+  const msg = ackMode==='normal'
+    ? '⚠️ Sync full history advances the band’s sync cursor and FREES the records it pulls. Any data the official WHOOP app has NOT already synced will be PERMANENTLY LOST from WHOOP.\n\nMake sure the WHOOP app has fully synced FIRST, then continue.\n\nProceed with the full (destructive) drain?'
+    : `🧪 EXPERIMENT mode “${ackMode}” — this is testing whether the band will hand over history WITHOUT freeing it.\n\nOnly run this on a day the WHOOP app has ALREADY synced, so nothing is at risk. Afterwards, read the “oldest BEFORE / AFTER” line: if the oldest did NOT move, the read was non-destructive.\n\nContinue the experiment?`;
+  if(!window.confirm(msg)) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
   pulling=true; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
-  log('SYNC FULL HISTORY — ACK-loop drain (ack each HISTORY_END trim until HISTORY_COMPLETE). ⚠️ DESTRUCTIVE to data the WHOOP app hasn’t already synced — the ack frees the records on the band.','ok');
+  log(ackMode==='normal'
+    ? 'SYNC FULL HISTORY — ACK-loop drain (ack each HISTORY_END trim until HISTORY_COMPLETE). ⚠️ DESTRUCTIVE to data the WHOOP app hasn’t already synced — the ack frees the records on the band.'
+    : `SYNC FULL HISTORY — 🧪 EXPERIMENT ack mode “${ackMode}”. Watch the oldest BEFORE/AFTER line to see if it freed the records.`, 'ok');
   let before=null;
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
@@ -647,6 +663,12 @@ async function drainHistory(){
     const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
     log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
     log(`oldest BEFORE ${tsStr(before)} · AFTER ${tsStr(after)}`,'cmd');
+    // Verdict: did the oldest-buffered pointer move? If it advanced, the ack FREED records (destructive).
+    if(before && after){
+      const movedH = (after - before)/3600;
+      if(movedH > 0.05) log(`🔴 DESTRUCTIVE: the band’s oldest data jumped forward ${movedH.toFixed(1)}h — those records were freed and the WHOOP app can no longer get them.`, ackMode==='normal'?'err':'err');
+      else log(`🟢 NON-DESTRUCTIVE this run: the band’s oldest data did NOT move${ackMode!=='normal'?` — experiment “${ackMode}” advanced the stream without freeing! 🎉`:''}.`,'ok');
+    }
     if(nd>60) log(`✅ Pulled ${nd} data records over ${hrs}${drain.complete?'':' (STOPPED early — tap Sync full history again to continue from the new cursor)'}. Now Save file / Send to laptop.`,'ok');
     else if(!drain.strategy) log('⚠️ Only the first window returned — no trim format advanced the stream. The 5.0 HISTORY_END layout may differ; Save file / Send to laptop so I can read the METADATA(49) offsets and lock the trim.','err');
     else log('ℹ️ Little buffered — wear it on-wrist a few hours (some activity / a night) and retry. Save file anyway.','dim');
@@ -664,6 +686,19 @@ function parseDataRangeOldest(p){
 }
 async function readOldest(){ dataRangeOldestTs=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
 const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
+
+// Read-only diagnostic: ask the band for the EARLIEST moment it still has stored, and explain it in plain
+// English. Changes nothing on the band. Use it to test the safe workflow — let the WHOOP app sync first,
+// then tap this: if the earliest time is still before last night, the night is safe for us to pull.
+async function checkBandBuffer(){
+  if(!deviceId){ log('connect first','err'); return; }
+  log('Checking what the band still has stored (read-only, changes nothing)…','cmd');
+  const oldest = await readOldest();
+  if(!oldest){ log('Could not read the band’s data range — no timestamp came back. Try again.','err'); return; }
+  const agoH = ((Date.now()/1000 - oldest)/3600).toFixed(1);
+  log(`📦 Earliest data still on the band: ${tsStr(oldest)}  (${agoH}h ago). Everything from then until now can still be pulled.`,'ok');
+  log('👉 If that’s BEFORE last night, the night is still on the band — safe to pull. If it’s already this morning, the WHOOP app has taken (freed) the night and we can’t get it.','ok');
+}
 
 /* ===================== END DEV/SETUP ===================== */
 
@@ -749,6 +784,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('rthr').onclick       = toggleRealtimeHr;
   $('synchist').onclick   = syncHistory;
   $('fullsync').onclick    = drainHistory;
+  $('bandcheck').onclick   = checkBandBuffer;
+  { const am=$('ackmode'); if(am) am.onchange = (e)=>{ ackMode = e.target.value;
+      log(ackMode==='normal' ? 'Ack mode: NORMAL (real protocol — frees records, destructive).'
+        : `Ack mode: 🧪 EXPERIMENT “${ackMode}”. Only run Sync full history on already-synced data.`, ackMode==='normal'?'dim':'cmd'); }; }
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }

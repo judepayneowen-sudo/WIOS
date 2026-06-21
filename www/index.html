@@ -371,11 +371,28 @@
     <div class="card">
       <div class="muted" style="margin-bottom:8px;color:#fff">Historical sync — for Recovery / Sleep / Strain</div>
       <p style="font-size:13px;line-height:1.5;margin:0 0 6px">Live heart rate is only “now”. Your <b>Recovery, Sleep and full-day Strain</b> are built from the band's stored history — recorded while you wear it, <b>especially overnight</b>. This pulls that buffered history off the band so it can be decoded into your real scores.</p>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">Wear it (including a night), then tap <b>Sync full history</b>. It uses WHOOP's own documented dump protocol: it streams each batch of records and acknowledges it with that batch's <b>trim</b> index (from the <code>HISTORY_END</code> marker) so the band releases the next batch, looping until <code>HISTORY_COMPLETE</code>. Watch <b>HISTORICAL</b> climb in the fd4b counter below. This is <b>non-destructive</b> — the ack only advances a read <i>cursor</i>; the official WHOOP app re-reads by rewinding its own. Leave it until it logs <b>SYNC COMPLETE</b>, then <b>Save file</b> / <b>Send to laptop</b>.</p>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">Wear it (including a night), then tap <b>Sync full history</b>. It streams each batch of records and acknowledges it so the band releases the next, looping until <code>HISTORY_COMPLETE</code>. Watch <b>HISTORICAL</b> climb in the fd4b counter below. ⚠️ <b style="color:#ff6b6b">This is DESTRUCTIVE</b>: acknowledging <b>frees</b> the records on the band, so anything the official WHOOP app hasn't already synced is <b>permanently lost from WHOOP</b>. <b>Let the WHOOP app finish syncing FIRST.</b> Leave it until it logs <b>SYNC COMPLETE</b>, then <b>Save file</b> / <b>Send to laptop</b>.</p>
       <button class="act" id="fullsync" disabled>Sync full history</button>
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
       <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Quick sync (read-only)</b> — streams just the first window <b>without</b> acknowledging anything, so absolutely nothing changes on the band. Useful for a fast sample capture. Tap to start, tap again to stop, then <b>Save file</b>.</p>
       <button class="act" id="synchist" disabled>Quick sync (read-only)</button>
+    </div>
+
+    <div class="card">
+      <div class="muted" style="margin-bottom:8px;color:#fff">Band buffer tools</div>
+
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Check what's on the band</b> — reads the band <b>without changing anything</b> and tells you the <b>earliest moment</b> it still has stored. Use it to test the safe workflow: first let the official WHOOP app sync, then tap this. If the earliest time is still <b>before last night</b>, the night is safe to pull; if it has jumped to <b>this morning</b>, WHOOP has already taken it.</p>
+      <button class="act" id="bandcheck" disabled>Check what's on the band</button>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+
+      <p style="font-size:13px;line-height:1.5;margin:0 0 8px"><b>Experiment: can we read without deleting?</b> “Sync full history” normally <b>frees</b> records as it reads (destructive). These options try a different acknowledgement to see if the band will <b>hand over the history without freeing it</b>. ⚠️ <b>Only pick an experiment option on a day the WHOOP app has ALREADY synced</b>, so nothing is at risk. Then run <b>Sync full history</b> above and read the <b>“oldest BEFORE / AFTER”</b> line in the log — if the oldest time <b>did not move</b>, we read it non-destructively. 🎉</p>
+      <select class="in" id="ackmode" style="width:100%">
+        <option value="normal">Normal — frees records (DESTRUCTIVE, the real protocol)</option>
+        <option value="status0">Experiment A — use status byte 00 instead of 01</option>
+        <option value="trim2nd">Experiment B — put the trim index in the second slot</option>
+      </select>
+      <div class="muted" style="margin-top:6px;font-size:12px">Leave on <b>Normal</b> for real pulls. Switch to an Experiment option only to test, on already-synced data.</div>
     </div>
 
     <div class="card">
