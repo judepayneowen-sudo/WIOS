@@ -397,6 +397,23 @@
     </div>
 
     <div class="card">
+      <div class="muted" style="margin-bottom:8px;color:#fff">Read-pointer experiment (cmd 33)</div>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">The band remembers <b>how far it has been read</b> with a little counter (a “read pointer”). The big idea: <b>move that pointer ourselves</b> so we can (a) walk through the whole history without the destructive ack, or (b) rewind it after a pull so the WHOOP app can still read the night. <b>This is read-only and safe</b> — it just moves a counter, it doesn't delete anything.</p>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>How to test the rewind:</b> ① tap <b>Read pointer</b> (note the oldest time). ② run a normal <b>Sync full history</b> (the oldest jumps to “now”). ③ tap <b>Read pointer</b> again, then type the <b>old</b> pointer value back in and tap <b>Set pointer</b>. If the oldest time jumps <b>backward</b>, we can rewind — and WHOOP can re-read. 🎉</p>
+      <button class="act" id="ptrread" disabled>Read pointer</button>
+      <div class="row" style="margin-top:8px">
+        <input class="in" id="ptrval" inputmode="numeric" placeholder="pointer value (read it first)" style="flex:1">
+        <select class="in" id="ptrenc" style="width:auto">
+          <option value="u32le">32-bit LE</option>
+          <option value="u16le">16-bit LE</option>
+          <option value="u32be">32-bit BE</option>
+        </select>
+        <button class="act" id="ptrset" disabled>Set pointer</button>
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:12px">If <b>Set pointer</b> says “No change”, switch the encoding (16-bit LE / 32-bit BE) and tap again. Save the file after the run so it can be checked.</div>
+    </div>
+
+    <div class="card">
       <div class="muted">fd4b frames: <b id="rt" style="color:#fff">none yet</b></div>
       <div class="row" style="margin-top:10px">
         <button class="act" id="capture">Start capture</button>

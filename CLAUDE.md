@@ -48,9 +48,20 @@ permanently lost from WHOOP. So:
   answer-key), THEN run "Sync full history". Or use **"Quick sync (read-only)"**, which streams the first
   window and **never acks** (truly non-destructive, but can't pull a full night).
 - The app now **confirms** before the destructive drain (`drainHistory` in `src/app.js`).
-- OPEN RE QUESTION: is a non-destructive *full* pull possible? Hypothesis — the ack's leading status byte
-  (`0x01`) may mean "commit/free"; a different value (e.g. `0x00`) might advance the stream *without*
-  freeing. Untested; only try on a day WHOOP has already synced (no data at risk).
+- ⛔ **Ack-variant experiments are EXHAUSTED (2026-06-21, on throwaway data):** the advance and the free are
+  both gated by the ack's status byte `0x01` — you cannot decouple them.
+  - **A** `[00][trim][0]`: 🟢 non-destructive but does **not** advance (band replays the oldest window). No-op.
+  - **B** `[01][0][trim]`: 🔴 destructive (oldest jumped to now) **and** doesn't advance. Worst case.
+  - **C** `[00][0][trim]`: predicted no-op like A (status 00 suppresses processing). So: no ack reads non-destructively.
+- ✅ **The live lead is `set_read_pointer` (cmd 33)** — the band ACCEPTS it (responds `0x21`). Old attempts
+  failed only because they used the **wrong number space** (the record index ~339k/72k). **FOUND
+  (2026-06-21): the read/write pointers are small counters ~18,800** — visible in the `get_data_range`
+  response header (e.g. `@10=18846 @18=18842`) and identical to the `HISTORY_END` **trim** we ack. Two wins
+  if cmd 33 takes this space: (a) **non-destructive walk** — advance the read pointer per window, never ack;
+  (b) **rewind-after-drain** — drain fast, then set the pointer back so WHOOP re-reads. Tool shipped:
+  **"Read-pointer experiment (cmd 33)"** (`probePointer`/`setPointer` in `src/app.js`) — read-only, safe.
+- Fallback if cmd 33 fails: **live overnight capture** (foreground + keep-awake; streams HR/RR without
+  touching the buffer, so WHOOP syncs normally) or **passively sniff WHOOP's own sync** (Android HCI/nRF).
 
 **UPDATE 2026-06-20 — the standalone pull is SOLVED (see the Historical-sync section below).** We don't
 need to "rewind" at all: the dump is a per-batch **ACK-loop** and the bug was acking with `trim=0`

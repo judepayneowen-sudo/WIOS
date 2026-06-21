@@ -429,7 +429,8 @@ function onFrame(label, dv){
   // Buffered records arrive as HISTORICAL_DATA(47) on 4.0, but as EVENT(48) on 5.0 — capture both.
   if(pulling && (info.packetType===47||info.packetType===48) && info.payloadBytes) onPullRecord(info.payloadBytes);
   if(pulling && info.packetType===49 && info.payloadBytes) onHistMeta(info.payloadBytes);  // METADATA: HISTORY_END trim / COMPLETE
-  if(info.packetType===36 && info.code===0x22 && info.payloadBytes){     // get_data_range response → grab oldest buffered ts
+  if(info.packetType===36 && info.code===0x22 && info.payloadBytes){     // get_data_range response
+    dataRangeRaw = info.payloadBytes;                                    // keep raw for pointer analysis
     const ts=parseDataRangeOldest(info.payloadBytes); if(ts) dataRangeOldestTs=ts;
   }
   if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex}); if(capture.length>CAP_MAX) capture.shift(); }
@@ -492,7 +493,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -685,8 +686,53 @@ function parseDataRangeOldest(p){
     if(v>=lo && v<=hi && (oldest===null||v<oldest)) oldest=v; }
   return oldest;
 }
-async function readOldest(){ dataRangeOldestTs=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
+let dataRangeRaw=null;   // last raw get_data_range response (for read-pointer analysis)
+async function readOldest(){ dataRangeOldestTs=null; dataRangeRaw=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
 const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
+
+// The historical read/write pointers live in the get_data_range response header as small counters
+// (~thousands–tens-of-thousands), NOT the big record index. Pull the clean ones (top 2 bytes zero) so we
+// can feed the right number space to set_read_pointer (cmd 33) — the old attempts used the record idx and
+// never moved the pointer. Verified on a real 5.0 response: pointers cluster at ~18,842 / 18,846 / 22,700.
+function pointerCandidates(p){
+  const out=[]; if(!p) return out;
+  const end=Math.min(p.length-4, 26);                 // pointers sit in the response header block
+  for(let o=3;o<=end;o++){ const v=(p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
+    if(v>=1000 && v<65536) out.push({off:o, val:v}); }
+  return out;
+}
+// Read-only: dump the band's current data range + read-pointer candidates, and pre-fill the lowest
+// (usually the oldest/read pointer) into the cmd 33 box. Changes nothing on the band.
+async function probePointer(){
+  if(!deviceId){ log('connect first','err'); return; }
+  log('Reading data range + pointers (read-only, changes nothing)…','cmd');
+  const ts=await readOldest();
+  const cands=pointerCandidates(dataRangeRaw);
+  if(!cands.length){ log('No pointer candidates parsed (buffer may be empty). Oldest: '+tsStr(ts),'err'); return; }
+  log(`📍 oldest stored: ${tsStr(ts)}. Pointer candidates: ${cands.map(c=>`@${c.off}=${c.val}`).join('  ')}`,'ok');
+  const lo=Math.min(...cands.map(c=>c.val));
+  const inp=$('ptrval'); if(inp) inp.value=lo;
+  log(`Lowest (likely the read pointer) = ${lo} → pre-filled. To test REWIND: drain destructively, read again, then set this back to a value from BEFORE the drain.`,'dim');
+}
+// Send set_read_pointer (cmd 33) with the chosen value+encoding, then re-read to see if the pointer moved.
+// cmd 33 is NOT a critical/brick command and only moves a read pointer — safe to experiment.
+async function setPointer(){
+  if(!deviceId){ log('connect first','err'); return; }
+  const val=parseInt($('ptrval').value,10);
+  if(!Number.isFinite(val)){ log('read the pointer first, or type a value','err'); return; }
+  const enc=$('ptrenc').value;
+  const data = enc==='u16le' ? [val&0xFF,(val>>>8)&0xFF]
+            : enc==='u32be' ? [(val>>>24)&0xFF,(val>>>16)&0xFF,(val>>>8)&0xFF,val&0xFF]
+            : [val&0xFF,(val>>>8)&0xFF,(val>>>16)&0xFF,(val>>>24)&0xFF];   // u32le default
+  const beforeTs=await readOldest(), beforeC=pointerCandidates(dataRangeRaw).map(c=>c.val).join(',');
+  log(`→ set_read_pointer (cmd 33) = ${val} (${enc}) [${data.map(b=>b.toString(16).padStart(2,'0')).join(' ')}]`,'cmd');
+  await send(33, data, 'set_read_pointer'); await delay(900);
+  const afterTs=await readOldest(), afterC=pointerCandidates(dataRangeRaw).map(c=>c.val).join(',');
+  log(`BEFORE  oldest ${tsStr(beforeTs)} · pointers [${beforeC}]`,'cmd');
+  log(`AFTER   oldest ${tsStr(afterTs)} · pointers [${afterC}]`,'cmd');
+  if(beforeTs!==afterTs || beforeC!==afterC) log(`✅ The pointer MOVED — cmd 33 (${enc}) works in this number space. If oldest went BACKWARD, that's the rewind we need to let WHOOP re-read.`,'ok');
+  else log(`✗ No change with ${enc}. Try a different encoding (u16 LE / u32 BE) or a different candidate value, then tap again.`,'dim');
+}
 
 // Read-only diagnostic: ask the band for the EARLIEST moment it still has stored, and explain it in plain
 // English. Changes nothing on the band. Use it to test the safe workflow — let the WHOOP app sync first,
@@ -786,6 +832,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('synchist').onclick   = syncHistory;
   $('fullsync').onclick    = drainHistory;
   $('bandcheck').onclick   = checkBandBuffer;
+  $('ptrread').onclick     = probePointer;
+  $('ptrset').onclick      = setPointer;
   { const am=$('ackmode'); if(am) am.onchange = (e)=>{ ackMode = e.target.value;
       log(ackMode==='normal' ? 'Ack mode: NORMAL (real protocol — frees records, destructive).'
         : `Ack mode: 🧪 EXPERIMENT “${ackMode}”. Only run Sync full history on already-synced data.`, ackMode==='normal'?'dim':'cmd'); }; }
