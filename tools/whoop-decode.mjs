@@ -177,3 +177,83 @@ export function decodeCapture(text){
 }
 
 export const dayKey = (ms)=> new Date(ms).toISOString().slice(0,10);
+
+/* ---------------------------- HR-offset probe ----------------------------- */
+// The 5.0 EVENT(48) historical record carries HR somewhere in its metric tail ([12..]); the offset
+// isn't pinned yet (decodeHistoricalEvent leaves hr:null). This brute-forces it: for every candidate
+// byte offset it pulls that byte across all periodic records of one subcode, in timestamp order, and
+// scores it like real HR — mostly in 30..180 bpm, several distinct values (not a flag/constant), and
+// smooth between +30 s samples (small median |Δ|). On 4.0 the analogous test confirmed HR@14, so the
+// strongest candidate here is the offset to wire into decodeHistoricalEvent. Pure heuristic — confirm
+// the winner against a WHOOP-app reference night before trusting it.
+export function scanHrOffsets(text, { minRange=30, maxRange=180, offsets=null }={}){
+  // Gather periodic EVENT(48) records (inside a HISTORY window, with a sane sample ts), grouped by subcode.
+  const bySub = new Map();
+  let inHistory=false, longest=0;
+  for(const line of text.split(/\r?\n/)){
+    const c=parseCaptureLine(line); if(!c || c.frame.error) continue;
+    const p=c.frame.payload; if(!p) continue;
+    if(p[0]===49){ const t=p[2]; if(t===1) inHistory=true; else if(t===2||t===3) inHistory=false; continue; }
+    if(p[0]!==48 || !inHistory) continue;
+    const ts=(p[4]|(p[5]<<8)|(p[6]<<16)|(p[7]<<24))>>>0;
+    if(ts<1500000000 || ts>4000000000) continue;     // skip untimestamped boot/info events
+    const sub=p[2];
+    if(!bySub.has(sub)) bySub.set(sub, []);
+    bySub.get(sub).push({ ts, payload:p });
+    if(p.length>longest) longest=p.length;
+  }
+  const scan = offsets || Array.from({length:Math.max(0,longest-12)}, (_,i)=>12+i);  // metric tail [12..]
+  const results=[];
+  for(const [sub, recs] of bySub){
+    if(recs.length<10) continue;                       // too few to judge
+    recs.sort((a,b)=>a.ts-b.ts);
+    const dts = recs.slice(1).map((r,i)=> r.ts-recs[i].ts).filter(d=>d>0).sort((a,b)=>a-b);
+    const periodSec = dts.length ? dts[dts.length>>1] : null;   // median sample spacing
+    for(const o of scan){
+      const vals = recs.filter(r=> r.payload.length>o).map(r=> r.payload[o]);
+      if(vals.length<10) continue;
+      const inRange = vals.filter(v=> v>=minRange && v<=maxRange);
+      const inFrac = inRange.length/vals.length;
+      const distinct = new Set(inRange).size;
+      let mad=null;                                    // median |Δ| between consecutive in-range samples
+      if(inRange.length>2){ const d=inRange.slice(1).map((v,i)=>Math.abs(v-inRange[i])).sort((a,b)=>a-b); mad=d[d.length>>1]; }
+      // Score: want high in-range coverage, real variation (≥5 distinct), and smooth steps (small mad, but >0).
+      const varyOk = distinct>=5 ? 1 : distinct/5;
+      const smooth = mad==null ? 0 : 1/(1+mad);
+      const score = +(inFrac*varyOk*(0.3+0.7*smooth)).toFixed(4);
+      results.push({ sub:'0x'+sub.toString(16).padStart(2,'0'), offset:o, n:vals.length, periodSec,
+        inFrac:+inFrac.toFixed(3), distinct, medAbsDelta:mad,
+        mean:+(inRange.reduce((a,b)=>a+b,0)/(inRange.length||1)).toFixed(1), score });
+    }
+  }
+  results.sort((a,b)=> b.score-a.score);
+  return results;
+}
+
+/* ------------------------------- CLI entry -------------------------------- */
+// node tools/whoop-decode.mjs --scan-hr [file ...]   (defaults to every captures/*.txt)
+if(import.meta.url === `file://${process.argv[1]}`){
+  const args = process.argv.slice(2);
+  if(args[0]==='--scan-hr'){
+    const { readFileSync, readdirSync, existsSync } = await import('node:fs');
+    const path = await import('node:path');
+    const root = path.dirname(new URL('.', import.meta.url).pathname);
+    let files = args.slice(1);
+    if(!files.length){ const dir=path.join(root,'captures');
+      files = existsSync(dir) ? readdirSync(dir).filter(f=>f.endsWith('.txt')).map(f=>path.join(dir,f)) : []; }
+    if(!files.length){ console.error('No capture files. Drop captures/*.txt or pass paths: --scan-hr FILE…'); process.exit(1); }
+    const text = files.map(f=> readFileSync(f,'utf8')).join('\n');
+    const { stats, histEvents } = decodeCapture(text);
+    console.log(`\nScanned ${files.length} file(s): ${stats.frames} frames, ${histEvents.length} timestamped EVENT(48) records.`);
+    const rows = scanHrOffsets(text);
+    if(!rows.length){ console.log('No periodic EVENT(48) records inside a HISTORY window — capture a worn-night "Sync full history" run first.'); process.exit(0); }
+    console.log('\nHR-offset candidates (best first) — look for high inFrac, distinct ≥5, small medAbsDelta, mean 50–70:\n');
+    console.log(['sub','offset','n','periodSec','inFrac','distinct','medAbsΔ','mean','score'].join('\t'));
+    for(const r of rows.slice(0,15))
+      console.log([r.sub, r.offset, r.n, r.periodSec, r.inFrac, r.distinct, r.medAbsDelta, r.mean, r.score].join('\t'));
+    console.log('\nWire the top offset into decodeHistoricalEvent (payload[<offset>]) once a WHOOP-app night confirms it.');
+  } else {
+    console.error('Usage: node tools/whoop-decode.mjs --scan-hr [file ...]');
+    process.exit(1);
+  }
+}
