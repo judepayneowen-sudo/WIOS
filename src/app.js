@@ -529,12 +529,11 @@ async function syncHistory(){
 
 /* --- Historical pull plumbing (shared by quick sync + full drain) -------------------
    HISTORICAL_DATA(47) layout (verified on 5.0): [3..6]=record idx u32 LE, [7..10]=unix ts u32 LE,
-   [14]=HR. We collect records; a "burst" is considered done after QUIET_MS of silence.            */
+   [14]=HR. We collect records; the drain advances one batch per ack, keyed off HISTORY_END.        */
 const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
-const QUIET_MS = 1500, BURST_MAX_MS = 9000;
+const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END before giving up on it
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
 let pulling=false; const pullRecords=[]; const pullSeen=new Set();
-let burstResolve=null, burstQuietT=null, burstHardT=null;
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
@@ -547,28 +546,33 @@ function onPullRecord(p){
     idx=u32at(p,3); ts=u32at(p,7); hr=p.length>14?p[14]:0; key='h'+idx;
   }
   if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0]}); }
-  if(burstResolve){ clearTimeout(burstQuietT);     // each record resets the inter-burst quiet timer
-    burstQuietT=setTimeout(()=>{ const r=burstResolve; burstResolve=null; clearTimeout(burstHardT); r&&r(); }, QUIET_MS); }
-}
-// Resolve when the current burst goes quiet (QUIET_MS with no new 47) or BURST_MAX_MS elapses.
-function waitBurst(){
-  return new Promise(res=>{
-    burstResolve=res;
-    burstQuietT=setTimeout(()=>{ const r=burstResolve; burstResolve=null; clearTimeout(burstHardT); r&&r(); }, QUIET_MS);
-    burstHardT =setTimeout(()=>{ const r=burstResolve; burstResolve=null; clearTimeout(burstQuietT); r&&r(); }, BURST_MAX_MS);
-  });
 }
 const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0});
 const pullMaxTs = ()=> pullRecords.reduce((m,r)=> r.ts>m?r.ts:m, 0);
 
 // --- METADATA(49) tracking during a full drain: HISTORY_END trim + completion flag. ---
 let drain=null;
-const newDrain = ()=> ({ endTrim:null, endRaw:null, endSeen:false, complete:false, strategy:null });
+const newDrain = ()=> ({ endTrim:null, endRaw:null, endSeen:false, endCount:0, complete:false, strategy:null });
 function onHistMeta(p){
   if(!drain) return;
   const code=p[2];
-  if(code===META_HISTORY_END){ drain.endRaw=p; drain.endTrim = p.length>=17 ? u32at(p,13) : null; drain.endSeen=true; }
+  if(code===META_HISTORY_END){ drain.endRaw=p; drain.endTrim = p.length>=17 ? u32at(p,13) : null; drain.endSeen=true; drain.endCount++; }
   else if(code===META_HISTORY_COMPLETE){ drain.complete=true; }
+}
+// Wait until the band finishes the NEXT batch — i.e. a fresh HISTORY_END (endCount ticks up) or
+// HISTORY_COMPLETE — rather than idling QUIET_MS after every batch. HISTORY_END already marks the batch
+// boundary (all its records precede it), so we can ack immediately. This removes ~1.5s of dead time per
+// batch, the dominant cost over a full-night drain (hundreds of batches). BURST_MAX_MS is the safety net.
+function waitBatch(prevEndCount){
+  return new Promise(res=>{
+    const t0=Date.now();
+    (function poll(){
+      if(!pulling || !drain) return res();
+      if(drain.complete || drain.endCount>prevEndCount) return res();
+      if(Date.now()-t0 >= BURST_MAX_MS) return res();
+      setTimeout(poll, 40);
+    })();
+  });
 }
 // The trim the ack must echo to release the next batch. Documented primary: HISTORY_END's u32 @ off 13.
 // 5.0's METADATA layout may differ, so on the FIRST batch we auto-probe these sources and lock whichever
@@ -586,14 +590,18 @@ const ackPayload = (trim)=> [0x01, ...u32le(trim>>>0), 0,0,0,0];
 async function drainHistory(){
   if(!deviceId){ log('connect first','err'); return; }
   if(pulling){ pulling=false; const b=$('fullsync'); if(b){ b.textContent='Sync full history'; b.classList.remove('live'); } log('sync: stop requested — halting after this batch','dim'); return; }
+  // ⚠️ DESTRUCTIVE: the ack-loop advances the band's commit cursor and frees the acked records. If the
+  // official WHOOP app has NOT already synced this data, it is permanently lost from WHOOP (observed
+  // 2026-06-21: a full night was pulled here, then WHOOP only had post-pull data). Guard it.
+  if(!window.confirm('⚠️ Sync full history advances the band’s sync cursor and frees the records it pulls. Any data the official WHOOP app has NOT already synced will be PERMANENTLY LOST from WHOOP.\n\nMake sure the WHOOP app has fully synced FIRST, then continue.\n\nProceed with the full (destructive) drain?')) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
   pulling=true; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
-  log('SYNC FULL HISTORY — documented ACK-loop drain: send_historical_data → ack each HISTORY_END with its trim → until HISTORY_COMPLETE. Non-destructive (advances the read cursor; the WHOOP app re-reads by rewinding its own).','ok');
+  log('SYNC FULL HISTORY — ACK-loop drain (ack each HISTORY_END trim until HISTORY_COMPLETE). ⚠️ DESTRUCTIVE to data the WHOOP app hasn’t already synced — the ack frees the records on the band.','ok');
   let before=null;
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
-    log('→ send_historical_data','cmd'); await send(22,[0x00],'send_historical_data'); await waitBurst();
+    log('→ send_historical_data','cmd'); const e0=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(e0);
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
     let guard=0, stalls=0, reprimes=0;
     while(pulling && guard++<100000){
@@ -605,7 +613,7 @@ async function drainHistory(){
         if(!pulling) break;
         const trim=st.get(); if(trim==null) continue;
         if(!drain.strategy) log(`→ ack trim via ${st.id} = ${trim}`,'cmd');
-        await send(23, ackPayload(trim), 'historical_data_result'); await waitBurst();
+        const eN=drain.endCount; await send(23, ackPayload(trim), 'historical_data_result'); await waitBatch(eN);
         if(drain.complete || pullRecords.length>prev){
           advanced=true;
           if(!drain.strategy){ drain.strategy=st.id; log(`  ✓ ${st.id} advanced → ${pullRecords.length} records (idx ${pullMax().idx})`,'ok'); }
@@ -621,7 +629,7 @@ async function drainHistory(){
       else if(++stalls < 2){ await delay(800); }                                  // band may just be slow between batches
       else if(reprimes++ < 4){ stalls=0;
         log(`stream idle at ${drain.strategy?`idx ${pullMax().idx}`:'start'} — re-priming send_historical_data [${reprimes}/4]`,'dim');
-        await send(22,[0x00],'send_historical_data'); await waitBurst();
+        const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR);
       }
       else { log(`stopped — no further batches after ${reprimes} re-primes (${drain.strategy?`end of buffer at idx ${pullMax().idx}`:'no trim format advanced the stream'}).`, drain.strategy?'ok':'err'); break; }
       if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }

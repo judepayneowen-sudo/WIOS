@@ -26,29 +26,38 @@ are calibratable from the cloud:
 
 During Phase 1: **wear the band + let the official WHOOP app sync** (fills the cloud answer-key over
 ~2–3 weeks), then `node tools/whoop-api.mjs` → `npm run calibrate`. No need to touch the band yourself
-for calibration — the cloud is the source. (Our band reads don't delete data or block WHOOP — see
-below — but there's simply no reason to read the band during calibration.)
+for calibration — the cloud is the source. ⚠️ But do **NOT** run our **"Sync full history"** (the ack-loop
+drain) on data the WHOOP app hasn't already synced — it is **DESTRUCTIVE** (see below). During Phase 1,
+let the WHOOP app sync first; our **"Quick sync (read-only)"** never acks and is safe.
 
 ### Phase 2 — STANDALONE (ongoing, after cancelling WHOOP) → band-raw
 No subscription = no API. The app reads the band directly and runs the calibrated `scores.js`:
 band → decode HR/HRV/sleep → `scores.js` → Recovery/Sleep/Strain. **This is why band-raw extraction is
 essential and is NOT retired.**
 
-### ⚠️ Read semantics — CORRECTED 2026-06-20 (the ack is NOT a destructive wipe)
-Earlier we wrongly concluded the historical ack "wipes" data. It does not. **PROOF: the official WHOOP
-app re-synced 3 days of data *after* we thought our ack had destroyed it** — impossible if it were
-deleted. What actually happens:
-- `historical_data_result(23)` advances a read/commit **cursor** to the end; it does **not** erase flash.
-- The band keeps a rolling **multi-day** buffer, so records persist; WHOOP re-reads them by **rewinding
-  its own cursor**. Our commit doesn't block WHOOP, and nothing is lost (until data ages out naturally).
-- After we commit, `get_data_range` shows oldest = "now" and our read-only returns 0 — that's the
-  **cursor position**, not deletion. To re-read past data we must **rewind the cursor** ourselves.
+### ⚠️ Read semantics — RE-CORRECTED 2026-06-21: the ack-loop drain IS DESTRUCTIVE (observed data loss)
+The 2026-06-20 "non-destructive" conclusion was **WRONG** and is hereby reverted. **PROOF (2026-06-21):**
+a full overnight was pulled via "Sync full history" (the ack-loop), and afterwards the official WHOOP app
+had **NO data for that night** — it only showed records from *after* our pull (~08:15). The night was
+permanently lost from WHOOP. So:
+- `historical_data_result(23)` (ack with `[01][trim][0]`) **commits and frees** the acked records on the
+  band. WHOOP does **not** get a second chance at data it hadn't already synced — it's gone.
+- The earlier "WHOOP re-synced 3 days after our ack" anecdote was misread (WHOOP had likely already synced
+  those days, or they hadn't been acked to the end). It is **not** evidence of non-destructive reads.
+- **Safe workflow:** let the WHOOP app sync to its cloud FIRST (that cloud copy is also the Phase-1
+  answer-key), THEN run "Sync full history". Or use **"Quick sync (read-only)"**, which streams the first
+  window and **never acks** (truly non-destructive, but can't pull a full night).
+- The app now **confirms** before the destructive drain (`drainHistory` in `src/app.js`).
+- OPEN RE QUESTION: is a non-destructive *full* pull possible? Hypothesis — the ack's leading status byte
+  (`0x01`) may mean "commit/free"; a different value (e.g. `0x00`) might advance the stream *without*
+  freeing. Untested; only try on a day WHOOP has already synced (no data at risk).
 
 **UPDATE 2026-06-20 — the standalone pull is SOLVED (see the Historical-sync section below).** We don't
 need to "rewind" at all: the dump is a per-batch **ACK-loop** and the bug was acking with `trim=0`
 instead of the `HISTORY_END` flash index. `set_read_pointer (cmd 33)` is **not** part of the protocol —
 ignore it. Phase 2 = `drainHistory()` (send 22 → ack each batch's trim → `HISTORY_COMPLETE`) → decode →
-`scores.js`. No data-loss risk (the ack advances a cursor; WHOOP re-reads by rewinding its own).
+`scores.js`. ⚠️ **The ack frees the records (DESTRUCTIVE to un-synced data — see Read semantics above).**
+In Phase 2 (subscription cancelled) that's fine — WHOOP no longer needs the data. In Phase 1, sync WHOOP first.
 
 ### ⭐ Historical sync — SOLVED (2026-06-20), `set_read_pointer` was a red herring
 The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data(22)` → batches of
@@ -56,6 +65,7 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
 `historical_data_result(23) = [01][u32le trim][u32le 0]` where **`trim` = the `HISTORY_END` flash index**
 (old bug: we acked `trim=0`); loop until `HISTORY_COMPLETE(3)`. Implemented as `drainHistory()` in
 `src/app.js` (auto-probes the 5.0 trim offset on batch 1, then locks it). **`cmd 33` is NOT part of this.**
+⚠️ The ack **frees** the records — **DESTRUCTIVE to data WHOOP hasn't synced** (see Read semantics above).
 
 ### Remaining band-RE work for Phase 2 (develop in parallel; nothing is at risk)
 - **Validate `drainHistory` on the real band** — confirm the 5.0 trim strategy/offset (worn-night "Sync
@@ -75,8 +85,9 @@ openwhoop/noop approach and the agreed target. Do not chase byte-identical hypno
   *creates* the answer-key. Let WHOOP sync.
 - **"We're cloud-only / band-raw is retired."** NO. Cloud is only for the one-time calibration.
   Standalone operation (the end goal) REQUIRES band-raw — cancelling WHOOP removes the API.
-- **"The ack deletes data / band reads are destructive."** NO (corrected 2026-06-20). The ack moves a
-  cursor; the data persists in a rolling multi-day buffer and WHOOP re-reads it.
+- **"The ack-loop is non-destructive / WHOOP re-reads it."** ❌ FALSE (proven 2026-06-21 — a night was
+  lost from WHOOP after our full drain). The ack **frees** the records; WHOOP can't recover un-synced data.
+  Note: the **"Quick sync (read-only)"** path (no ack) *is* safe — but it only streams the first window.
 - **"The blocker is `set_read_pointer` (cmd 33)."** NO (resolved 2026-06-20) — red herring. The dump is a
   per-batch ack-loop; ack `historical_data_result(23)` with the `HISTORY_END` **trim** (we wrongly used
   `trim=0`). See the Historical-sync section.
@@ -85,10 +96,12 @@ openwhoop/noop approach and the agreed target. Do not chase byte-identical hypno
 
 ## Workflow rules
 - Read **`PROGRESS.md`** first for current state. Update it when state changes.
-- ℹ️ **Historical pull is the documented ACK-loop (2026-06-20).** `send_historical_data(22)` → ack each
-  batch with `historical_data_result(23)=[01][u32le trim][u32le 0]` (trim = `HISTORY_END` flash index) →
-  until `HISTORY_COMPLETE`. Non-destructive (cursor advance; WHOOP re-reads by rewinding its own).
-  `set_read_pointer (cmd 33)` is **not** used. Implemented as `drainHistory()` in `src/app.js`.
+- ℹ️ **Historical pull is the ACK-loop.** `send_historical_data(22)` → ack each batch with
+  `historical_data_result(23)=[01][u32le trim][u32le 0]` (trim = `HISTORY_END` flash index) → until
+  `HISTORY_COMPLETE`. ⚠️ **DESTRUCTIVE — the ack frees the records; data the WHOOP app hasn't synced is
+  lost (proven 2026-06-21).** Let WHOOP sync first in Phase 1. `set_read_pointer (cmd 33)` is **not** used.
+  Implemented as `drainHistory()` (now behind a confirm) in `src/app.js`; `waitBatch` acks on each
+  `HISTORY_END` for speed.
 - `git fetch` before working — both the laptop and phone/web push to this repo.
 - Ship a phone build: bump `version` in `package.json` → run `release.yml` (publishes to
   `wios-awe.pages.dev`; SideStore updates OTA).
