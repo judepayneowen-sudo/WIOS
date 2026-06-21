@@ -546,7 +546,7 @@ function onPullRecord(p){
   }else{                                            // 4.0 HISTORICAL_DATA(47): idx@3, ts@7, HR@14
     idx=u32at(p,3); ts=u32at(p,7); hr=p.length>14?p[14]:0; key='h'+idx;
   }
-  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr}); }
+  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0]}); }
   if(burstResolve){ clearTimeout(burstQuietT);     // each record resets the inter-burst quiet timer
     burstQuietT=setTimeout(()=>{ const r=burstResolve; burstResolve=null; clearTimeout(burstHardT); r&&r(); }, QUIET_MS); }
 }
@@ -559,7 +559,6 @@ function waitBurst(){
   });
 }
 const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0});
-const pullMinTs = ()=> pullRecords.reduce((m,r)=> r.ts<m?r.ts:m, Infinity);
 const pullMaxTs = ()=> pullRecords.reduce((m,r)=> r.ts>m?r.ts:m, 0);
 
 // --- METADATA(49) tracking during a full drain: HISTORY_END trim + completion flag. ---
@@ -596,8 +595,8 @@ async function drainHistory(){
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
     log('→ send_historical_data','cmd'); await send(22,[0x00],'send_historical_data'); await waitBurst();
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
-    let guard=0, stalls=0;
-    while(pulling && guard++<10000){
+    let guard=0, stalls=0, reprimes=0;
+    while(pulling && guard++<100000){
       if(drain.complete){ log('HISTORY_COMPLETE — whole buffer delivered ✓','ok'); break; }
       const prev=pullRecords.length;
       const strategies = drain.strategy ? TRIM_STRATEGIES.filter(s=>s.id===drain.strategy) : TRIM_STRATEGIES;
@@ -610,24 +609,37 @@ async function drainHistory(){
         if(drain.complete || pullRecords.length>prev){
           advanced=true;
           if(!drain.strategy){ drain.strategy=st.id; log(`  ✓ ${st.id} advanced → ${pullRecords.length} records (idx ${pullMax().idx})`,'ok'); }
-          else if(guard%20===0) log(`  …${pullRecords.length} records (idx ${pullMax().idx})`,'dim');
+          else if(guard%20===0) log(`  …${pullRecords.length} records up to ${new Date(pullMaxTs()*1000).toLocaleTimeString()} (idx ${pullMax().idx})`,'dim');
           break;
         }
         if(!drain.strategy) log(`  ✗ ${st.id}: no advance`,'dim');
       }
-      if(!advanced){ if(++stalls>=2){ log(`stopped — ${drain.strategy?'no further batches (end of buffer)':'no trim format advanced the stream'}.`, drain.strategy?'ok':'err'); break; } }
-      else stalls=0;
+      // Don't bail on the first quiet gap: mid-buffer the band pauses between batches, and after it frees
+      // acked records the stream can need re-priming with another send_historical_data(22). Be patient and
+      // re-prime a few times before concluding we've truly hit the end of the buffer (HISTORY_COMPLETE).
+      if(advanced){ stalls=0; reprimes=0; }
+      else if(++stalls < 2){ await delay(800); }                                  // band may just be slow between batches
+      else if(reprimes++ < 4){ stalls=0;
+        log(`stream idle at ${drain.strategy?`idx ${pullMax().idx}`:'start'} — re-priming send_historical_data [${reprimes}/4]`,'dim');
+        await send(22,[0x00],'send_historical_data'); await waitBurst();
+      }
+      else { log(`stopped — no further batches after ${reprimes} re-primes (${drain.strategy?`end of buffer at idx ${pullMax().idx}`:'no trim format advanced the stream'}).`, drain.strategy?'ok':'err'); break; }
       if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }
     }
     await send(20,[],'abort_historical_transmits'); await delay(400);
     const after=await readOldest();
-    const n=pullRecords.length, hv=pullRecords.filter(r=>r.hr>0).map(r=>r.hr);
-    const span=n?`${new Date(pullMinTs()*1000).toLocaleString()} → ${new Date(pullMaxTs()*1000).toLocaleString()}`:'—';
-    const hrs=n?((pullMaxTs()-pullMinTs())/3600).toFixed(1)+'h':'0h';
+    // Coverage must come from the dense dump records (HISTORICAL_DATA 47), NOT sparse EVENT(48) connection
+    // blips — a single reconnect event at "now" otherwise inflates the span to a phantom ~16h. Fall back to
+    // all records only if this firmware delivered the dump as EVENT(48) (no 47 present).
+    const dump = pullRecords.filter(r=>r.src===47).length ? pullRecords.filter(r=>r.src===47) : pullRecords;
+    const n=pullRecords.length, nd=dump.length, hv=dump.filter(r=>r.hr>0).map(r=>r.hr);
+    const minTs=dump.reduce((m,r)=>r.ts<m?r.ts:m,Infinity), maxTs=dump.reduce((m,r)=>r.ts>m?r.ts:m,0);
+    const span=nd?`${new Date(minTs*1000).toLocaleString()} → ${new Date(maxTs*1000).toLocaleString()}`:'—';
+    const hrs=nd?((maxTs-minTs)/3600).toFixed(1)+'h':'0h';
     const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
-    log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${n} records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, n>60?'ok':'err');
+    log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
     log(`oldest BEFORE ${tsStr(before)} · AFTER ${tsStr(after)}`,'cmd');
-    if(n>60) log(`✅ Pulled ${n} records over ${hrs}. Now Save file / Send to laptop.`,'ok');
+    if(nd>60) log(`✅ Pulled ${nd} data records over ${hrs}${drain.complete?'':' (STOPPED early — tap Sync full history again to continue from the new cursor)'}. Now Save file / Send to laptop.`,'ok');
     else if(!drain.strategy) log('⚠️ Only the first window returned — no trim format advanced the stream. The 5.0 HISTORY_END layout may differ; Save file / Send to laptop so I can read the METADATA(49) offsets and lock the trim.','err');
     else log('ℹ️ Little buffered — wear it on-wrist a few hours (some activity / a night) and retry. Save file anyway.','dim');
   }catch(e){ log('sync error: '+e.message,'err'); }
