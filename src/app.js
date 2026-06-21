@@ -493,7 +493,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','seekbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -738,6 +738,55 @@ async function setPointer(){
   else log(`✗ No clear move with ${enc}. (Ignore tiny pointer wiggles — the newest pointer drifts up on its own as the band records.) Try another encoding, or a value far from the current one, on a buffer with more than a few minutes of data.`,'dim');
 }
 
+// Read-only PROBE: stream just the first batch from the current read position, capture (ts, trim) =
+// where the read pointer sits, then ABORT without acking (non-destructive). This is the ground-truth
+// feedback for the seek — the first streamed record is exactly where the read head is.
+async function probeReadPos(){
+  const wasPulling=pulling; pulling=true; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
+  await send(22,[0x00],'send_historical_data');
+  const t0=Date.now();
+  while(Date.now()-t0<6000){ if(pullRecords.length>0 && drain.endSeen) break; await delay(100); }
+  pulling=wasPulling;
+  await send(20,[],'abort_historical_transmits'); await delay(300);
+  if(!pullRecords.length) return null;
+  const first=pullRecords.reduce((m,r)=> r.ts<m.ts?r:m, pullRecords[0]);
+  return { ts:first.ts, trim:drain.endTrim };
+}
+// SEEK TO A TIME: the read pointer is a flash counter linear with time (~15 s/unit, from capture analysis).
+// Convert the target date/time → a pointer estimate, cmd 33 to it, probe where we landed, refine the rate
+// from the two anchors, and repeat. Converging proves cmd 33 seeks AND lands us on the chosen night — then
+// a normal Sync full history pulls just that night instead of walking days from the start.
+let SEC_PER_TRIM = 15.0;   // refined live from probes
+async function seekToTime(){
+  if(!deviceId){ log('connect first','err'); return; }
+  const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
+  if(!Number.isFinite(target)){ log('pick a date & time to seek to','err'); return; }
+  const enc=$('ptrenc').value;
+  const pack=(n)=> enc==='u16le' ? [n&0xFF,(n>>>8)&0xFF]
+            : enc==='u32be' ? [(n>>>24)&0xFF,(n>>>16)&0xFF,(n>>>8)&0xFF,n&0xFF]
+            : [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
+  log(`🎯 Seeking to ${new Date(target*1000).toLocaleString()} …`,'cmd');
+  let a=await probeReadPos();
+  if(!a){ log('probe failed — no records streamed. Connect and make sure the band has buffered data.','err'); return; }
+  log(`start: read head at ${tsStr(a.ts)} (trim ${a.trim})`,'dim');
+  for(let iter=1; iter<=4; iter++){
+    if(a.trim==null){ log('no HISTORY_END trim parsed — cannot compute a pointer.','err'); return; }
+    let trimEst=Math.round(a.trim + (target - a.ts)/SEC_PER_TRIM);
+    if(trimEst<0) trimEst=0;
+    log(`→ cmd 33 seek to trim ${trimEst} (${enc}) [iter ${iter}, rate ${SEC_PER_TRIM.toFixed(1)} s/unit]`,'cmd');
+    await send(33, pack(trimEst), 'set_read_pointer'); await delay(500);
+    const b=await probeReadPos();
+    if(!b){ log('no records after the seek — the read pointer may be past the end. Try an earlier time.','err'); return; }
+    const errMin=(b.ts-target)/60;
+    log(`landed at ${tsStr(b.ts)} (trim ${b.trim}) — off by ${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
+    if(b.ts===a.ts && b.trim===a.trim){ log(`✗ The read head did NOT move — cmd 33 (${enc}) isn’t seeking in this format. Try a different encoding in the dropdown.`,'err'); return; }
+    if(Math.abs(errMin)<10){ log(`✅ Within 10 min of target. Now tap “Sync full history” to pull this night — it starts here, not from days ago.`,'ok'); return; }
+    if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>1 && r<120){ SEC_PER_TRIM=r; } }   // refine rate
+    a=b;
+  }
+  log('Got as close as it could — tap “Sync full history” to pull from here (may start a little before the night).','dim');
+}
+
 // Read-only: report the band's SYNC CURSOR (oldest not-yet-committed point). IMPORTANT: this is only a
 // logical marker, NOT what's physically stored — the band keeps days of records in its NOR flash and a
 // full "Sync full history" reads them from the start regardless of this cursor (proven 2026-06-21: pulled
@@ -839,6 +888,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('bandcheck').onclick   = checkBandBuffer;
   $('ptrread').onclick     = probePointer;
   $('ptrset').onclick      = setPointer;
+  $('seekbtn').onclick     = seekToTime;
   { const am=$('ackmode'); if(am) am.onchange = (e)=>{ ackMode = e.target.value;
       log(ackMode==='normal' ? 'Ack mode: NORMAL (real protocol — frees records, destructive).'
         : `Ack mode: 🧪 EXPERIMENT “${ackMode}”. Only run Sync full history on already-synced data.`, ackMode==='normal'?'dim':'cmd'); }; }

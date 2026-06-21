@@ -411,6 +411,14 @@
         <button class="act" id="ptrset" disabled>Set pointer</button>
       </div>
       <div class="muted" style="margin-top:6px;font-size:12px">If <b>Set pointer</b> says “No change”, switch the encoding (16-bit LE / 32-bit BE) and tap again. Save the file after the run so it can be checked.</div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Seek to a night</b> — pick a date &amp; time and tap <b>Seek</b>. The app converts it to a pointer (the band counts ~15 seconds per step), jumps there, checks where it actually landed, and corrects itself a couple of times. When it says “within 10 min”, tap <b>Sync full history</b> and it pulls <b>from that point</b> instead of walking days from the start. Aim a couple of hours <b>before</b> bedtime to catch the whole night.</p>
+      <div class="row">
+        <input class="in" id="seekdt" type="datetime-local" style="flex:1">
+        <button class="act" id="seekbtn" disabled>Seek</button>
+      </div>
+      <div class="muted" style="margin-top:6px;font-size:12px">Uses the encoding selected above. If it says “the read head did NOT move”, switch the encoding and try again. Start capture first and save the file afterward.</div>
     </div>
 
     <div class="card">
