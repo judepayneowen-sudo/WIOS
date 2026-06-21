@@ -757,36 +757,36 @@ async function probeReadPos(){
 // Convert the target date/time → a pointer estimate, cmd 33 to it, probe where we landed, refine the rate
 // from the two anchors, and repeat. Converging proves cmd 33 seeks AND lands us on the chosen night — then
 // a normal Sync full history pulls just that night instead of walking days from the start.
-let SEC_PER_TRIM = 15.0;   // refined live from probes
+let SEC_PER_TRIM = 15.0;     // refined live from probes
+let TRIM_PER_PAGE = 3.0;     // the band addresses the read pointer by flash PAGE; trim ≈ 3 × page (refined live)
 async function seekToTime(){
   if(!deviceId){ log('connect first','err'); return; }
   const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
   if(!Number.isFinite(target)){ log('pick a date & time to seek to','err'); return; }
-  const enc=$('ptrenc').value;
-  const pack=(n)=> enc==='u16le' ? [n&0xFF,(n>>>8)&0xFF]
-            : enc==='u32be' ? [(n>>>24)&0xFF,(n>>>16)&0xFF,(n>>>8)&0xFF,n&0xFF]
-            : enc==='u64le' ? [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF,0,0,0,0]  // [lo32 LE][hi32=0]
-            : [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
+  // cmd 33 = "Force Read Pointer" — payload is [page u32 LE][wrap u32 LE]. The band confirmed this in its
+  // console ("Command Force Read Pointer; read page:N wrap count:0"). page ≈ trim/TRIM_PER_PAGE.
+  const sendPage=async(page)=>{ const p=Math.max(0,Math.round(page));
+    await send(20,[],'abort'); await delay(300);   // clear any active transfer (avoids "transfer already active")
+    await send(33, [p&0xFF,(p>>>8)&0xFF,(p>>>16)&0xFF,(p>>>24)&0xFF, 0,0,0,0], 'force_read_pointer'); await delay(500); return p; };
   log(`🎯 Seeking to ${new Date(target*1000).toLocaleString()} …`,'cmd');
   let a=await probeReadPos();
-  if(!a){ log('probe failed — no records streamed. Connect and make sure the band has buffered data.','err'); return; }
-  log(`start: read head at ${tsStr(a.ts)} (trim ${a.trim})`,'dim');
+  if(!a || a.trim==null){ log('probe failed — no records / no trim. Connect and make sure the band has buffered data.','err'); return; }
+  log(`start: read head at ${tsStr(a.ts)} (trim ${a.trim}, page ≈ ${Math.round(a.trim/TRIM_PER_PAGE)})`,'dim');
   for(let iter=1; iter<=4; iter++){
-    if(a.trim==null){ log('no HISTORY_END trim parsed — cannot compute a pointer.','err'); return; }
-    let trimEst=Math.round(a.trim + (target - a.ts)/SEC_PER_TRIM);
-    if(trimEst<0) trimEst=0;
-    log(`→ cmd 33 seek to trim ${trimEst} (${enc}) [iter ${iter}, rate ${SEC_PER_TRIM.toFixed(1)} s/unit]`,'cmd');
-    await send(33, pack(trimEst), 'set_read_pointer'); await delay(500);
+    const trimEst=Math.round(a.trim + (target - a.ts)/SEC_PER_TRIM);
+    const pageEst=Math.round(trimEst/TRIM_PER_PAGE);
+    log(`→ Force Read Pointer (cmd 33) page ${Math.max(0,pageEst)} (trim≈${trimEst}) [iter ${iter}, ${SEC_PER_TRIM.toFixed(1)} s/trim ÷ ${TRIM_PER_PAGE.toFixed(2)}]`,'cmd');
+    await sendPage(pageEst);
     const b=await probeReadPos();
-    if(!b){ log('no records after the seek — the read pointer may be past the end. Try an earlier time.','err'); return; }
+    if(!b || b.trim==null){ log('no records after the seek — the page may be past the end. Try an earlier time.','err'); return; }
     const errMin=(b.ts-target)/60;
-    log(`landed at ${tsStr(b.ts)} (trim ${b.trim}) — off by ${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
-    if(b.ts===a.ts && b.trim===a.trim){ log(`✗ The read head did NOT move — cmd 33 (${enc}) isn’t seeking in this format. Try a different encoding in the dropdown.`,'err'); return; }
-    if(Math.abs(errMin)<10){ log(`✅ Within 10 min of target. Now tap “Sync full history” to pull this night — it starts here, not from days ago.`,'ok'); return; }
-    if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>1 && r<120){ SEC_PER_TRIM=r; } }   // refine rate
+    log(`landed at ${tsStr(b.ts)} (trim ${b.trim}, page ≈ ${Math.round(b.trim/TRIM_PER_PAGE)}) — off by ${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
+    if(b.ts===a.ts && b.trim===a.trim && iter>1){ log('✗ The read head did NOT move. Save the file — the band console will show the page it used so the factor can be fixed.','err'); return; }
+    if(Math.abs(errMin)<10){ log('✅ Within 10 min of target. Now tap “Sync full history” to pull this night — it starts here, not from days ago.','ok'); return; }
+    if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>1 && r<120) SEC_PER_TRIM=r; }   // refine s/trim
     a=b;
   }
-  log('Got as close as it could — tap “Sync full history” to pull from here (may start a little before the night).','dim');
+  log('Got as close as it could — tap “Sync full history” to pull from here (Save the file so the page factor can be refined).','dim');
 }
 
 // Read-only: report the band's SYNC CURSOR (oldest not-yet-committed point). IMPORTANT: this is only a
