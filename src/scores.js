@@ -139,15 +139,19 @@ export function sleepPerformance(asleepMin, needMin) {
 // Decision (established wearable approach): movement/HR-driven WAKE; low-HR + high-HRV ⇒ DEEP(SWS);
 // low-movement + elevated/variable HR + lower HRV ⇒ REM; otherwise LIGHT. A min-duration smoothing pass
 // removes 30 s flicker (real hypnograms hold a stage for minutes).
+// Calibrated 2026-06-21 against WHOOP's official stage summary for the night of Thu Jun 18 (Awake 17 /
+// Light 286 / Deep 129 / REM 111 min), on a band-recovered (47) capture → 4% total-minute error; the same
+// params cross-checked sane on the Jun 18→19 night (3% wake / 49% light / 28% deep / 20% REM). NOTE: move
+// is now the accel actigraphy metric (mean |Δ g-vector| per epoch, ~0–0.5), not the old HR-volatility proxy.
 export const SLEEP_STAGE_PARAMS = {
-  restHrPct: 0.10,   // resting HR = this percentile of the night's epoch HRs (CALIBRATE)
-  wakeMove:  3.0,    // movement proxy above this ⇒ Wake (CALIBRATE)
-  wakeHrRel: 0.20,   // HR ≥ resting×(1+this) ⇒ Wake (CALIBRATE)
-  deepHrRel: 0.06,   // HR within resting×(1+this) ⇒ Deep candidate (CALIBRATE)
-  deepHrv:   1.05,   // rmssd ≥ this×median ⇒ Deep candidate (CALIBRATE)
-  remHrRel:  0.08,   // HR ≥ resting×(1+this) with low move ⇒ REM candidate (CALIBRATE)
-  remHrv:    0.95,   // rmssd ≤ this×median ⇒ REM candidate (CALIBRATE)
-  smoothEpochs: 3,   // min consecutive epochs a stage must persist (median smoothing)
+  restHrPct: 0.15,   // resting HR = this percentile of the night's epoch HRs
+  wakeMove:  0.30,   // accel actigraphy above this ⇒ Wake
+  wakeHrRel: 0.45,   // HR ≥ resting×(1+this) ⇒ Wake
+  deepHrRel: 0.06,   // HR within resting×(1+this) ⇒ Deep candidate
+  deepHrv:   1.20,   // rmssd ≥ this×median ⇒ Deep candidate
+  remHrRel:  0.22,   // HR ≥ resting×(1+this) with low move ⇒ REM candidate
+  remHrv:    0.75,   // rmssd ≤ this×median ⇒ REM candidate
+  smoothEpochs: 5,   // min consecutive epochs a stage must persist (median smoothing)
 };
 
 /** p-th percentile (0..1) of a numeric array, linear interpolation. */

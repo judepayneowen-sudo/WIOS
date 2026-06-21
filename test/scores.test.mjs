@@ -50,18 +50,19 @@ ok(approx(stages.light, 1) && approx(stages.sws, 0.5), 'stage minutes tally');
 ok(approx(percentile([1, 2, 3, 4, 5], 0.5), 3, 1e-9), 'percentile median');
 ok(percentile([10, 20, 30], 0) === 10 && percentile([10, 20, 30], 1) === 30, 'percentile ends');
 // Single-epoch classification against an explicit night baseline (restHr 50, median HRV 55).
+// move is the accel actigraphy metric (~0–0.5); thresholds per the calibrated SLEEP_STAGE_PARAMS.
 const base = { restHr: 50, hrvMed: 55 };
-ok(classifySleepStage({ hr: 50, rmssd: 85, move: 0.4 }, base) === STAGE.SWS, 'deep: low HR + high HRV → SWS');
-ok(classifySleepStage({ hr: 56, rmssd: 38, move: 1.0 }, base) === STAGE.REM, 'REM: HR up, HRV down, still → REM');
-ok(classifySleepStage({ hr: 72, rmssd: 40, move: 6.0 }, base) === STAGE.AWAKE, 'wake: high movement → AWAKE');
-ok(classifySleepStage({ hr: 55, rmssd: 55, move: 1.0 }, base) === STAGE.LIGHT, 'intermediate → LIGHT');
+ok(classifySleepStage({ hr: 50, rmssd: 75, move: 0.01 }, base) === STAGE.SWS, 'deep: low HR + high HRV → SWS');
+ok(classifySleepStage({ hr: 62, rmssd: 35, move: 0.01 }, base) === STAGE.REM, 'REM: HR up, HRV down, still → REM');
+ok(classifySleepStage({ hr: 72, rmssd: 40, move: 0.50 }, base) === STAGE.AWAKE, 'wake: high movement → AWAKE');
+ok(classifySleepStage({ hr: 55, rmssd: 55, move: 0.01 }, base) === STAGE.LIGHT, 'intermediate → LIGHT');
 // Whole-night hypnogram: runs of each stage survive smoothing and all four stages appear.
 const night = [];
 const push = (n, e) => { for (let i = 0; i < n; i++) night.push({ t: night.length * 30000, ...e }); };
-push(10, { hr: 50, rmssd: 85, move: 0.4 });  // deep
-push(10, { hr: 55, rmssd: 55, move: 1.0 });  // light
-push(10, { hr: 56, rmssd: 38, move: 1.0 });  // rem
-push(6,  { hr: 72, rmssd: 40, move: 6.0 });  // wake
+push(10, { hr: 50, rmssd: 75, move: 0.01 });  // deep
+push(10, { hr: 55, rmssd: 55, move: 0.01 });  // light
+push(10, { hr: 62, rmssd: 35, move: 0.01 });  // rem
+push(8,  { hr: 72, rmssd: 40, move: 0.50 });  // wake
 const bl = nightBaselines(night);
 ok(bl.restHr <= 52 && bl.hrvMed > 0, `night baselines sane (restHr ${bl.restHr|0}, hrvMed ${bl.hrvMed|0})`);
 const hypno = classifySleepStages(night);
