@@ -64,8 +64,12 @@ export function decodeRealtime(payload){
 //   [7..10]  = unix timestamp   (u32 LE seconds) — verified +1 s per record
 //   [11..12] = block/marker (0x2666 / 0x251e) — not needed
 //   [14]     = heart rate (bpm) — verified: smooth trend, and 60000/RR ≈ HR
-//   [15]     = RR count, then [16..] = RR intervals (u16 LE ms)  ← TENTATIVE
-//   [~25..]  = IEEE-754 floats (accel/orientation, for sleep activity) — not decoded yet
+//   [15]     = RR count (0/1/2), then [16..] = RR intervals (u16 LE ms)  ← CONFIRMED on a 2nd 5.0
+//              capture (2026-06-21, fw-unknown band): 112-byte records, mean RR 870 ms ≈ 69 bpm.
+//   [~33..]  = IEEE-754 floats incl. a ~±1.0 gravity axis (accel/orientation for sleep actigraphy) — TODO decode
+// NOTE: this firmware frames buffered history as HISTORICAL_DATA(47), NOT EVENT(48) — 2486 (47) frames
+// in one "Sync full history" run, fully decodable here. EVENT(48) on this band = sparse connection/state
+// events only. The 5.0 EVENT(48)-framed history (decodeHistoricalEvent) is a separate firmware/mode.
 // One (47) frame = one 1-second record → returns a single sample; decodeCapture aggregates.
 export function decodeHistorical(payload){
   if(!payload || payload[0]!==47 || payload.length<15) return null;
@@ -165,7 +169,9 @@ export function decodeCapture(text){
     const p=c.frame.payload;
     const rt=decodeRealtime(p);
     if(rt){ realtime++; if(rt.hr) hr.push({ t:c.t, hr:rt.hr }); if(rt.rr) rrs.push({ t:c.t, rr:rt.rr }); }
-    if(p && p[0]===47){ historical++; const h=decodeHistorical(p); if(h && h.length) for(const s of h){ if(s.hr) hr.push(s); } }
+    if(p && p[0]===47){ historical++; const h=decodeHistorical(p); if(h && h.length) for(const s of h){
+      if(s.hr) hr.push({ t:s.t, hr:s.hr });
+      if(s.rr) for(const v of s.rr) rrs.push({ t:s.t, rr:v }); } }   // (47) carries RR too — collect it for HRV
     if(p && p[0]===49){ metadata++; const m=decodeMetadata(p);
       if(m){ meta.push({ t:c.t, ...m }); if(m.type===1) inHistory=true; else if(m.type===2||m.type===3) inHistory=false; } }
     // EVENT(48) inside a HISTORY_START/END window = a 5.0 buffered record (see decodeHistoricalEvent).
