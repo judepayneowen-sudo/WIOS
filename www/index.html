@@ -381,8 +381,8 @@
     <div class="card">
       <div class="muted" style="margin-bottom:8px;color:#fff">Band buffer tools</div>
 
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Check what's on the band</b> — reads the band <b>without changing anything</b> and tells you the <b>earliest moment</b> it still has stored. Use it to test the safe workflow: first let the official WHOOP app sync, then tap this. If the earliest time is still <b>before last night</b>, the night is safe to pull; if it has jumped to <b>this morning</b>, WHOOP has already taken it.</p>
-      <button class="act" id="bandcheck" disabled>Check what's on the band</button>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Check the sync cursor</b> — reads the band <b>without changing anything</b> and shows its <b>sync cursor</b> (the oldest point not yet marked as synced). ⚠️ This is only a marker, <b>not</b> what's physically stored: the band keeps <b>days</b> of records in its flash chip, and <b>Sync full history</b> reads them from the very start regardless of this cursor — so data that looks “gone” here can usually still be pulled.</p>
+      <button class="act" id="bandcheck" disabled>Check the sync cursor</button>
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
 

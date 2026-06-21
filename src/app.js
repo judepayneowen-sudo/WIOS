@@ -738,17 +738,18 @@ async function setPointer(){
   else log(`✗ No clear move with ${enc}. (Ignore tiny pointer wiggles — the newest pointer drifts up on its own as the band records.) Try another encoding, or a value far from the current one, on a buffer with more than a few minutes of data.`,'dim');
 }
 
-// Read-only diagnostic: ask the band for the EARLIEST moment it still has stored, and explain it in plain
-// English. Changes nothing on the band. Use it to test the safe workflow — let the WHOOP app sync first,
-// then tap this: if the earliest time is still before last night, the night is safe for us to pull.
+// Read-only: report the band's SYNC CURSOR (oldest not-yet-committed point). IMPORTANT: this is only a
+// logical marker, NOT what's physically stored — the band keeps days of records in its NOR flash and a
+// full "Sync full history" reads them from the start regardless of this cursor (proven 2026-06-21: pulled
+// 4-day-old records while this cursor read "today"). So don't trust it to mean data is gone.
 async function checkBandBuffer(){
   if(!deviceId){ log('connect first','err'); return; }
-  log('Checking what the band still has stored (read-only, changes nothing)…','cmd');
+  log('Reading the band’s sync cursor (read-only, changes nothing)…','cmd');
   const oldest = await readOldest();
   if(!oldest){ log('Could not read the band’s data range — no timestamp came back. Try again.','err'); return; }
   const agoH = ((Date.now()/1000 - oldest)/3600).toFixed(1);
-  log(`📦 Earliest data still on the band: ${tsStr(oldest)}  (${agoH}h ago). Everything from then until now can still be pulled.`,'ok');
-  log('👉 If that’s BEFORE last night, the night is still on the band — safe to pull. If it’s already this morning, the WHOOP app has taken (freed) the night and we can’t get it.','ok');
+  log(`📍 Sync cursor (oldest UN-synced point): ${tsStr(oldest)} (${agoH}h ago).`,'ok');
+  log('⚠️ This is just a marker, NOT what’s physically stored. The band keeps days of records in flash, and “Sync full history” reads them from the very start regardless of this cursor — so older data that looks “gone” here can usually still be pulled.','ok');
 }
 
 /* ===================== END DEV/SETUP ===================== */
