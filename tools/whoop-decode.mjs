@@ -66,7 +66,8 @@ export function decodeRealtime(payload){
 //   [14]     = heart rate (bpm) — verified: smooth trend, and 60000/RR ≈ HR
 //   [15]     = RR count (0/1/2), then [16..] = RR intervals (u16 LE ms)  ← CONFIRMED on a 2nd 5.0
 //              capture (2026-06-21, fw-unknown band): 112-byte records, mean RR 870 ms ≈ 69 bpm.
-//   [~33..]  = IEEE-754 floats incl. a ~±1.0 gravity axis (accel/orientation for sleep actigraphy) — TODO decode
+//   [37,41,45] = accel/orientation as 3× IEEE-754 f32 LE (g units) — CONFIRMED: |vector| = 1.005 g
+//              steady at rest (y≈−1.0 g gravity axis). This is the actigraphy signal for sleep movement.
 // NOTE: this firmware frames buffered history as HISTORICAL_DATA(47), NOT EVENT(48) — 2486 (47) frames
 // in one "Sync full history" run, fully decodable here. EVENT(48) on this band = sparse connection/state
 // events only. The 5.0 EVENT(48)-framed history (decodeHistoricalEvent) is a separate firmware/mode.
@@ -83,7 +84,14 @@ export function decodeHistorical(payload){
   if(n>0 && n<=4 && payload.length >= 16+2*n){
     for(let i=0;i<n;i++){ const v = payload[16+2*i] | (payload[17+2*i]<<8); if(v>250 && v<2500) rr.push(v); }
   }
-  return [{ t: ts*1000, hr: hr>0?hr:null, rr: rr.length?rr:null }];
+  // Accel/orientation triplet (g): f32 LE at 37/41/45. Only present in the 112-byte rich record.
+  let acc = null;
+  if(payload.length >= 49){
+    const f32 = (o)=> new DataView(new Uint8Array(payload.slice(o,o+4)).buffer).getFloat32(0, true);
+    const x=f32(37), y=f32(41), z=f32(45), mag=Math.sqrt(x*x+y*y+z*z);
+    if(mag>0.3 && mag<4 && [x,y,z].every(Number.isFinite)) acc = { x, y, z, mag };  // plausible g-vector only
+  }
+  return [{ t: ts*1000, hr: hr>0?hr:null, rr: rr.length?rr:null, acc }];
 }
 
 // HISTORICAL via EVENT(48): on WHOOP 5.0 the buffered dump is NOT framed as HISTORICAL_DATA(47) —
@@ -125,10 +133,13 @@ export function decodeMetadata(payload){
   return out;
 }
 
-// Build 30-second sleep epochs from decoded HR + RR streams: mean HR, HRV (RMSSD over the epoch's RR),
-// and a movement proxy (HR volatility) until the accelerometer tail of (47)/HISTORICAL_IMU(52) is
-// decoded. These epochs feed scores.classifySleepStages(). epochSeconds default 30 (one PSG epoch).
-export function buildSleepEpochs(hr, rrs, epochSeconds = 30){
+// Build 30-second sleep epochs from decoded HR + RR (+ optional accel) streams: mean HR, HRV (RMSSD over
+// the epoch's RR), and a movement metric. When the accel g-vector stream is supplied we use TRUE
+// actigraphy (mean |Δvector| between consecutive samples — a real activity count); otherwise we fall
+// back to the legacy HR-volatility proxy. These epochs feed scores.classifySleepStages(). epochSeconds
+// default 30 (one PSG epoch).
+export function buildSleepEpochs(hr, rrs, accel = [], epochSeconds = 30){
+  if(typeof accel === 'number'){ epochSeconds = accel; accel = []; }   // back-compat: (hr, rrs, epochSeconds)
   if(!hr || !hr.length) return [];
   const W = epochSeconds*1000;
   const t0 = hr[0].t, tN = hr[hr.length-1].t;
@@ -142,7 +153,12 @@ export function buildSleepEpochs(hr, rrs, epochSeconds = 30){
     const sd = hh.length>1 ? Math.sqrt(hh.reduce((a,b)=>a+(b-mean)**2,0)/(hh.length-1)) : 0;
     let rmssd = null;
     if(rr.length>2){ let s=0,n=0; for(let i=1;i<rr.length;i++){ const d=rr[i]-rr[i-1]; s+=d*d; n++; } rmssd = n?Math.sqrt(s/n):null; }
-    epochs.push({ t:start, hr:Math.round(mean), rmssd: rmssd!=null?Math.round(rmssd):null, move:+sd.toFixed(2) });
+    // Movement: prefer real actigraphy from the accel g-vector; fall back to HR volatility if absent.
+    const av = accel.filter(s=> s.t>=start && s.t<end);
+    let move, moveSrc;
+    if(av.length>1){ let s=0; for(let i=1;i<av.length;i++){ const d=Math.hypot(av[i].x-av[i-1].x, av[i].y-av[i-1].y, av[i].z-av[i-1].z); s+=d; } move=+(s/(av.length-1)).toFixed(4); moveSrc='accel'; }
+    else { move=+sd.toFixed(2); moveSrc='hrvol'; }
+    epochs.push({ t:start, hr:Math.round(mean), rmssd: rmssd!=null?Math.round(rmssd):null, move, moveSrc });
   }
   return epochs;
 }
@@ -161,7 +177,7 @@ export function parseCaptureLine(line){
 
 /** Whole capture text → time-ordered HR samples, RR intervals, and historical-sync metadata. */
 export function decodeCapture(text){
-  const hr=[], rrs=[], meta=[], histEvents=[];
+  const hr=[], rrs=[], accel=[], meta=[], histEvents=[];
   let frames=0, realtime=0, historical=0, metadata=0, inHistory=false;
   for(const line of text.split(/\r?\n/)){
     const c=parseCaptureLine(line); if(!c || c.frame.error) continue;
@@ -171,15 +187,16 @@ export function decodeCapture(text){
     if(rt){ realtime++; if(rt.hr) hr.push({ t:c.t, hr:rt.hr }); if(rt.rr) rrs.push({ t:c.t, rr:rt.rr }); }
     if(p && p[0]===47){ historical++; const h=decodeHistorical(p); if(h && h.length) for(const s of h){
       if(s.hr) hr.push({ t:s.t, hr:s.hr });
-      if(s.rr) for(const v of s.rr) rrs.push({ t:s.t, rr:v }); } }   // (47) carries RR too — collect it for HRV
+      if(s.rr) for(const v of s.rr) rrs.push({ t:s.t, rr:v });    // (47) carries RR too — collect it for HRV
+      if(s.acc) accel.push({ t:s.t, ...s.acc }); } }              // and an accel g-vector for actigraphy
     if(p && p[0]===49){ metadata++; const m=decodeMetadata(p);
       if(m){ meta.push({ t:c.t, ...m }); if(m.type===1) inHistory=true; else if(m.type===2||m.type===3) inHistory=false; } }
     // EVENT(48) inside a HISTORY_START/END window = a 5.0 buffered record (see decodeHistoricalEvent).
     if(p && p[0]===48 && inHistory){ const e=decodeHistoricalEvent(p);
       if(e){ historical++; histEvents.push(e); if(e.hr) hr.push({ t:e.t, hr:e.hr }); } }
   }
-  hr.sort((a,b)=>a.t-b.t); rrs.sort((a,b)=>a.t-b.t); histEvents.sort((a,b)=>a.t-b.t);
-  return { hr, rrs, meta, histEvents, stats:{ frames, realtime, historical, metadata } };
+  hr.sort((a,b)=>a.t-b.t); rrs.sort((a,b)=>a.t-b.t); accel.sort((a,b)=>a.t-b.t); histEvents.sort((a,b)=>a.t-b.t);
+  return { hr, rrs, accel, meta, histEvents, stats:{ frames, realtime, historical, metadata } };
 }
 
 export const dayKey = (ms)=> new Date(ms).toISOString().slice(0,10);

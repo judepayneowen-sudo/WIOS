@@ -125,9 +125,9 @@ function loadSleepEpochs(){
   const byNight = {};
   for(const f of readdirSync(CAP_DIR)){
     if(!f.endsWith('.txt')) continue;
-    const { hr, rrs, stats } = decodeCapture(readFileSync(path.join(CAP_DIR, f), 'utf8'));
+    const { hr, rrs, accel, stats } = decodeCapture(readFileSync(path.join(CAP_DIR, f), 'utf8'));
     if(stats.historical===0 || !hr.length) continue;       // stages need the overnight historical stream
-    for(const e of buildSleepEpochs(hr, rrs)) (byNight[dayKey(e.t)] ||= []).push(e);
+    for(const e of buildSleepEpochs(hr, rrs, accel)) (byNight[dayKey(e.t)] ||= []).push(e);  // real accel actigraphy when present
   }
   for(const k of Object.keys(byNight)) byNight[k].sort((a,b)=>a.t-b.t);
   return byNight;
