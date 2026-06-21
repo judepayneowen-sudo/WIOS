@@ -386,13 +386,14 @@
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
 
-      <p style="font-size:13px;line-height:1.5;margin:0 0 8px"><b>Experiment: can we read without deleting?</b> “Sync full history” normally <b>frees</b> records as it reads (destructive). These options try a different acknowledgement to see if the band will <b>hand over the history without freeing it</b>. ⚠️ <b>Only pick an experiment option on a day the WHOOP app has ALREADY synced</b>, so nothing is at risk. Then run <b>Sync full history</b> above and read the <b>“oldest BEFORE / AFTER”</b> line in the log — if the oldest time <b>did not move</b>, we read it non-destructively. 🎉</p>
+      <p style="font-size:13px;line-height:1.5;margin:0 0 8px"><b>Experiment: can we read without deleting?</b> “Sync full history” normally <b>frees</b> records as it reads (destructive). These options try a different acknowledgement to see if the band will <b>hand over the history without freeing it</b>. ⚠️ <b>Only pick an experiment option on THROWAWAY data you don't mind losing</b> — e.g. an hour of daytime wear with the WHOOP app <b>force-closed</b> — because if it fails it still frees that data. Then run <b>Sync full history</b> above and read the <b>“oldest BEFORE / AFTER”</b> line in the log — if the oldest time <b>did not move</b>, we read it non-destructively. 🎉</p>
       <select class="in" id="ackmode" style="width:100%">
         <option value="normal">Normal — frees records (DESTRUCTIVE, the real protocol)</option>
         <option value="status0">Experiment A — use status byte 00 instead of 01</option>
         <option value="trim2nd">Experiment B — put the trim index in the second slot</option>
+        <option value="s0trim2">Experiment C — status byte 00 AND trim in the second slot</option>
       </select>
-      <div class="muted" style="margin-top:6px;font-size:12px">Leave on <b>Normal</b> for real pulls. Switch to an Experiment option only to test, on already-synced data.</div>
+      <div class="muted" style="margin-top:6px;font-size:12px">Leave on <b>Normal</b> for real pulls. Try <b>A</b> first, then <b>B</b>, then <b>C</b> — each on a fresh throwaway hour. Save the file after every run.</div>
     </div>
 
     <div class="card">

@@ -593,6 +593,7 @@ const ACK_BUILDERS = {
   normal:  (trim)=> [0x01, ...u32le(trim>>>0), 0,0,0,0],   // real protocol — frees records (DESTRUCTIVE)
   status0: (trim)=> [0x00, ...u32le(trim>>>0), 0,0,0,0],   // experiment A: leading status 0x00 not 0x01
   trim2nd: (trim)=> [0x01, 0,0,0,0, ...u32le(trim>>>0)],   // experiment B: trim in the 2nd u32 slot, 1st=0
+  s0trim2: (trim)=> [0x00, 0,0,0,0, ...u32le(trim>>>0)],   // experiment C: status 0x00 AND trim in 2nd slot
 };
 const ackPayload = (trim)=> (ACK_BUILDERS[ackMode]||ACK_BUILDERS.normal)(trim>>>0);
 
@@ -606,7 +607,7 @@ async function drainHistory(){
   // experiment ack modes are guesses at a non-destructive advance — only safe on already-synced data.
   const msg = ackMode==='normal'
     ? '⚠️ Sync full history advances the band’s sync cursor and FREES the records it pulls. Any data the official WHOOP app has NOT already synced will be PERMANENTLY LOST from WHOOP.\n\nMake sure the WHOOP app has fully synced FIRST, then continue.\n\nProceed with the full (destructive) drain?'
-    : `🧪 EXPERIMENT mode “${ackMode}” — this is testing whether the band will hand over history WITHOUT freeing it.\n\nOnly run this on a day the WHOOP app has ALREADY synced, so nothing is at risk. Afterwards, read the “oldest BEFORE / AFTER” line: if the oldest did NOT move, the read was non-destructive.\n\nContinue the experiment?`;
+    : `🧪 EXPERIMENT mode “${ackMode}” — testing whether the band will hand over history WITHOUT freeing it.\n\nRun this only on THROWAWAY data you don’t mind losing (e.g. an hour of daytime wear with the WHOOP app force-closed) — if the experiment fails it still frees that data. Afterwards, read the “oldest BEFORE / AFTER” line: if the oldest did NOT move, the read was non-destructive.\n\nContinue the experiment?`;
   if(!window.confirm(msg)) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
   pulling=true; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
