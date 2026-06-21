@@ -723,6 +723,7 @@ async function setPointer(){
   const enc=$('ptrenc').value;
   const data = enc==='u16le' ? [val&0xFF,(val>>>8)&0xFF]
             : enc==='u32be' ? [(val>>>24)&0xFF,(val>>>16)&0xFF,(val>>>8)&0xFF,val&0xFF]
+            : enc==='u64le' ? [val&0xFF,(val>>>8)&0xFF,(val>>>16)&0xFF,(val>>>24)&0xFF,0,0,0,0]  // [lo32][hi32=0]
             : [val&0xFF,(val>>>8)&0xFF,(val>>>16)&0xFF,(val>>>24)&0xFF];   // u32le default
   const beforeTs=await readOldest(), beforeC=pointerCandidates(dataRangeRaw).map(c=>c.val).join(',');
   log(`→ set_read_pointer (cmd 33) = ${val} (${enc}) [${data.map(b=>b.toString(16).padStart(2,'0')).join(' ')}]`,'cmd');
@@ -764,6 +765,7 @@ async function seekToTime(){
   const enc=$('ptrenc').value;
   const pack=(n)=> enc==='u16le' ? [n&0xFF,(n>>>8)&0xFF]
             : enc==='u32be' ? [(n>>>24)&0xFF,(n>>>16)&0xFF,(n>>>8)&0xFF,n&0xFF]
+            : enc==='u64le' ? [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF,0,0,0,0]  // [lo32 LE][hi32=0]
             : [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
   log(`🎯 Seeking to ${new Date(target*1000).toLocaleString()} …`,'cmd');
   let a=await probeReadPos();
