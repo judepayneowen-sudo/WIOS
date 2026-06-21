@@ -730,8 +730,12 @@ async function setPointer(){
   const afterTs=await readOldest(), afterC=pointerCandidates(dataRangeRaw).map(c=>c.val).join(',');
   log(`BEFORE  oldest ${tsStr(beforeTs)} · pointers [${beforeC}]`,'cmd');
   log(`AFTER   oldest ${tsStr(afterTs)} · pointers [${afterC}]`,'cmd');
-  if(beforeTs!==afterTs || beforeC!==afterC) log(`✅ The pointer MOVED — cmd 33 (${enc}) works in this number space. If oldest went BACKWARD, that's the rewind we need to let WHOOP re-read.`,'ok');
-  else log(`✗ No change with ${enc}. Try a different encoding (u16 LE / u32 BE) or a different candidate value, then tap again.`,'dim');
+  // Honest verdict: the NEWEST pointer naturally creeps up as the band records, so a tiny forward change
+  // isn't cmd 33. What matters is the OLDEST timestamp jumping BACKWARD — that's a true rewind.
+  const dt = (beforeTs && afterTs) ? (afterTs - beforeTs) : null;   // seconds; negative = went backward
+  if(dt!=null && dt < -10) log(`🎉 REWIND! oldest jumped BACK ${Math.round(-dt)}s (${tsStr(beforeTs)} → ${tsStr(afterTs)}). cmd 33 (${enc}) moved the read pointer backward — this is exactly what lets WHOOP re-read after our pull. Save file & send it.`,'ok');
+  else if(dt!=null && dt > 60) log(`cmd 33 (${enc}) pushed the read pointer FORWARD ${Math.round(dt)}s (skips data). Good news: it responds to our value — try a LOWER value to rewind instead.`,'ok');
+  else log(`✗ No clear move with ${enc}. (Ignore tiny pointer wiggles — the newest pointer drifts up on its own as the band records.) Try another encoding, or a value far from the current one, on a buffer with more than a few minutes of data.`,'dim');
 }
 
 // Read-only diagnostic: ask the band for the EARLIEST moment it still has stored, and explain it in plain
