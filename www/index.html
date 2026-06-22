@@ -418,8 +418,10 @@
       <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b style="color:#fff">Phase 2 · IMU / actigraphy</b> — capture the raw <b>int16 6-axis</b> accel+gyro (WHOOP's “R21”) to unlock true sleep movement, steps &amp; VO₂. Both are <b>non-destructive</b>. <b>Realtime IMU:</b> connect → tap on → hold flat &amp; still 5s, tilt onto each edge/end/face 3s, then shake → tap off → Send to laptop. <b>Historical probe:</b> read-only, streams the first window looking for R21.</p>
       <div class="row">
         <button class="act" id="imurt" disabled>Realtime IMU: off</button>
+        <button class="act" id="imuraw" disabled>Raw data: off</button>
         <button class="act" id="imuprobe" disabled>Historical IMU probe</button>
       </div>
+      <div class="muted" style="margin-top:6px;font-size:11px">On Connect you should now see <b>“subscribed: hifreq_from_strap ✓”</b> — that confirms the IMU channel (fd4b0007) is live. If a new stream still doesn’t appear, try <b>Raw data</b> (cmd 81), then the <b>Historical probe</b>.</div>
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
       <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b>Raw commands</b> — for debugging the protocol.</p>

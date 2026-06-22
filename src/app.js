@@ -766,7 +766,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','imurt','imuprobe','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','imurt','imuraw','imuprobe','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -1097,11 +1097,28 @@ let imuRtOn=false;
 async function toggleImuRealtime(){
   if(!deviceId){ log('connect first','err'); return; }
   imuRtOn=!imuRtOn;
-  if(imuRtOn) startCaptureIfNeeded();
-  await send(106,[imuRtOn?0x01:0x00], imuRtOn?'toggle_imu_mode ON (realtime IMU)':'toggle_imu_mode OFF');
+  if(imuRtOn){ startCaptureIfNeeded();
+    // cmd 106 alone only sets a MODE — like HR (cmd 3), the realtime engine must be running to actually
+    // stream. So start the realtime engine first, then enable IMU; the IMU data should arrive on fd4b0007.
+    await send(3,[0x01],'toggle_realtime_hr ON (start realtime engine)'); await delay(300);
+    await send(106,[0x01],'toggle_imu_mode ON (realtime IMU)');
+  } else {
+    await send(106,[0x00],'toggle_imu_mode OFF'); await delay(200);
+    await send(3,[0x00],'toggle_realtime_hr OFF');
+  }
   const b=$('imurt'); if(b){ b.textContent='Realtime IMU: '+(imuRtOn?'on':'off'); b.classList.toggle('live',imuRtOn); }
-  if(imuRtOn) log('🟢 IMU ON. Do this slowly so the axes are decodable: hold the band FLAT & STILL ~5s, then tilt onto each edge (X), each end (Y), face-down (Z) ~3s each, then SHAKE ~3s. Watch the fd4b counter for a NEW packet type. Then turn off & Send to laptop.','ok');
+  if(imuRtOn) log('🟢 IMU ON (realtime engine + IMU mode). Do this slowly so the axes are decodable: hold the band FLAT & STILL ~5s, then tilt onto each edge (X), each end (Y), face-down (Z) ~3s each, then SHAKE ~3s. Watch the fd4b counter for a NEW stream (likely “hifreq_from_strap”). Then turn off & Send to laptop.','ok');
   else log('IMU off. Save file / Send to laptop — I’ll decode the int16 6-axis layout (gravity ≈ ±1 g on whichever axis is down; gyro ≈ 0 at rest).','ok');
+}
+// Alternative path: START_RAW_DATA(81)/STOP_RAW_DATA(82) — the band's dedicated high-rate raw sensor stream.
+let rawOn=false;
+async function toggleRawData(){
+  if(!deviceId){ log('connect first','err'); return; }
+  rawOn=!rawOn;
+  if(rawOn) startCaptureIfNeeded();
+  await send(rawOn?81:82, rawOn?[0x01]:[], rawOn?'start_raw_data (cmd 81)':'stop_raw_data (cmd 82)');
+  const b=$('imuraw'); if(b){ b.textContent='Raw data: '+(rawOn?'on':'off'); b.classList.toggle('live',rawOn); }
+  log(rawOn?'🟢 RAW DATA ON (cmd 81). Move & shake the band; watch the fd4b counter for a new stream on the hi-rate channel. Then turn off & Send to laptop.':'Raw data off. Save file / Send to laptop.','ok');
 }
 async function imuHistoricalProbe(){
   if(!deviceId){ log('connect first','err'); return; }
@@ -1220,6 +1237,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('bandcheck').onclick   = checkBandBuffer;
   $('forcetrim').onclick   = forceTrimSeek;
   { const a=$('imurt'); if(a) a.onclick=toggleImuRealtime; }
+  { const a=$('imuraw'); if(a) a.onclick=toggleRawData; }
   { const a=$('imuprobe'); if(a) a.onclick=imuHistoricalProbe; }
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
