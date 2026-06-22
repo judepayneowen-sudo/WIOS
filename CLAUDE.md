@@ -53,15 +53,22 @@ permanently lost from WHOOP. So:
   - **A** `[00][trim][0]`: 🟢 non-destructive but does **not** advance (band replays the oldest window). No-op.
   - **B** `[01][0][trim]`: 🔴 destructive (oldest jumped to now) **and** doesn't advance. Worst case.
   - **C** `[00][0][trim]`: predicted no-op like A (status 00 suppresses processing). So: no ack reads non-destructively.
-- ✅ **The live lead is `set_read_pointer` (cmd 33)** — the band ACCEPTS it (responds `0x21`). Old attempts
-  failed only because they used the **wrong number space** (the record index ~339k/72k). **FOUND
-  (2026-06-21): the read/write pointers are small counters ~18,800** — visible in the `get_data_range`
-  response header (e.g. `@10=18846 @18=18842`) and identical to the `HISTORY_END` **trim** we ack. Two wins
-  if cmd 33 takes this space: (a) **non-destructive walk** — advance the read pointer per window, never ack;
-  (b) **rewind-after-drain** — drain fast, then set the pointer back so WHOOP re-reads. Tool shipped:
-  **"Read-pointer experiment (cmd 33)"** (`probePointer`/`setPointer` in `src/app.js`) — read-only, safe.
-- Fallback if cmd 33 fails: **live overnight capture** (foreground + keep-awake; streams HR/RR without
-  touching the buffer, so WHOOP syncs normally) or **passively sniff WHOOP's own sync** (Android HCI/nRF).
+- ⛔ **`cmd 33` is a DEAD END (settled 2026-06-22).** Its real name is **"Force Read Pointer"** (the band's
+  console: `BLE_CMD: Command Force Read Pointer; read page:N wrap count:0`). It takes a flash **page** +
+  **wrap count** (page ≈ trim/3), and the band parses it fine — BUT it does **not** redirect the historical
+  dump. `send_historical_data(22)` always streams from the **oldest un-acked record** (the commit cursor),
+  regardless of the forced page. Confirmed across 4-byte / 8-byte / page encodings: the read head never
+  moved (`HISTORY_END trim` identical before/after). So there is **no seek and no rewind** — only the
+  ack moves the cursor, and only forward.
+- ✅ **What actually works (use this):** the historical dump reads from oldest-un-acked, so a **daily
+  `Sync full history`** pulls just the new night incrementally (no seek needed). Old already-acked nights
+  are gone from the dump's reach but were already **physically recovered** by the big walk-from-start drains
+  (the data persists in flash; we pulled 4-day-old nights). For calibration we pair a recovered night's
+  raw `(47)` capture with WHOOP's cloud `stage_summary` for the same date.
+- 📟 **The band's CONSOLE_LOGS(50) are an ASCII debug channel** — decode them (`Trim:`, `Dump Complete`,
+  `PullStats`, `BLE_CMD: Command …`). They name commands and give exact pointer values; invaluable for RE.
+- Fallback for live data if ever needed: **live overnight capture** (foreground + keep-awake; streams
+  HR/RR without touching the buffer) or **passively sniff WHOOP's own sync** (Android HCI/nRF).
 
 **UPDATE 2026-06-20 — the standalone pull is SOLVED (see the Historical-sync section below).** We don't
 need to "rewind" at all: the dump is a per-batch **ACK-loop** and the bug was acking with `trim=0`
