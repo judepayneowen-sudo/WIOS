@@ -357,29 +357,281 @@ function renderTrends(){
   setField('tr-sleep-avg','avg '+avg(d.sleep)+'%');
 }
 
-/* ----------------------------- tabs --------------------------------------- */
-let curTab='overview';
-function renderScreen(name){
-  if(name==='overview') renderOverview();
-  else if(name==='recovery') renderRecovery();
-  else if(name==='strain') renderStrain();
-  else if(name==='sleep') renderSleep();
-  else if(name==='trends') renderTrends();
+/* ===================== navigation: 5 tabs + push/back detail stack ========= */
+// Bottom tabs mirror the WHOOP app (Home / Health / Coaching / Community / Profile). Pillar details
+// (Recovery/Sleep/Strain/Trends) and every secondary screen are PUSHED onto a back-stack from tiles/menus.
+let curTab='overview', curScreen='overview', navStack=[];
+const HAND_RENDER={ overview:renderOverview, recovery:renderRecovery, strain:renderStrain, sleep:renderSleep, trends:renderTrends };
+function renderScreen(name){ if(HAND_RENDER[name]) HAND_RENDER[name](); }
+function renderAll(){ showScreen(curScreen); }
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id==='s-'+id));
+  const sec=SECTION_MAP[id];
+  if(sec){ const host=$('s-'+id); if(host){ try{ host.innerHTML = sec.build(); }   // generated screen
+      catch(e){ host.innerHTML = `<div class="card"><div class="err">screen “${id}” error: ${e.message}</div></div>`; } } }
+  else renderScreen(id);                                                      // hand-coded screen
+  window.scrollTo(0,0);
 }
-function renderAll(){ renderScreen(curTab); }
-// Live updates from the BLE feed — patch only the cheap fields, never rebuild charts.
+function goScreen(id){
+  if(id===curScreen) return;
+  navStack.push(curScreen); curScreen=id;
+  document.body.classList.add('detail'); const bb=$('backbtn'); if(bb) bb.classList.add('on');
+  showScreen(id);
+}
+function goBack(){
+  curScreen = navStack.pop() || curTab;
+  if(!navStack.length){ document.body.classList.remove('detail'); const bb=$('backbtn'); if(bb) bb.classList.remove('on'); }
+  showScreen(curScreen);
+}
+function showTab(name){
+  curTab=name; curScreen=name; navStack=[];
+  document.body.classList.remove('detail'); const bb=$('backbtn'); if(bb) bb.classList.remove('on');
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+  showScreen(name);
+}
+// Live updates from the BLE feed — patch only the cheap fields on whatever screen is visible.
 function updateLive(){
   setHTML('ov-hr',  (state.hr!=null?state.hr:'—')+'<small>bpm</small>');
   setHTML('ov-hrv', (state.hrvMs!=null?state.hrvMs:SAMPLE.recovery.hrv)+'<small>ms</small>');
-  if(curTab==='overview'){ renderHealth(); renderStress(); }
-  if(curTab==='strain') setField('str-hrnow', state.hr!=null?('live '+state.hr+' bpm'):'live —');
+  if(curScreen==='overview'){ renderHealth(); renderStress(); }
+  else if(curScreen==='strain') setField('str-hrnow', state.hr!=null?('live '+state.hr+' bpm'):'live —');
+  else if(SECTION_MAP[curScreen] && LIVE_SCREENS.has(curScreen)){ const h=$('s-'+curScreen); if(h) h.innerHTML=SECTION_MAP[curScreen].build(); }
 }
-function showTab(name){
-  curTab=name;
-  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on', s.id==='s-'+name));
-  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
-  window.scrollTo(0,0); renderScreen(name);
-}
+
+/* ===================== generated screens — every WHOOP section ==============
+   A data-driven registry mirroring the WHOOP app's information architecture (mapped from the decompiled
+   APK). Each entry.build() returns the screen HTML using our design system + our computed data where we
+   have it, or a labelled scaffold ("our calibration goes here") where we don't yet. Navigation is by
+   data-nav="<id>" (delegated click → goScreen). This is the canvas we fill with our own code. */
+const hd   = (t, sub='')=>`<div class="hd"><div class="t">${t}</div>${sub?`<span class="muted">${sub}</span>`:''}</div>`;
+const card = (inner, cls='')=>`<div class="card ${cls}">${inner}</div>`;
+const cardNav = (id, inner)=>`<div class="card go" data-nav="${id}">${inner}</div>`;
+const navRow = (id, ic, tt, sub='', right='<span class="nch">›</span>')=>
+  `<div class="navrow" data-nav="${id}"><span class="nic">${ic}</span><span class="ntx"><div class="ntt">${tt}</div>${sub?`<div class="nsb">${sub}</div>`:''}</span>${right}</div>`;
+const kvr  = (k,v)=>`<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+const prog = (frac,c='var(--strain)')=>`<div class="prog"><i style="width:${Math.max(0,Math.min(1,frac))*100}%;background:${c}"></i></div>`;
+const soonTag = '<span class="soon">our data soon</span>';
+const scaffold = (txt)=>`<div class="muted" style="font-size:12px;line-height:1.55">${txt}</div>`;
+const liveHr = ()=> state.hr!=null?state.hr:'—';
+const liveHrv= ()=> state.hrvMs!=null?state.hrvMs:SAMPLE.recovery.hrv;
+
+const SECTIONS = [
+  // ----- TAB HUB: HEALTH (WHOOP Age / vitals / stress / screener) -----
+  { id:'health', build:()=>
+    hd('Health','WHOOP Age · vitals')
+    + cardNav('healthspan', `<div class="hero"><div class="hv" style="color:var(--rec-green)">—<small style="font-size:20px"> yrs</small></div><div class="hl">WHOOP Age</div><div class="hs">Pace of aging · VO₂ max · steps — ${soonTag}</div></div>`)
+    + cardNav('healthmonitor', hd('Health Monitor')+`<div class="kv"><span class="k">Heart rate <i class="livedot"></i></span><span class="v">${liveHr()}<small> bpm</small></span></div>`+kvr('HRV','<span class="v">'+liveHrv()+'<small> ms</small></span>')+kvr('Resting HR',SAMPLE.recovery.rhr+' bpm'))
+    + cardNav('stress', hd('Stress Monitor','live')+`<div class="muted" style="font-size:13px">Day stress, sleep stress & live Stress Sessions — from HRV.</div>`)
+    + cardNav('recovery', hd('Recovery')+`<div class="muted" style="font-size:13px">HRV, resting HR, respiratory rate, SpO₂, skin temp.</div>`)
+    + navRow('hormonal','❤','Hormonal Insights','Menstrual cycle · pregnancy')
+    + card(navRow('advancedlabs','🧪','Advanced Labs','Blood biomarker results')+navRow('whooplabs','🔬','WHOOP Labs','Research studies')) },
+
+  // ----- TAB HUB: COACHING -----
+  { id:'coaching', build:()=>
+    hd('Coaching')
+    + cardNav('coach', `<div class="hd"><div class="t">WHOOP Coach</div><span class="soon">AI · scaffold</span></div><div class="bub ai">Ask me about your recovery, sleep or strain. I’ll tailor advice to your data.</div>`)
+    + cardNav('weeklyplan', hd('Weekly Plan')+`<div class="muted" style="font-size:13px;margin-bottom:8px">This week’s strain target & planned activities.</div>`+prog(0.45)+`<div class="muted" style="font-size:11px;margin-top:6px">9.1 of 20.0 weekly strain</div>`)
+    + cardNav('sleepcoach', hd('Sleep Coach')+`<div class="muted" style="font-size:13px">Tonight’s recommended bedtime & wake to hit your sleep need.</div>`)
+    + cardNav('insights', hd('AI Insights & Stories')+`<div class="muted" style="font-size:13px">Weekly & monthly performance recaps, behaviour correlations.</div>`)
+    + cardNav('journal', hd('Journal')+`<div class="muted" style="font-size:13px">Log behaviours → see what moves your recovery.</div>`) },
+
+  // ----- TAB HUB: COMMUNITY -----
+  { id:'community', build:()=>
+    hd('Community')
+    + card(hd('Teams')+`<div class="muted" style="font-size:13px">Browse, create & manage teams. ${soonTag}</div>`)
+    + cardNav('achievements', hd('Achievements')+`<div class="muted" style="font-size:13px">Badges, streaks & personal milestones.</div>`)
+    + card(hd('Leaderboards')+`<div class="navlist">`
+        +`<div class="navrow"><span class="nic">🏃</span><span class="ntx"><div class="ntt">Strain</div><div class="nsb">Weekly</div></span><span class="nval">—</span></div>`
+        +`<div class="navrow"><span class="nic">☾</span><span class="ntx"><div class="ntt">Sleep</div><div class="nsb">Weekly</div></span><span class="nval">—</span></div>`
+        +`<div class="navrow"><span class="nic">♥</span><span class="ntx"><div class="ntt">Recovery</div><div class="nsb">Weekly</div></span><span class="nval">—</span></div></div>`)
+    + navRow('share','↗','Share','Shareable metric cards') },
+
+  // ----- TAB HUB: PROFILE -----
+  { id:'profile', build:()=>{
+    const p=profile||{};
+    return hd('Profile')
+    + card(`<div style="display:flex;align-items:center;gap:14px"><div class="avatar">${(p.first||'W')[0]}</div><div><div style="font-size:18px;font-weight:700">${p.first||'WHOOP'} ${p.last||'Core'}</div><div class="muted">Age ${p.age||'—'} · ${p.sex==='f'?'Female':'Male'} · RHR ${p.restingHr||'—'}</div></div></div>`)
+    + card(`<div class="navlist">`
+        + navRow('healthspan','✦','Member Levels & WHOOP Age')
+        + navRow('membership','◆','Membership & Billing')
+        + navRow('prs','🏅','Personal Records')
+        + navRow('achievements','🏆','Achievements & Streaks')
+        + navRow('hormonal','❤','Hormonal Insights') + `</div>`)
+    + card(`<div class="navlist">`
+        + navRow('settings','⚙','Settings')
+        + navRow('integrations','🔗','Integrations','Strava · Health Connect')
+        + navRow('device','📟','Device & Battery')
+        + navRow('setup','🧪','Calibration & data pull')
+        + navRow('stealth','🌙','Stealth Mode') + `</div>`)
+    + card(navRow('trends','📈','Trends','Recovery · Strain · Sleep over time')); } },
+
+  // ----- DETAIL: WHOOP Age / Healthspan -----
+  { id:'healthspan', build:()=>
+    hd('WHOOP Age')
+    + card(`<div class="hero"><div class="hv" style="color:var(--rec-green)">—</div><div class="hl">WHOOP Age (yrs)</div><div class="hs">Pace of aging — how fast you’re ageing vs calendar time</div></div>`)
+    + card(hd('Contributors')+kvr('VO₂ Max','<span class="v">— <small>ml/kg/min</small></span>')+kvr('Steps','—')+kvr('Sleep','—')+kvr('Strain','—')+kvr('Resting HR',SAMPLE.recovery.rhr+' bpm')+kvr('Lean body mass','—'))
+    + card(hd('Sub-metrics')+navRow('vo2max','🫁','VO₂ Max')+navRow('steps','👣','Steps'))
+    + card(scaffold('<b>WHOOP Age</b> is WHOOP-cloud-computed from VO₂ max, steps, sleep, strain & vitals. We’ll compute a calibrated estimate from the band once these inputs are decoded (Phase 2). Scaffolded here, ready to fill.')) },
+
+  { id:'vo2max', build:()=>hd('VO₂ Max')
+    + card(`<div class="hero"><div class="hv" style="color:var(--strain)">—</div><div class="hl">ml / kg / min</div></div>`)
+    + card(scaffold('Estimated from HR response to strain/steps. We’ll derive this from band HR + activity once calibrated.')) },
+
+  { id:'steps', build:()=>hd('Steps')
+    + card(`<div class="hero"><div class="hv">—</div><div class="hl">steps today</div></div>`+prog(0))
+    + card(scaffold('Step count needs the raw <b>R21 IMU</b> stream (int16 6-axis, cmd 105) → a pedometer over accel. On the band-RE roadmap.')) },
+
+  // ----- DETAIL: Health Monitor (live vitals + screener) -----
+  { id:'healthmonitor', build:()=>
+    hd('Health Monitor','live & resting')
+    + card(SAMPLE.health.map(m=>{ let v=m.val; if(m.key==='hr') v=state.hr; else if(m.key==='hrv'&&state.hrvMs!=null) v=state.hrvMs;
+        const shown=(v==null?'—':v); const ok=v==null?true:(v>=m.lo&&v<=m.hi);
+        return `<div class="hrow"><span class="hk"><span class="flag" style="background:${v==null?'var(--dimmer)':ok?'var(--rec-green)':'var(--rec-yellow)'}"></span>${m.nm}${m.live?' <i class="livedot"></i>':''}</span><span class="hv">${shown}<small>${m.unit}</small></span><span class="hr-rng">${m.lo}–${m.hi}</span></div>`; }).join(''))
+    + card(hd('Heart Screener','ECG-style')+scaffold('WHOOP’s background screening / heart screener is a cloud “labrador” report. SpO₂, skin-temp & respiratory rate are <b>not</b> band-decodable (cloud-only per the APK) — shown here from the last cloud sync.')) },
+
+  // ----- DETAIL: Stress Monitor -----
+  { id:'stress', build:()=>{
+    let v=SAMPLE.stress.now;
+    if(state.hr!=null){ const hrC=Math.max(0,Math.min(3,(state.hr-52)/40)); const hrvC=state.hrvMs!=null?Math.max(0,Math.min(3,(70-state.hrvMs)/22)):hrC; v=Math.round((hrC*0.6+hrvC*0.4)*10)/10; }
+    return hd('Stress Monitor','live · 0–3')
+    + card(stressGauge(v))
+    + card(hd('Today')+kvr('Day stress','—')+kvr('Sleep stress','—')+kvr('High / Medium / Low','— / — / —'))
+    + card(`<button class="act" style="width:100%">Start a Stress Session</button>`+scaffold('<div style="margin-top:8px">Live stress = our HRV/HR blend (calibratable). Day & sleep stress totals come once we accumulate sessions.</div>')); } },
+
+  // ----- DETAIL: Journal -----
+  { id:'journal', build:()=>
+    hd('Journal','behaviours that affect recovery')
+    + card(['Alcohol','Caffeine late','Screen time in bed','Stressful day','Read in bed','Magnesium','Ate late','Shared bed','Sick / ill','Travel / jet lag']
+        .map(b=>`<div class="hrow"><span class="hk">${b}</span><span class="hv"><span class="soon" style="border-color:var(--strain);color:var(--strain)">log</span></span></div>`).join(''))
+    + card(hd('Journal Insights')+scaffold('Once you log behaviours across nights, we correlate each against your recovery delta — the same as WHOOP’s “behaviours that helped/hurt”.')) },
+
+  // ----- DETAIL: Weekly Plan -----
+  { id:'weeklyplan', build:()=>
+    hd('Weekly Plan')
+    + card(hd('Weekly strain target')+`<div style="font-size:40px;font-weight:700;color:var(--strain)">9.1 <small style="font-size:16px;color:var(--dim)">/ 20.0</small></div>`+prog(0.455)+`<div class="muted" style="font-size:11px;margin-top:6px">on track · 4 days left</div>`)
+    + card(hd('Planned activities')+['Mon — Run 40m','Wed — Strength','Fri — Run 30m','Sun — Long walk'].map(a=>`<div class="kv"><span class="k">${a.split(' — ')[0]}</span><span class="v" style="font-weight:500">${a.split(' — ')[1]}</span></div>`).join(''))
+    + card(scaffold('Hub-and-spoke planner (strain target → contributors → activities/behaviours). Targets will come from our strain model + recovery trend.')) },
+
+  // ----- DETAIL: Sleep Coach -----
+  { id:'sleepcoach', build:()=>{
+    const need=sleepNeedMinutes({dayStrain:SAMPLE.strain.day});
+    return hd('Sleep Coach')
+    + card(hd('Tonight’s plan')+kvr('Sleep need',fmtMs(need))+kvr('Recommended bedtime','—')+kvr('Wake target','—')+kvr('For',`${SAMPLE.sleep.perf}% performance`))
+    + card(`<button class="act" style="width:100%">Set a smart alarm</button>`+scaffold('<div style="margin-top:8px">Bedtime/wake derive from our sleep-need model (calibrated) + your consistency. Haptic alarm needs the band alarm command (cmd 66/68).</div>')); } },
+
+  // ----- DETAIL: WHOOP Coach (AI) -----
+  { id:'coach', build:()=>
+    hd('WHOOP Coach','AI')
+    + card(`<div style="display:flex;flex-direction:column">
+        <div class="bub ai">Morning! Your recovery calibration is dialling in. Ask me anything about today.</div>
+        <div class="bub me">How should I train today?</div>
+        <div class="bub ai">Once your recovery score is live from the band, I’ll base this on it. For now: moderate strain ≈ 10–14 looks right given last night’s sleep (${SAMPLE.sleep.perf}%).</div>
+        <div class="chips"><span class="chip">Why this recovery?</span><span class="chip">Plan my week</span><span class="chip">Improve my sleep</span></div></div>`)
+    + card(scaffold('Scaffold for an on-device coach. Could wire to a local model or the Claude API, grounded in our computed metrics — no WHOOP subscription needed.')) },
+
+  // ----- DETAIL: AI Insights / Stories / Deep Dive -----
+  { id:'insights', build:()=>
+    hd('Insights & Stories')
+    + card(hd('Weekly recap')+scaffold('A full-screen “story” recap of the week (recovery trend, best/worst night, strain). Built from our trends data.'))
+    + card(hd('Deep Dive')+scaffold('Metric-correlation analysis — which behaviours/metrics moved your recovery. Needs journal + several days of data.'))
+    + card(hd('Monthly performance assessment')+kvr('Avg recovery',Math.round(SAMPLE.recovery.trend.reduce((a,b)=>a+b.v,0)/SAMPLE.recovery.trend.length)+'%')+kvr('Avg day strain',SAMPLE.strain.day.toFixed(1))+kvr('Avg sleep',SAMPLE.sleep.perf+'%')) },
+
+  // ----- DETAIL: Activities / Workouts -----
+  { id:'activities', build:()=>
+    hd('Activities','today')
+    + card(SAMPLE.strain.workouts.map(w=>`<div class="wk"><div class="wk-top"><span class="wk-nm">${w.nm}</span><span class="wk-str">${w.strain.toFixed(1)}</span></div><div class="wk-sub">${w.t} · ${fmtDur(w.dur)} · ${w.cal} cal · avg ${w.avg} · max ${w.max} bpm</div></div>`).join(''))
+    + card(`<button class="act" style="width:100%" data-nav="strength">Start an activity</button>`)
+    + card(hd('Heart-rate zones · day')+zoneRows(SAMPLE.strain.zones, SAMPLE.strain.maxHr)) },
+
+  // ----- DETAIL: Strength Trainer -----
+  { id:'strength', build:()=>
+    hd('Strength Trainer')
+    + card(hd('Templates')+['Full body','Push','Pull','Legs','Upper'].map(t=>navRow('strength','🏋',t,'',`<span class="nch">›</span>`)).join(''))
+    + card(hd('Filter by equipment')+`<div class="chips">${['Barbell','Dumbbell','Kettlebell','Cable','Bodyweight','Trap bar','Rings'].map(e=>`<span class="chip">${e}</span>`).join('')}</div>`)
+    + card(scaffold('Sets/reps/weight per exercise → muscular load. We’d fold this into Strain. Movement detection needs the IMU stream.')) },
+
+  // ----- DETAIL: Personal Records -----
+  { id:'prs', build:()=>
+    hd('Personal Records')
+    + card(['Longest sleep','Highest day strain','Best recovery','Lowest resting HR','Highest HRV']
+        .map(r=>`<div class="kv"><span class="k">${r}</span><span class="v">—</span></div>`).join(''))
+    + card(scaffold('PRs computed from your history as it accumulates — longest sleep, peak strain, best recovery, lowest RHR, highest HRV.')) },
+
+  // ----- DETAIL: Achievements -----
+  { id:'achievements', build:()=>
+    hd('Achievements')
+    + card(hd('Streaks')+kvr('Current sleep-consistency streak','—')+kvr('All-time best','—')+kvr('Days worn','—'))
+    + card(`<div class="statgrid">${['🏅','🔥','⭐','🌙','⚡','🏆'].map(e=>`<div><div class="v">${e}</div><div class="k">locked</div></div>`).join('')}</div>`)
+    + card(scaffold('Badges & streaks unlock from your own logged history.')) },
+
+  // ----- DETAIL: Hormonal Insights -----
+  { id:'hormonal', build:()=>
+    hd('Hormonal Insights')
+    + card(hd('Menstrual Cycle')+kvr('Phase','— (follicular / ovulatory / luteal / menstrual)')+kvr('Cycle day','—')+`<button class="act" style="width:100%;margin-top:10px">Log period</button>`)
+    + card(hd('Pregnancy')+kvr('Trimester','—')+kvr('Due date','—'))
+    + card(scaffold('Cycle-phase & pregnancy-adjusted baselines. Driven by your logging + our recovery baselines; no cloud needed.')) },
+
+  // ----- DETAIL: Advanced Labs (biomarkers) -----
+  { id:'advancedlabs', build:()=>
+    hd('Advanced Labs','blood biomarkers')
+    + card(hd('Latest panel')+['Cholesterol','HbA1c','Vitamin D','Ferritin','Testosterone','Cortisol','CRP']
+        .map(b=>`<div class="kv"><span class="k">${b}</span><span class="v">— <span class="soon">no result</span></span></div>`).join(''))
+    + card(scaffold('WHOOP’s blood-biomarker add-on (cloud lab results + reference ranges). We can display imported results; there’s no band data here.')) },
+
+  // ----- DETAIL: WHOOP Labs (studies) -----
+  { id:'whooplabs', build:()=>
+    hd('WHOOP Labs','research studies')
+    + card(['Sleep & recovery study','HRV & training load','Resting HR trends'].map(s=>navRow('whooplabs','🔬',s,'open enrolment')).join(''))
+    + card(scaffold('Research campaigns (protocol + enrolment). Informational — listed for completeness.')) },
+
+  // ----- DETAIL: Membership -----
+  { id:'membership', build:()=>
+    hd('Membership')
+    + card(`<div class="hd"><div class="t">WHOOP Core (standalone)</div>${pillTag('ACTIVE','var(--rec-green)')}</div><div class="muted" style="font-size:13px;margin-top:6px">This app’s goal: run your Recovery / Sleep / Strain from the band alone, so the paid WHOOP membership can be cancelled.</div>`)
+    + card(hd('Plans')+navRow('membership','◆','One','Basic')+navRow('membership','◆','Peak','+ Health Monitor, Stress')+navRow('membership','◆','Life','+ Advanced Labs'))
+    + card(scaffold('Mirrors WHOOP’s plan tiers (One/Peak/Life) for parity. Our build replaces the subscription, not sells one.')) },
+
+  // ----- DETAIL: Settings -----
+  { id:'settings', build:()=>
+    hd('Settings')
+    + card(`<div class="navlist">`+[['My Account','profile'],['Membership & Billing','membership'],['Profile Info','setup'],['Integrations','integrations'],['Stealth Mode','stealth'],['Advanced Labs','advancedlabs']].map(([t,id])=>navRow(id,'›',t)).join('')+`</div>`)
+    + card(hd('Device')+`<div class="navlist">`+navRow('device','📟','Pair / battery / firmware')+navRow('setup','🧪','Erase, power-cycle, calibrate')+`</div>`)
+    + card(hd('Toggles')+['Activity detection','HR broadcast','Raw data collection','Notifications'].map(t=>`<div class="hrow"><span class="hk">${t}</span><span class="hv"><span class="soon">off</span></span></div>`).join('')) },
+
+  // ----- DETAIL: Stealth Mode -----
+  { id:'stealth', build:()=>
+    hd('Stealth Mode')
+    + card(scaffold('Hide all metrics for a defined period — band keeps recording, scores are concealed.'))
+    + card(`<button class="act" style="width:100%">Turn on Stealth Mode</button>`) },
+
+  // ----- DETAIL: Integrations -----
+  { id:'integrations', build:()=>
+    hd('Integrations')
+    + card(`<div class="navlist">`
+        + navRow('integrations','🟧','Strava','Sync activities')
+        + navRow('integrations','🟩','Health Connect','HR · HRV · sleep · activity')
+        + navRow('integrations','📂','Apple Health / Files','Export captures') + `</div>`)
+    + card(scaffold('Push our computed metrics out (Strava, Android Health Connect, Files). The laptop drop-box is already a working export.')) },
+
+  // ----- DETAIL: Share -----
+  { id:'share', build:()=>
+    hd('Share')
+    + card(`<div style="text-align:center;padding:10px"><div style="font-size:46px;font-weight:700;color:var(--rec-green)">${SAMPLE.recovery.pct}%</div><div class="muted" style="letter-spacing:2px">RECOVERY</div></div>`)
+    + card(`<div class="chips">${['Recovery','Sleep','Day Strain','HRV'].map(m=>`<span class="chip">${m}</span>`).join('')}</div>`+`<button class="act" style="width:100%;margin-top:12px">Share card</button>`) },
+
+  // ----- DETAIL: Device (pairing / battery / firmware) -----
+  { id:'device', build:()=>
+    hd('Device')
+    + card(`<div style="font-family:ui-monospace,monospace;font-size:13px"><span id="dot2" class="dot ${deviceId?'on':''}"></span>${deviceId?'connected':'not connected'}</div>`
+        + `<div class="row" style="margin-top:8px;gap:14px;font-size:12px;color:var(--dim)"><span>model <b style="color:#fff">${$('model')?.textContent||'—'}</b></span><span>fw <b style="color:#fff">${$('fw')?.textContent||'—'}</b></span><span>batt <b style="color:#fff">${$('batt')?.textContent||'—'}</b></span></div>`)
+    + card(hd('Sync & data')+navRow('setup','🧪','Calibration & history pull','Pull last night, send to laptop'))
+    + card(scaffold('Pairing, battery, last-sync time and firmware live on the band (cmds confirmed from the APK). The Calibration screen has the working pull + device controls.')) },
+];
+const SECTION_MAP = Object.fromEntries(SECTIONS.map(s=>[s.id,s]));
+const LIVE_SCREENS = new Set(['health','healthmonitor','stress']);   // rebuilt on each live HR tick
+function pillTag(txt,c){ return `<span class="pill" style="background:${c}">${txt}</span>`; }
+function buildSections(){ const host=$('genscreens'); if(!host) return;
+  host.innerHTML = SECTIONS.map(s=>`<section class="screen" id="s-${s.id}"></section>`).join(''); }
 
 /* ----------------------------- live HR feed ------------------------------- */
 function onHR(dv){
@@ -912,8 +1164,13 @@ function saveProfileForm(){
 /* ----------------------------- wire up ------------------------------------ */
 document.addEventListener('DOMContentLoaded', ()=>{
   SplashScreen.hide().catch(()=>{});
+  buildSections();                                   // create the generated detail/hub screens
   document.querySelectorAll('#tabs button').forEach(b=> b.onclick=()=>showTab(b.dataset.tab));
-  document.querySelectorAll('[data-go]').forEach(el=> el.onclick=()=>showTab(el.dataset.go));
+  document.querySelectorAll('[data-go]').forEach(el=> el.onclick=()=>goScreen(el.dataset.go));
+  // delegated navigation: any element with data-nav pushes a detail screen; data-back / the back button pops.
+  document.addEventListener('click', (e)=>{ const n=e.target.closest('[data-nav]'); if(n){ goScreen(n.dataset.nav); return; }
+    if(e.target.closest('[data-back]')) goBack(); });
+  { const bb=$('backbtn'); if(bb) bb.onclick=goBack; }
   document.querySelectorAll('#trend-seg button').forEach(b=> b.onclick=()=>{ trendPeriod=b.dataset.period; renderTrends(); });
   fillProfileForm();
   if($('laphost')) $('laphost').value = loadLapHost();

@@ -170,6 +170,42 @@
   .seg button{flex:1;background:none;border:0;color:var(--dim);font:inherit;font-size:12px;font-weight:600;
     letter-spacing:1px;padding:8px 0;border-radius:8px}
   .seg button.active{background:var(--card);color:var(--text)}
+
+  /* ---- navigation: back button + generated screens ---- */
+  #backbtn{position:fixed;top:max(10px,env(safe-area-inset-top));left:10px;z-index:20;display:none;
+    width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#0a0b0eccc;backdrop-filter:blur(8px);
+    color:var(--text);font-size:22px;line-height:1;font:inherit;font-weight:300}
+  #backbtn.on{display:flex;align-items:center;justify-content:center}
+  body.detail .screen.on{padding-top:max(54px,calc(env(safe-area-inset-top) + 44px))}
+  /* ---- menu / hub list rows ---- */
+  .navlist{display:flex;flex-direction:column}
+  .navrow{display:flex;align-items:center;gap:13px;padding:14px 4px;border-bottom:1px solid var(--line);cursor:pointer}
+  .navrow:last-child{border-bottom:0}
+  .navrow .nic{flex:none;width:30px;height:30px;border-radius:9px;background:#1f2330;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .navrow .ntx{flex:1;min-width:0}
+  .navrow .ntt{font-size:14px;font-weight:600}
+  .navrow .nsb{font-size:11px;color:var(--dim);margin-top:1px}
+  .navrow .nch{color:var(--dimmer);font-size:18px}
+  .navrow .nval{font-size:14px;font-weight:700;color:var(--text);font-variant-numeric:tabular-nums}
+  /* ---- hero metric (WHOOP Age / Healthspan) ---- */
+  .hero{text-align:center;padding:8px 0 4px}
+  .hero .hv{font-size:56px;font-weight:700;line-height:1}
+  .hero .hl{font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-top:4px}
+  .hero .hs{font-size:13px;color:var(--dim);margin-top:8px}
+  .pill{display:inline-block;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#0a0b0e;border-radius:5px;padding:3px 8px;font-weight:700}
+  .soon{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 7px;font-weight:600}
+  /* ---- chat bubbles (WHOOP Coach) ---- */
+  .bub{max-width:82%;padding:11px 14px;border-radius:16px;font-size:13px;line-height:1.45;margin:6px 0}
+  .bub.ai{background:var(--card);border-bottom-left-radius:5px;align-self:flex-start}
+  .bub.me{background:var(--strain);color:#06121f;border-bottom-right-radius:5px;align-self:flex-end;margin-left:auto}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+  .chip{font-size:12px;color:var(--strain);border:1px solid var(--strain);border-radius:16px;padding:7px 12px}
+  /* ---- generic key/value + progress ---- */
+  .kv{display:flex;justify-content:space-between;align-items:baseline;padding:11px 0;border-bottom:1px solid var(--line)}
+  .kv:last-child{border-bottom:0} .kv .k{color:var(--dim);font-size:13px} .kv .v{font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+  .prog{height:8px;background:#1f2228;border-radius:5px;overflow:hidden;margin-top:8px}
+  .prog > i{display:block;height:100%;border-radius:5px;background:var(--strain)}
+  .avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#2a3550,#16181d);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff}
 </style>
 </head>
 <body>
@@ -405,13 +441,16 @@
   </section>
   <!-- ===================== END DEV/SETUP ===================== -->
 
+  <!-- generated detail + hub screens are injected here at load -->
+  <div id="genscreens"></div>
+  <button id="backbtn" aria-label="Back">‹</button>
+
   <nav id="tabs">
-    <button class="active" data-tab="overview"><span class="ic">◎</span>Overview</button>
-    <button data-tab="recovery"><span class="ic">♥</span>Recovery</button>
-    <button data-tab="strain"><span class="ic">▲</span>Strain</button>
-    <button data-tab="sleep"><span class="ic">☾</span>Sleep</button>
-    <button data-tab="trends"><span class="ic">📈</span>Trends</button>
-    <button class="dev" data-tab="setup"><span class="ic">⚙</span>Setup</button>
+    <button class="active" data-tab="overview"><span class="ic">◎</span>Home</button>
+    <button data-tab="health"><span class="ic">✚</span>Health</button>
+    <button data-tab="coaching"><span class="ic">✦</span>Coaching</button>
+    <button data-tab="community"><span class="ic">◍</span>Community</button>
+    <button data-tab="profile"><span class="ic">◐</span>Profile</button>
   </nav>
 
   <script src="app.js"></script>
