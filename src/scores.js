@@ -139,18 +139,20 @@ export function sleepPerformance(asleepMin, needMin) {
 // Decision (established wearable approach): movement/HR-driven WAKE; low-HR + high-HRV ⇒ DEEP(SWS);
 // low-movement + elevated/variable HR + lower HRV ⇒ REM; otherwise LIGHT. A min-duration smoothing pass
 // removes 30 s flicker (real hypnograms hold a stage for minutes).
-// Calibrated 2026-06-21 against WHOOP's official stage summary for the night of Thu Jun 18 (Awake 17 /
-// Light 286 / Deep 129 / REM 111 min), on a band-recovered (47) capture → 4% total-minute error; the same
-// params cross-checked sane on the Jun 18→19 night (3% wake / 49% light / 28% deep / 20% REM). NOTE: move
-// is now the accel actigraphy metric (mean |Δ g-vector| per epoch, ~0–0.5), not the old HR-volatility proxy.
+// Calibrated 2026-06-22 against WHOOP's official stage summary for the night of Sun Jun 21→22 (Awake 13 /
+// Light 174 / Deep 91 / REM 93 min) on a COMPLETE band-recovered (47) capture trimmed to WHOOP's in-bed
+// window (02:50→09:02) → stage-minute RMSE 27→4 min (Light 42% / Deep 26% / REM 29% vs WHOOP 48/24/25).
+// ⚠️ Fit on a single night (6 params / 4 stage-totals → under-determined); re-fit across multiple nights
+// via `npm run calibrate:all` as they accumulate, to avoid overfit. move = accel actigraphy metric
+// (mean |Δ g-vector| per epoch, ~0–0.5), not the old HR-volatility proxy.
 export const SLEEP_STAGE_PARAMS = {
   restHrPct: 0.15,   // resting HR = this percentile of the night's epoch HRs
-  wakeMove:  0.30,   // accel actigraphy above this ⇒ Wake
-  wakeHrRel: 0.45,   // HR ≥ resting×(1+this) ⇒ Wake
-  deepHrRel: 0.06,   // HR within resting×(1+this) ⇒ Deep candidate
-  deepHrv:   1.20,   // rmssd ≥ this×median ⇒ Deep candidate
-  remHrRel:  0.22,   // HR ≥ resting×(1+this) with low move ⇒ REM candidate
-  remHrv:    0.75,   // rmssd ≤ this×median ⇒ REM candidate
+  wakeMove:  0.109,  // accel actigraphy above this ⇒ Wake
+  wakeHrRel: 0.483,  // HR ≥ resting×(1+this) ⇒ Wake
+  deepHrRel: 0.121,  // HR within resting×(1+this) ⇒ Deep candidate
+  deepHrv:   1.50,   // rmssd ≥ this×median ⇒ Deep candidate
+  remHrRel:  0.086,  // HR ≥ resting×(1+this) with low move ⇒ REM candidate
+  remHrv:    0.795,  // rmssd ≤ this×median ⇒ REM candidate
   smoothEpochs: 5,   // min consecutive epochs a stage must persist (median smoothing)
 };
 
