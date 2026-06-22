@@ -260,16 +260,20 @@ export function scanHrOffsets(text, { minRange=30, maxRange=180, offsets=null }=
    from a real capture. Live sensor channels stand out as the int16 offsets with high variance across
    records (especially during the "shake" portion); header/count bytes are near-constant. */
 export function scanImu(text){
-  const byType = new Map();
-  for(const line of text.split(/\r?\n/)){
-    const c=parseCaptureLine(line); if(!c || c.frame.error) continue;
-    const p=c.frame.payload; if(!p || !p.length) continue;
-    const pt=p[0]; let e=byType.get(pt);
-    if(!e){ e={ pt, name:c.frame.name, count:0, lens:{}, recs:[] }; byType.set(pt,e); }
-    e.count++; e.lens[p.length]=(e.lens[p.length]||0)+1;
-    if(e.recs.length<5000) e.recs.push(p);
+  const byKey = new Map();   // key → {key,name,channel,count,lens,recs}. Handles BOTH framed (0xAA) records
+  for(const line of text.split(/\r?\n/)){      // (bucketed by record-type payload[0]) and UNFRAMED bytes
+    const i1=line.indexOf('\t'); if(i1<0) continue;        // (e.g. the hi-rate IMU stream on fd4b0007), bucketed by channel.
+    const i2=line.indexOf('\t', i1+1); if(i2<0) continue;
+    const channel=line.slice(i1+1,i2), hexStr=line.slice(i2+1).trim(); if(!hexStr) continue;
+    const bytes=hexToBytes(hexStr), fr=parseFrame(bytes);
+    let key, name, rec;
+    if(!fr.error && fr.payload && fr.payload.length){ key='t'+fr.payload[0]; name=fr.name; rec=fr.payload; }
+    else { key='raw:'+channel; name='RAW '+channel; rec=bytes; }   // unframed → analyse the whole notification
+    let e=byKey.get(key); if(!e){ e={ key, name, channel, count:0, lens:{}, recs:[] }; byKey.set(key,e); }
+    e.count++; e.lens[rec.length]=(e.lens[rec.length]||0)+1;
+    if(e.recs.length<5000) e.recs.push(rec);
   }
-  return byType;
+  return byKey;
 }
 // int16 LE column stats for the modal-length records of one type.
 export function imuColumns(recs){
@@ -314,20 +318,20 @@ if(import.meta.url === `file://${process.argv[1]}`){
     const files = args.slice(1);
     if(!files.length){ console.error('Usage: node tools/whoop-decode.mjs --scan-imu <capture.txt> [more…]'); process.exit(1); }
     const text = files.map(f=> readFileSync(f,'utf8')).join('\n');
-    const byType = scanImu(text);
-    const KNOWN = new Set([40,47,48,49,50,36,35]);
-    const types = [...byType.values()].sort((a,b)=>b.count-a.count);
-    console.log('\nRecord types seen (payload[0]):\n');
-    console.log(['code','name','count','lengths(len×n)'].join('\t'));
+    const byKey = scanImu(text);
+    const KNOWN = new Set(['t40','t47','t48','t49','t50','t36','t35']);
+    const types = [...byKey.values()].sort((a,b)=>b.count-a.count);
+    console.log('\nRecord streams seen (framed record-type, or RAW <channel> if unframed):\n');
+    console.log(['key','name','count','lengths(len×n)'].join('\t'));
     for(const e of types){
       const lens=Object.entries(e.lens).sort((a,b)=>b[1]-a[1]).slice(0,5).map(([l,n])=>`${l}×${n}`).join(' ');
-      console.log([e.pt, e.name, e.count, lens].join('\t') + (KNOWN.has(e.pt)?'':'   ← candidate IMU/new'));
+      console.log([e.key, e.name, e.count, lens].join('\t') + (KNOWN.has(e.key)?'':'   ← candidate IMU/new'));
     }
-    // Deep-dive every non-known (candidate) type: int16 column variance → live sensor channels.
+    // Deep-dive every non-known (candidate) stream: int16 column variance → live sensor channels.
     for(const e of types){
-      if(KNOWN.has(e.pt) || e.count<5) continue;
+      if(KNOWN.has(e.key) || e.count<5) continue;
       const { L, n, cols } = imuColumns(e.recs);
-      console.log(`\n── type ${e.pt} (${e.name}) · ${n} records of modal length ${L}B ──`);
+      console.log(`\n── ${e.key} (${e.name}) · ${n} records of modal length ${L}B ──`);
       console.log('high-variance int16 LE offsets (the live accel/gyro channels stand out):');
       console.log(['off','mean','min','max','sd','range'].join('\t'));
       for(const c of [...cols].sort((a,b)=>b.sd-a.sd).slice(0,16))
@@ -337,7 +341,7 @@ if(import.meta.url === `file://${process.argv[1]}`){
       console.log('\nGuide: 3 accel axes → one ≈ ±gravity (≈ ±2048/4096/8192/16384 counts for ±2g int16), two ≈ 0 at rest;');
       console.log('3 gyro axes ≈ 0 at rest, spike on shake. Constant offsets = header (timestamp / sample counts).');
     }
-    if(types.every(e=>KNOWN.has(e.pt))) console.log('\n⚠ No new record type appeared — the IMU toggle (cmd 105/106) may need a different data byte, or IMU isn’t enabled. Try the realtime toggle while moving the band.');
+    if(types.every(e=>KNOWN.has(e.key))) console.log('\n⚠ No new stream appeared — the IMU toggle (cmd 105/106) may need a different enable, or nothing streamed on the hi-rate channel (fd4b0007). Confirm the band is subscribed to 0007 and try again while moving it.');
   } else {
     console.error('Usage: node tools/whoop-decode.mjs --scan-hr [file ...]\n       node tools/whoop-decode.mjs --scan-imu <capture.txt>');
     process.exit(1);

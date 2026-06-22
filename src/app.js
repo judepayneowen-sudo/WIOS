@@ -21,6 +21,7 @@ const TX     = 'fd4b0002-cce1-4033-93ce-002d5875f58a';   // command_to_strap   (
 const RX_CMD = 'fd4b0003-cce1-4033-93ce-002d5875f58a';   // command_from_strap (notify)
 const RX_EVT = 'fd4b0004-cce1-4033-93ce-002d5875f58a';   // events_from_strap  (notify)
 const RX_DAT = 'fd4b0005-cce1-4033-93ce-002d5875f58a';   // data_from_strap    (notify)
+const RX_HF  = 'fd4b0007-cce1-4033-93ce-002d5875f58a';   // hi-rate / IMU stream (notify) — the 6th char WHOOP uses for raw IMU
 
 const HR_SVC   = '0000180d-0000-1000-8000-00805f9b34fb';
 const HR_MEAS  = '00002a37-0000-1000-8000-00805f9b34fb';
@@ -1153,7 +1154,7 @@ async function connect(){
     }
     try{ await BleClient.startNotifications(deviceId,HR_SVC,HR_MEAS, onHR); log('subscribed: live Heart Rate ✓','ok'); }
     catch(e){ log('HR subscribe failed: '+e.message,'err'); }
-    for(const [ch,label] of [[RX_CMD,'command_from_strap'],[RX_EVT,'events_from_strap'],[RX_DAT,'data_from_strap']]){
+    for(const [ch,label] of [[RX_CMD,'command_from_strap'],[RX_EVT,'events_from_strap'],[RX_DAT,'data_from_strap'],[RX_HF,'hifreq_from_strap']]){
       try{ await BleClient.startNotifications(deviceId,SVC,ch,(v)=>onFrame(label,v)); log('subscribed: '+label+' ✓','ok'); }
       catch(e){ log('subscribe '+label+' FAILED: '+e.message,'err'); }
     }
