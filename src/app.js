@@ -493,7 +493,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','seekbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','seekbtn','hfsync','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -701,6 +701,23 @@ function pointerCandidates(p){
     if(v>=1000 && v<65536) out.push({off:o, val:v}); }
   return out;
 }
+// EXPERIMENT (safe — cmd 96 is a documented sync command, not firmware): the WHOOP 5.0 protocol
+// (per the whoop-vault project) requires ENTER_HIGH_FREQ_SYNC (cmd 96) BEFORE send_historical_data —
+// a handshake we've never sent. Test whether entering that mode re-initialises the read session to the
+// OLDEST record (the rewind we want). Sends cmd 96, then probes where the next dump starts.
+async function hfSyncProbe(){
+  if(!deviceId){ log('connect first','err'); return; }
+  log('Before (baseline):','cmd');
+  const before=await probeReadPos();
+  if(before) log(`  dump currently starts at ${tsStr(before.ts)} (trim ${before.trim})`,'dim');
+  log('→ enter_high_freq_sync (cmd 96)','cmd');
+  await send(96,[0x01],'enter_high_freq_sync'); await delay(700);
+  const after=await probeReadPos();
+  if(!after){ log('no records after cmd 96 — try again.','err'); return; }
+  log(`After cmd 96: dump starts at ${tsStr(after.ts)} (trim ${after.trim})`,'ok');
+  if(before && after.trim<before.trim-50) log(`🎉 cmd 96 REWOUND the read session by ${before.trim-after.trim} units — toward the oldest! This is the controllable reset. Save the file.`,'ok');
+  else log('cmd 96 did not rewind the read start (same place). Save the file anyway — the console may show what it did.','dim');
+}
 // Read-only: dump the band's current data range + read-pointer candidates, and pre-fill the lowest
 // (usually the oldest/read pointer) into the cmd 33 box. Changes nothing on the band.
 async function probePointer(){
@@ -891,6 +908,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('ptrread').onclick     = probePointer;
   $('ptrset').onclick      = setPointer;
   $('seekbtn').onclick     = seekToTime;
+  $('hfsync').onclick      = hfSyncProbe;
   { const am=$('ackmode'); if(am) am.onchange = (e)=>{ ackMode = e.target.value;
       log(ackMode==='normal' ? 'Ack mode: NORMAL (real protocol — frees records, destructive).'
         : `Ack mode: 🧪 EXPERIMENT “${ackMode}”. Only run Sync full history on already-synced data.`, ackMode==='normal'?'dim':'cmd'); }; }

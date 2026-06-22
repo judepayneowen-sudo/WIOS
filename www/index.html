@@ -420,6 +420,10 @@
         <button class="act" id="seekbtn" disabled>Seek</button>
       </div>
       <div class="muted" style="margin-top:6px;font-size:12px">Uses the encoding selected above. If it says “the read head did NOT move”, switch the encoding and try again. Start capture first and save the file afterward.</div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Try high-freq-sync reset (cmd 96)</b> — the official WHOOP 5.0 app sends a <b>handshake</b> (“enter high-frequency sync”) before pulling history, which we’ve never sent. This taps it and checks whether it <b>rewinds the read back to the oldest record</b> — the reset we’re after. Safe (it’s a normal sync command). Start capture first, then save the file.</p>
+      <button class="act" id="hfsync" disabled>Try cmd 96 reset</button>
     </div>
 
     <div class="card">
