@@ -400,7 +400,7 @@ function onHR(dv){
 function logEl(){ return $('log'); }
 function log(msg, cls='dim'){ const el=logEl(); if(!el) return; const d=document.createElement('div');
   d.className='ln '+cls; d.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
-  el.appendChild(d); el.scrollTop=el.scrollHeight; }
+  el.appendChild(d); while(el.childElementCount>400) el.removeChild(el.firstChild); el.scrollTop=el.scrollHeight; }
 function logFrame(dir, info){
   if(info.error){ log(`${dir} ${info.rawHex} ⟶ ${info.error}`,'err'); return; }
   const ok=(info.headOk && info.payOk!==false)?'✓':'⚠';
@@ -410,16 +410,18 @@ function logFrame(dir, info){
 function setStatus(t, on){ setField('status', t); const d=$('dot'); if(d) d.classList.toggle('on', !!on); }
 
 const rt = { counts:{} };
-let capturing=false; const capture=[]; const CAP_MAX=100000;  // big enough to hold a full overnight pull for file export
-function renderRt(){ const el=$('rt'); if(!el) return;
+let capturing=false; const capture=[]; const CAP_MAX=100000, CAP_TRIM=10000;  // ring buffer for file export
+let _rtT=null;
+function renderRt(){ if(_rtT) return; _rtT=setTimeout(()=>{ _rtT=null; const el=$('rt'); if(!el) return;  // throttle DOM updates
   const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
-  el.textContent = rows.length ? rows.join('   ') : 'none yet'; }
+  el.textContent = rows.length ? rows.join('   ') : 'none yet'; }, 250); }
 function onFrame(label, dv){
-  const info=parseFrame(dv); logFrame('RX['+label+']', info);
+  const info=parseFrame(dv);
+  if(!pulling || info.error) logFrame('RX['+label+']', info);   // per-frame logging floods the DOM during a bulk pull — suppress it then
   if(!info.error){ const k=info.name; rt.counts[k]=(rt.counts[k]||0)+1; renderRt(); }
   // REALTIME_DATA(40) decoded from real captures: [8]=HR bpm, [9]=RR-present flag,
   // [10..12)=RR interval ms (verified: mean HR byte ≈ 60000/mean RR).
-  if(info.packetType===40 && info.payloadBytes && info.payloadBytes.length>=12){
+  if(!pulling && info.packetType===40 && info.payloadBytes && info.payloadBytes.length>=12){
     const p=info.payloadBytes, hr=p[8], rr=(p[9]===1)?(p[10]|(p[11]<<8)):0;
     if(hr>0) state.hr=hr;
     if(rr>0){ pushRR(rr); state.hrvMs=rmssd(); }
@@ -433,7 +435,8 @@ function onFrame(label, dv){
     dataRangeRaw = info.payloadBytes;                                    // keep raw for pointer analysis
     const ts=parseDataRangeOldest(info.payloadBytes); if(ts) dataRangeOldestTs=ts;
   }
-  if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex}); if(capture.length>CAP_MAX) capture.shift(); }
+  if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex});
+    if(capture.length>CAP_MAX+CAP_TRIM) capture.splice(0, CAP_TRIM); }   // trim in chunks, not shift-per-frame (O(n²))
 }
 const captureText = ()=> capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
 function dumpCapture(){
