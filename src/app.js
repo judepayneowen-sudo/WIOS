@@ -765,7 +765,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','imurt','imuprobe','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -1084,6 +1084,38 @@ async function dailySync(){
 // logical marker, NOT what's physically stored — the band keeps days of records in its NOR flash and a
 // full "Sync full history" reads them from the start regardless of this cursor (proven 2026-06-21: pulled
 // 4-day-old records while this cursor read "today"). So don't trust it to mean data is gone.
+/* ===================== Phase 2 — IMU / actigraphy capture (cmd 105/106) =====
+   The raw high-rate IMU (int16 6-axis accel+gyro, WHOOP's "R21" record) is the unlock for true actigraphy
+   (sleep movement), steps and VO₂. The APK confirms TOGGLE_IMU_MODE=106 (realtime) and
+   TOGGLE_IMU_MODE_HISTORICAL=105 (historical). We don't have the byte layout (JADX gap), so these capture
+   the raw stream for offline RE: `node tools/whoop-decode.mjs --scan-imu <capture>`. Both are
+   NON-DESTRUCTIVE (realtime doesn't touch the buffer; the historical probe streams the first window
+   without ever acking). */
+function startCaptureIfNeeded(){ if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); } }
+let imuRtOn=false;
+async function toggleImuRealtime(){
+  if(!deviceId){ log('connect first','err'); return; }
+  imuRtOn=!imuRtOn;
+  if(imuRtOn) startCaptureIfNeeded();
+  await send(106,[imuRtOn?0x01:0x00], imuRtOn?'toggle_imu_mode ON (realtime IMU)':'toggle_imu_mode OFF');
+  const b=$('imurt'); if(b){ b.textContent='Realtime IMU: '+(imuRtOn?'on':'off'); b.classList.toggle('live',imuRtOn); }
+  if(imuRtOn) log('🟢 IMU ON. Do this slowly so the axes are decodable: hold the band FLAT & STILL ~5s, then tilt onto each edge (X), each end (Y), face-down (Z) ~3s each, then SHAKE ~3s. Watch the fd4b counter for a NEW packet type. Then turn off & Send to laptop.','ok');
+  else log('IMU off. Save file / Send to laptop — I’ll decode the int16 6-axis layout (gravity ≈ ±1 g on whichever axis is down; gyro ≈ 0 at rest).','ok');
+}
+async function imuHistoricalProbe(){
+  if(!deviceId){ log('connect first','err'); return; }
+  startCaptureIfNeeded();
+  log('Historical IMU probe (READ-ONLY): enabling IMU historical mode, then streaming the first window WITHOUT acking — nothing is freed.','ok');
+  await send(105,[0x01],'toggle_imu_mode_historical ON'); await delay(500);
+  await send(34,[],'get_data_range'); await delay(800);
+  await send(22,[0x00],'send_historical_data');
+  log('streaming ~20 s — looking for R21 IMU records in the dump (watch the fd4b counter for a new type)…','dim');
+  await delay(20000);
+  await send(20,[],'abort_historical_transmits'); await delay(300);
+  await send(105,[0x00],'toggle_imu_mode_historical OFF');
+  log('✓ Done (read-only — nothing acked, non-destructive). Save file / Send to laptop so I can find & decode the R21 record.','ok');
+}
+
 async function checkBandBuffer(){
   if(!deviceId){ log('connect first','err'); return; }
   log('Reading the band’s sync cursor (read-only, changes nothing)…','cmd');
@@ -1186,6 +1218,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('fullsync').onclick    = drainHistory;
   $('bandcheck').onclick   = checkBandBuffer;
   $('forcetrim').onclick   = forceTrimSeek;
+  { const a=$('imurt'); if(a) a.onclick=toggleImuRealtime; }
+  { const a=$('imuprobe'); if(a) a.onclick=imuHistoricalProbe; }
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }
