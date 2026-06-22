@@ -22,6 +22,16 @@ const RX_CMD = 'fd4b0003-cce1-4033-93ce-002d5875f58a';   // command_from_strap (
 const RX_EVT = 'fd4b0004-cce1-4033-93ce-002d5875f58a';   // events_from_strap  (notify)
 const RX_DAT = 'fd4b0005-cce1-4033-93ce-002d5875f58a';   // data_from_strap    (notify)
 const RX_HF  = 'fd4b0007-cce1-4033-93ce-002d5875f58a';   // hi-rate / IMU stream (notify) — the 6th char WHOOP uses for raw IMU
+// All five WHOOP GATT service families (from op0/p.java). The 5.0 uses fd4b, but high-rate IMU may live on
+// another family entirely — declare them all so iOS will discover/allow them, then we subscribe to every
+// notify characteristic we find (listGatt).
+const WHOOP_SERVICES = [
+  'fd4b0001-cce1-4033-93ce-002d5875f58a',
+  '61080001-8d6d-82b8-614a-1c8cb0f8dcc6',
+  '11500001-6215-11ee-8c99-0242ac120002',
+  '8a580001-2fe8-4796-9267-b87a2b0c8234',
+  '59830001-5955-419b-bb8d-c8262926af23',
+];
 
 const HR_SVC   = '0000180d-0000-1000-8000-00805f9b34fb';
 const HR_MEAS  = '00002a37-0000-1000-8000-00805f9b34fb';
@@ -766,7 +776,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','imurt','imuraw','imuprobe','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','imurt','imuraw','imuprobe','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -1110,6 +1120,34 @@ async function toggleImuRealtime(){
   if(imuRtOn) log('🟢 IMU ON (realtime engine + IMU mode). Do this slowly so the axes are decodable: hold the band FLAT & STILL ~5s, then tilt onto each edge (X), each end (Y), face-down (Z) ~3s each, then SHAKE ~3s. Watch the fd4b counter for a NEW stream (likely “hifreq_from_strap”). Then turn off & Send to laptop.','ok');
   else log('IMU off. Save file / Send to laptop — I’ll decode the int16 6-axis layout (gravity ≈ ±1 g on whichever axis is down; gyro ≈ 0 at rest).','ok');
 }
+// Enumerate the band's full GATT and subscribe to EVERY notify characteristic on a WHOOP custom service —
+// so wherever the IMU/high-rate stream lives (fd4b0007, or a 0007 on the 6108/1150/8a58/5983 families), we
+// catch it. Logs the whole service/characteristic map (read it off to see what the 5.0 actually exposes).
+const subscribedChars = new Set();
+async function listGatt(){
+  if(!deviceId){ log('connect first','err'); return; }
+  let services=[];
+  try{ services = await BleClient.getServices(deviceId); }
+  catch(e){ log('getServices failed: '+e.message,'err'); return; }
+  log(`GATT map — ${services.length} services:`,'cmd');
+  let subbed=0;
+  for(const s of services){
+    const su=(s.uuid||'').toLowerCase();
+    const std=/^0000[0-9a-f]{4}-0000-1000-8000-00805f9b34fb$/.test(su);   // standard 16-bit BLE service
+    for(const c of (s.characteristics||[])){
+      const cu=(c.uuid||'').toLowerCase(), p=c.properties||{};
+      const flags=['read','write','writeNoResp','notify','indicate'].filter(k=>p[k]||p[k==='writeNoResp'?'writeWithoutResponse':k]).join(',');
+      log(`  ${su.slice(0,8)}/${cu.slice(0,8)} [${flags}]`,'dim');
+      if((p.notify||p.indicate) && !std && !subscribedChars.has(su+cu)){
+        try{ await BleClient.startNotifications(deviceId, s.uuid, c.uuid, (v)=>onFrame(su.slice(0,4)+'·'+cu.slice(0,8), v));
+          subscribedChars.add(su+cu); subbed++; log(`  → subscribed ${su.slice(0,8)}/${cu.slice(0,8)} ✓`,'ok'); }
+        catch(e){ log(`  → subscribe ${cu.slice(0,8)} failed: ${e.message}`,'err'); }
+      }
+    }
+  }
+  log(`Subscribed to ${subbed} extra notify char(s). Now tap Realtime IMU / Raw data while moving the band — any new stream is captured & labelled by its source characteristic.`, subbed?'ok':'dim');
+}
+
 // Alternative path: START_RAW_DATA(81)/STOP_RAW_DATA(82) — the band's dedicated high-rate raw sensor stream.
 let rawOn=false;
 async function toggleRawData(){
@@ -1157,7 +1195,7 @@ async function connect(){
     setStatus('initialising…');
     await BleClient.initialize();
     log('select your WHOOP in the chooser…');
-    const device=await BleClient.requestDevice({ namePrefix:'WHOOP', optionalServices:[SVC,HR_SVC,BATT_SVC,DEV_SVC] });
+    const device=await BleClient.requestDevice({ namePrefix:'WHOOP', optionalServices:[...WHOOP_SERVICES,HR_SVC,BATT_SVC,DEV_SVC] });
     deviceId=device.deviceId;
     log(`selected: ${device.name||'WHOOP'} [${deviceId}]`);
     setStatus('connecting…');
@@ -1172,7 +1210,7 @@ async function connect(){
     try{ await BleClient.startNotifications(deviceId,HR_SVC,HR_MEAS, onHR); log('subscribed: live Heart Rate ✓','ok'); }
     catch(e){ log('HR subscribe failed: '+e.message,'err'); }
     for(const [ch,label] of [[RX_CMD,'command_from_strap'],[RX_EVT,'events_from_strap'],[RX_DAT,'data_from_strap'],[RX_HF,'hifreq_from_strap']]){
-      try{ await BleClient.startNotifications(deviceId,SVC,ch,(v)=>onFrame(label,v)); log('subscribed: '+label+' ✓','ok'); }
+      try{ await BleClient.startNotifications(deviceId,SVC,ch,(v)=>onFrame(label,v)); subscribedChars.add((SVC+ch).toLowerCase()); log('subscribed: '+label+' ✓','ok'); }
       catch(e){ log('subscribe '+label+' FAILED: '+e.message,'err'); }
     }
     log('connected. Live HR is flowing — see the Strain/Overview tabs.','ok');
@@ -1239,6 +1277,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   { const a=$('imurt'); if(a) a.onclick=toggleImuRealtime; }
   { const a=$('imuraw'); if(a) a.onclick=toggleRawData; }
   { const a=$('imuprobe'); if(a) a.onclick=imuHistoricalProbe; }
+  { const a=$('gattbtn'); if(a) a.onclick=listGatt; }
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }
