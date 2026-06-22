@@ -554,7 +554,7 @@ async function syncHistory(){
 const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
 const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END before giving up on it
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
-let pulling=false; let autoExport=false; const pullRecords=[]; const pullSeen=new Set();
+let pulling=false; let autoExport=false; let skipDrainConfirm=false; const pullRecords=[]; const pullSeen=new Set();
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
@@ -629,7 +629,7 @@ async function drainHistory(){
   const msg = ackMode==='normal'
     ? '⚠️ Sync full history advances the band’s sync cursor and FREES the records it pulls. Any data the official WHOOP app has NOT already synced will be PERMANENTLY LOST from WHOOP.\n\nMake sure the WHOOP app has fully synced FIRST, then continue.\n\nProceed with the full (destructive) drain?'
     : `🧪 EXPERIMENT mode “${ackMode}” — testing whether the band will hand over history WITHOUT freeing it.\n\nRun this only on THROWAWAY data you don’t mind losing (e.g. an hour of daytime wear with the WHOOP app force-closed) — if the experiment fails it still frees that data. Afterwards, read the “oldest BEFORE / AFTER” line: if the oldest did NOT move, the read was non-destructive.\n\nContinue the experiment?`;
-  if(!window.confirm(msg)) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
+  if(!skipDrainConfirm && !window.confirm(msg)) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
   pulling=true; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
@@ -655,7 +655,8 @@ async function drainHistory(){
         if(drain.complete || pullRecords.length>prev){
           advanced=true;
           if(!drain.strategy){ drain.strategy=st.id; log(`  ✓ ${st.id} advanced → ${pullRecords.length} records (idx ${pullMax().idx})`,'ok'); }
-          else if(guard%20===0) log(`  …${pullRecords.length} records up to ${new Date(pullMaxTs()*1000).toLocaleTimeString()} (idx ${pullMax().idx})`,'dim');
+          else if(guard%20===0){ const behindH=(Date.now()/1000 - pullMaxTs())/3600;
+            log(`  …${pullRecords.length} records · data covers up to ${new Date(pullMaxTs()*1000).toLocaleTimeString()} (${behindH<0.5?'≈ now — almost done':behindH.toFixed(1)+'h behind now, still going'})`,'dim'); }
           break;
         }
         if(!drain.strategy) log(`  ✗ ${st.id}: no advance`,'dim');
@@ -791,14 +792,40 @@ async function dailySync(){
   if(pulling){ await drainHistory(); return; }                 // already running → let the button stop it
   if(!$('seekdt').value){ const d=new Date(); d.setDate(d.getDate()-1); d.setHours(20,0,0,0);
     $('seekdt').value = toLocalInput(d); log(`night not set — defaulting to last night (${d.toLocaleString()})`,'dim'); }
+  // One confirm for the whole managed pull (then suppress drainHistory's per-pass confirm).
+  if(!window.confirm('⚠️ Pull last night off the band? This advances the band’s sync cursor and FREES the records it reads, so let the official WHOOP app sync FIRST. It keeps draining until it reaches this morning, so the whole sleep window is captured.\n\nProceed?')){
+    log('daily pull cancelled — let the WHOOP app sync first.','dim'); return; }
   { const db=$('dailysync'); if(db){ db.textContent='Syncing… (tap to stop)'; db.classList.add('live'); } }
-  log('① Rewinding to that night (FORCE_TRIM)…','cmd');
-  const ok = await forceTrimSeek();
-  if(!ok){ log('seek failed — nothing pulled. Adjust “Night to pull” and tap again.','err');
-    const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } return; }
-  log('② Syncing that night off the band…','cmd');
-  autoExport = true;                                            // drainHistory auto-sends to laptop on completion
-  await drainHistory();
+  skipDrainConfirm = true; autoExport = false;                 // we confirm once here and export once at the end
+  const agg = { n:0, minTs:Infinity, maxTs:0, hv:[] };          // aggregate across continuation passes
+  let lastMax = 0;
+  try{
+    for(let pass=1; pass<=8; pass++){
+      if(pass===1) log('① Rewinding to last night (FORCE_TRIM)…','cmd');
+      else { $('seekdt').value = toLocalInput(new Date(lastMax)); log(`↻ Continuing from ${new Date(lastMax).toLocaleTimeString()} (pass ${pass})…`,'cmd'); }
+      const ok = await forceTrimSeek();
+      if(!ok){ if(pass===1){ log('seek failed — nothing pulled. Adjust “Night to pull” and tap again.','err'); return; } break; }
+      log(`② Draining the night${pass>1?` (pass ${pass})`:''}…`,'cmd');
+      await drainHistory();
+      for(const r of pullRecords) if(r.src===47){ agg.n++; if(r.ts<agg.minTs)agg.minTs=r.ts; if(r.ts>agg.maxTs)agg.maxTs=r.ts; if(r.hr>0)agg.hv.push(r.hr); }
+      const passMaxMs = pullMaxTs()*1000;
+      if(!pulling && passMaxMs<=lastMax){ break; }              // user stopped, no new ground → done
+      if(passMaxMs <= lastMax + 60000){ log('no further records — reached the end of the buffer.','dim'); break; }
+      lastMax = passMaxMs;
+      if(Date.now() - lastMax < 20*60000){ log('✓ Caught up to now — whole night captured.','ok'); break; }
+      if(pass===8) log('reached pass limit — stopping. Tap again if more remains.','dim');
+    }
+  }
+  catch(e){ log('daily pull error: '+e.message,'err'); }
+  finally{ skipDrainConfirm=false; const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } }
+  // One aggregate preview + one export for the whole multi-pass capture.
+  const hrs = agg.n ? ((agg.maxTs-agg.minTs)/3600).toFixed(1)+'h' : '0h';
+  showPullPreview({ nd:agg.n, minTs:agg.minTs, maxTs:agg.maxTs, hrs, hv:agg.hv });
+  if(agg.n>60){
+    const host=(($('laphost')&&$('laphost').value)||'').trim();
+    if(/^[\w.\-]+:\d{2,5}$/.test(host)){ log('③ Auto-sending the full night to laptop…','cmd'); await sendToLaptop(); }
+    else { log('③ No laptop address set — opening Save-to-Files…','dim'); await downloadCapture(); }
+  }
 }
 
 // Read-only: report the band's SYNC CURSOR (oldest not-yet-committed point). IMPORTANT: this is only a
