@@ -332,7 +332,20 @@
       <label class="fl" style="margin-top:10px">Night to pull <span style="color:var(--dimmer)">(defaults to last night)</span>
         <input class="in" id="seekdt" type="datetime-local" style="min-width:200px"></label>
       <button class="act" id="dailysync" disabled style="display:block;width:100%;margin-top:10px;font-size:15px;padding:14px">Pull last night → laptop</button>
-      <div class="muted" style="margin-top:8px;font-size:12px">No laptop on WiFi? It falls back to <b>Save to Files</b> so you can upload the file to Claude. ⚠️ This <b>frees</b> the records it reads — only run it <b>after</b> the WHOOP app has synced that night.</div>
+      <div class="row" style="margin-top:10px">
+        <button class="act" id="savefile">Save file</button>
+        <button class="act" id="sendlap">Send to laptop</button>
+      </div>
+      <div class="muted" style="margin-top:8px;font-size:12px">It auto-sends to the laptop on a good pull; <b>Save file</b> exports the capture to <b>Files</b> (or AirDrop) any time. ⚠️ The pull <b>frees</b> the records it reads — only run it <b>after</b> the WHOOP app has synced that night.</div>
+    </div>
+
+    <!-- 2b · LAST-PULL PREVIEW (filled on-device after a sync, so you can spot a bad night immediately) -->
+    <div class="card" id="pvcard" style="display:none">
+      <div class="hd" style="margin-bottom:6px"><div class="t">Last pull</div><span class="muted" id="pv-dur">—</span></div>
+      <div class="metric"><span class="k">Records</span><span class="v" id="pv-records">—</span></div>
+      <div class="metric"><span class="k">Window</span><span class="v" id="pv-span" style="font-size:13px">—</span></div>
+      <div class="metric"><span class="k">Heart rate</span><span class="v" id="pv-hr" style="font-size:15px">—</span></div>
+      <div id="pv-verdict" class="ln dim" style="margin-top:12px;font-size:13px">—</div>
     </div>
 
     <!-- 3 · PROFILE -->
@@ -384,8 +397,6 @@
       <div class="row" style="margin-top:10px">
         <button class="act" id="capture">Start capture</button>
         <button class="act" id="dumpbtn">Dump &amp; copy</button>
-        <button class="act" id="savefile">Save file</button>
-        <button class="act" id="sendlap">Send to laptop</button>
         <button class="act" id="clear">Clear log</button>
       </div>
       <textarea id="dump" readonly></textarea>

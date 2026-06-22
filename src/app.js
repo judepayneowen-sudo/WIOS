@@ -439,6 +439,23 @@ function onFrame(label, dv){
     if(capture.length>CAP_MAX+CAP_TRIM) capture.splice(0, CAP_TRIM); }   // trim in chunks, not shift-per-frame (O(n²))
 }
 const captureText = ()=> capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
+
+// On-device readout after a pull — records / window / HR / a plain verdict, so a short or empty night is
+// obvious before you walk away (no laptop round-trip needed). Fed the same numbers drainHistory computes.
+function showPullPreview({ nd, minTs, maxTs, hrs, hv }){
+  const card=$('pvcard'); if(!card) return;
+  card.style.display='block';
+  setField('pv-dur', nd ? hrs : '—');
+  setField('pv-records', nd ? `${nd}` : 'none');
+  setField('pv-span', nd ? `${new Date(minTs*1000).toLocaleString()} → ${new Date(maxTs*1000).toLocaleTimeString()}` : '—');
+  setField('pv-hr', (hv&&hv.length) ? `${Math.min(...hv)}–${Math.max(...hv)} bpm · avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)}` : 'no HR decoded');
+  const durH = nd ? (maxTs-minTs)/3600 : 0;
+  const v=$('pv-verdict'); if(!v) return;
+  if(durH>=5){ v.className='ln ok';  v.textContent=`✅ Looks like a full night (${hrs}). Save / send it, then note WHOOP's sleep numbers for this date.`; }
+  else if(durH>=1){ v.className='ln cmd'; v.textContent=`⚠️ Partial capture (${hrs}) — good for strain, light for sleep. You can still save it.`; }
+  else if(nd){ v.className='ln dim'; v.textContent=`ℹ️ Very short (${hrs}). Wear it a full night and re-pull.`; }
+  else { v.className='ln err'; v.textContent='No records pulled — check the seek landed on the night, then try again.'; }
+}
 function dumpCapture(){
   const text=captureText();
   const ta=$('dump'); ta.value=text||'(nothing captured)'; ta.style.display='block'; ta.focus(); ta.select();
@@ -666,6 +683,7 @@ async function drainHistory(){
     const span=nd?`${new Date(minTs*1000).toLocaleString()} → ${new Date(maxTs*1000).toLocaleString()}`:'—';
     const hrs=nd?((maxTs-minTs)/3600).toFixed(1)+'h':'0h';
     const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
+    showPullPreview({ nd, minTs, maxTs, hrs, hv });               // on-device readout so a bad night shows immediately
     log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
     log(`oldest BEFORE ${tsStr(before)} · AFTER ${tsStr(after)}`,'cmd');
     // Verdict: did the oldest-buffered pointer move? If it advanced, the ack FREED records (destructive).
