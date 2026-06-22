@@ -56,10 +56,17 @@ permanently lost from WHOOP. So:
 - ⛔ **`cmd 33` is a DEAD END (settled 2026-06-22).** Its real name is **"Force Read Pointer"** (the band's
   console: `BLE_CMD: Command Force Read Pointer; read page:N wrap count:0`). It takes a flash **page** +
   **wrap count** (page ≈ trim/3), and the band parses it fine — BUT it does **not** redirect the historical
-  dump. `send_historical_data(22)` always streams from the **oldest un-acked record** (the commit cursor),
-  regardless of the forced page. Confirmed across 4-byte / 8-byte / page encodings: the read head never
-  moved (`HISTORY_END trim` identical before/after). So there is **no seek and no rewind** — only the
-  ack moves the cursor, and only forward.
+  dump. It moves a *different* read pointer. (cmd 32 POWER_CYCLE/0x0007 reset also does NOT rewind the dump.)
+- ✅✅ **SOLVED 2026-06-22 — `FORCE_TRIM` (cmd 25) is the controllable rewind.** The "trim" is the commit
+  cursor the historical dump actually reads from (the value we ack). Sending `FORCE_TRIM` with a target trim
+  (u32 LE lo, then 4 zero bytes) **moves the dump's start to any point in flash**. PROVEN: from a cursor at
+  "now" (trim 28840, Jun 22), one cmd 25 rewound the dump to Jun 21 12:15 and streamed 3.5 h of real records.
+  Command numbers come from the decompiled WHOOP enum (via whoop-vault's `commands.py`): `FORCE_TRIM=25`,
+  `SET_READ_POINTER=33`, `REBOOT_STRAP=29`, `POWER_CYCLE_STRAP=32`, `ENTER_HIGH_FREQ_SYNC=96`. Implemented as
+  `forceTrimSeek()` in `src/app.js` (target time → trim → cmd 25 → probe → iterate).
+- ✅ **The comparable-data problem is solved:** let the WHOOP app sync a night to its cloud (the Phase-1
+  answer-key), then **FORCE_TRIM (cmd 25) back to that night → Sync full history** re-reads the raw `(47)`
+  data from flash (persists ~4–5 days). Pair the two → a calibration pair for any night. Repeatable, in-app.
 - ✅ **What actually works (use this):** the historical dump reads from oldest-un-acked, so a **daily
   `Sync full history`** pulls just the new night incrementally (no seek needed). Old already-acked nights
   are gone from the dump's reach but were already **physically recovered** by the big walk-from-start drains
