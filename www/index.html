@@ -424,6 +424,13 @@
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
       <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Try high-freq-sync reset (cmd 96)</b> — the official WHOOP 5.0 app sends a <b>handshake</b> (“enter high-frequency sync”) before pulling history, which we’ve never sent. This taps it and checks whether it <b>rewinds the read back to the oldest record</b> — the reset we’re after. Safe (it’s a normal sync command). Start capture first, then save the file.</p>
       <button class="act" id="hfsync" disabled>Try cmd 96 reset</button>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>⭐ Reboot to rewind</b> — from the decompiled WHOOP command list we found the band’s own reboot commands. A reboot <b>rewinds the read pointer to the oldest record</b> (this is what happened by accident on June 21). <b>Power-cycle (cmd 32)</b> is the strongest candidate; <b>soft reboot (cmd 29)</b> is the gentler one. Each reboots the band (~20–40s) — the same as the official app’s “device reboot”, so it’s safe. <b>Force-close the WHOOP app first</b>, send the reboot, wait, <b>reconnect</b>, then immediately tap <b>Sync full history</b> and watch whether it starts from days ago.</p>
+      <div class="row">
+        <button class="act" id="pwrcycle" disabled>Power-cycle (cmd 32)</button>
+        <button class="act" id="softreboot" disabled>Soft reboot (cmd 29)</button>
+      </div>
     </div>
 
     <div class="card">

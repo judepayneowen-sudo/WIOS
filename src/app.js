@@ -493,7 +493,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','seekbtn','hfsync','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','seekbtn','hfsync','pwrcycle','softreboot','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -718,6 +718,18 @@ async function hfSyncProbe(){
   if(before && after.trim<before.trim-50) log(`🎉 cmd 96 REWOUND the read session by ${before.trim-after.trim} units — toward the oldest! This is the controllable reset. Save the file.`,'ok');
   else log('cmd 96 did not rewind the read start (same place). Save the file anyway — the console may show what it did.','dim');
 }
+// THE REWIND TRIGGER (from the decompiled WHOOP command enum via whoop-vault): POWER_CYCLE_STRAP=32 and
+// REBOOT_STRAP=29 reboot the band — exactly what the official app's "device reboot" does. A power-style
+// reset clears RAM and rewinds the historical read pointer to the OLDEST flash record (observed 2026-06-21,
+// reboot reason 0x0007). cmd 32 (power cycle) is the strongest candidate; cmd 29 is the softer reboot.
+// NOT a firmware/brick command — but it does reboot, so confirm first.
+async function rebootStrap(cmd, name){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(!window.confirm(`Send ${name} (cmd ${cmd})? This reboots the band — the same thing the official WHOOP app's "device reboot" does. The goal: rewind the read pointer to the oldest record so the next Sync full history re-reads everything (the calibration data).\n\nThe band will disconnect and reboot (~20–40s).\n\nFIRST make sure the official WHOOP app is force-closed, so it can't re-sync and undo the rewind.\n\nContinue?`)) { log('reboot cancelled','dim'); return; }
+  log(`→ ${name} (cmd ${cmd}) — band rebooting & disconnecting…`,'cmd');
+  await send(cmd,[],name);
+  log('Sent. Wait ~30s, RECONNECT, then immediately tap Sync full history (before the WHOOP app reconnects). If it starts from days ago, the rewind worked 🎯. Save the file.','ok');
+}
 // Read-only: dump the band's current data range + read-pointer candidates, and pre-fill the lowest
 // (usually the oldest/read pointer) into the cmd 33 box. Changes nothing on the band.
 async function probePointer(){
@@ -909,6 +921,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('ptrset').onclick      = setPointer;
   $('seekbtn').onclick     = seekToTime;
   $('hfsync').onclick      = hfSyncProbe;
+  $('pwrcycle').onclick    = ()=>rebootStrap(32,'POWER_CYCLE_STRAP');
+  $('softreboot').onclick  = ()=>rebootStrap(29,'REBOOT_STRAP');
   { const am=$('ackmode'); if(am) am.onchange = (e)=>{ ackMode = e.target.value;
       log(ackMode==='normal' ? 'Ack mode: NORMAL (real protocol — frees records, destructive).'
         : `Ack mode: 🧪 EXPERIMENT “${ackMode}”. Only run Sync full history on already-synced data.`, ackMode==='normal'?'dim':'cmd'); }; }
