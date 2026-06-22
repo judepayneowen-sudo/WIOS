@@ -85,6 +85,8 @@ export function decodeHistorical(payload){
     for(let i=0;i<n;i++){ const v = payload[16+2*i] | (payload[17+2*i]<<8); if(v>250 && v<2500) rr.push(v); }
   }
   // Accel/orientation triplet (g): f32 LE at 37/41/45. Only present in the 112-byte rich record.
+  // NB (per decompiled WHOOP APK, 2026-06-22): this is a PROCESSED orientation/gravity vector (|v|≈1.0 g),
+  // NOT WHOOP's raw IMU. Raw high-rate actigraphy is a separate int16 6-axis R21 record (cmd 105) — see CLAUDE.md.
   let acc = null;
   if(payload.length >= 49){
     const f32 = (o)=> new DataView(new Uint8Array(payload.slice(o,o+4)).buffer).getFloat32(0, true);

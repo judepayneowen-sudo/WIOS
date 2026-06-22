@@ -103,9 +103,37 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
 ### Remaining band-RE work for Phase 2 (develop in parallel; nothing is at risk)
 - **Validate `drainHistory` on the real band** — confirm the 5.0 trim strategy/offset (worn-night "Sync
   full history" run; `decodeMetadata` exposes the `HISTORY_END` trim candidates from the capture).
-- Decode the **accel/IMU tail of `(47)` / `HISTORICAL_IMU(52)`** → true actigraphy for sleep movement
-  (classifier currently uses an HR-volatility proxy). HR confirmed: `[3..6]`=idx, `[7..10]`=ts, `[14]`=HR.
+- Decode the **accel/IMU** → true actigraphy for sleep movement (classifier currently uses an HR-volatility
+  proxy). HR confirmed empirically: `[3..6]`=idx, `[7..10]`=ts, `[14]`=HR. ⚠️ **CLARIFIED 2026-06-22 by the
+  decompiled WHOOP APK — there are TWO accel things, don't conflate them:**
+  - The **`f32@37/41/45`** vector we read in the 112-byte rich `(47)` record is a **PROCESSED orientation /
+    gravity vector** — keep it (empirically `|v|≈1.005 g`, physically correct). It is NOT WHOOP's raw IMU.
+  - WHOOP's **raw high-rate actigraphy** is a **separate `R21` IMU historical record**: `int16`, 6 axes
+    (accelX/Y/Z + gyroX/Y/Z), variable samples sized by `numberOfAccelReadings`/`numberOfGyroReadings`
+    (model `com.whoop.ble.model.ImuData`). No scale constants in the app → raw counts need empirical calib.
+    Next experiment for true actigraphy: send **`TOGGLE_IMU_MODE_HISTORICAL` (cmd 105)** before a sync and
+    look for the R21 record. (The old `HISTORICAL_IMU(52)` label was WRONG — `52`=`SET_DP_TYPE`.)
 - Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV).
+
+### 📦 Decompiled-APK intel (2026-06-22 — WHOOP Android 5.456)
+Second independent source. **Confirms** but does **not** fully decompile the band protocol (JADX dropped the
+sync engine + ack builder + metadata parser + frame/CRC base classes `hp0.c`/`kp0.*`), so it CANNOT confirm
+or refute the ack byte-layout, the trim-from-metadata read, the 96/97 handshake order, FORCE_TRIM usage, or
+the destructive-ack — **the APK's silence on those is a decompile gap, not a contradiction**; our empirical
+findings stand. What it DID confirm:
+- ✅ **Full command enum** (`hp0/e.java`) matches ours exactly: `SEND_HISTORICAL_DATA=22`,
+  `HISTORICAL_DATA_RESULT=23`, `FORCE_TRIM=25`, `REBOOT_STRAP=29`, `POWER_CYCLE_STRAP=32`,
+  `SET_READ_POINTER=33`, `GET_DATA_RANGE=34`, `ENTER/EXIT_HIGH_FREQ_SYNC=96/97`, `TOGGLE_IMU_MODE_HISTORICAL=105`.
+  ⛔ Brick-risk (keep guarded): `START_FIRMWARE_LOAD=36/142`, `LOAD/PROCESS_FIRMWARE=37/38`, `ENTER_BLE_DFU=45`.
+- ✅ **Two-layer framing** (`gi0/a.java`): a frame carries a **transport type at byte [1]** (`gi0.b`:
+  `BLE_COMMAND_FRAMEWORK=64, HISTORICAL_METADATA=65, HISTORICAL_DATA=66, REALTIME_DATA=67, INFORMATIONAL=68`)
+  AND an **inner sub-type u16 at byte [17]** (`gi0.c`: `…CONSOLE_LOG=9, EVENTS=10…`). Our decoder's **`47/49`
+  are inner *record* codes nested inside the type-66 transport frame** — the two-layer nesting we hypothesized.
+  All payloads **little-endian**; timestamps are **32768-Hz fixed-point** (`millis = s·1000 + sub·1000/32768`).
+  No `0xAA`/CRC16 in this parser → our SOF+MODBUS-CRC framing is a *lower* transport layer (the absent `hp0.c`).
+- ✅ **Historical record taxonomy**: `R10/R11/R12/RAW_ECG/R20/R21(IMU)/R24` (`oq0/d.java`); HR is R10/R11.
+- ✅ **SpO2 / skin-temp / respiratory rate are NOT parsed from the band** in the app — cloud-computed,
+  API-only. Reinforces Phase-1: those inputs come from the cloud answer-key, never band-raw.
 
 ### Sleep — exact WHOOP match is impossible standalone (cloud-staged); target is calibrated-close
 WHOOP computes staging in its cloud, so the band has only raw HR/RR/accel. We run our own
