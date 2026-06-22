@@ -147,6 +147,7 @@ async function pull(days){
   }
   for(const [k,{rec}] of Object.entries(nights)){
     const r=row(k), sc=rec.score||{}, st=sc.stage_summary||{}, nd=sc.sleep_needed||{};
+    r.sleepStart=rec.start; r.sleepEnd=rec.end;          // WHOOP's actual in-bed window — trims wide captures at calibration
     const asleep=(st.total_light_sleep_time_milli||0)+(st.total_slow_wave_sleep_time_milli||0)+(st.total_rem_sleep_time_milli||0);
     const need=(nd.baseline_milli||0)+(nd.need_from_sleep_debt_milli||0)+(nd.need_from_recent_strain_milli||0)-(nd.need_from_recent_nap_milli||0);
     r.sleepPerf=sc.sleep_performance_percentage; r.sleepEff=sc.sleep_efficiency_percentage;

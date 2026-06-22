@@ -254,9 +254,18 @@ if(!sleepDays.length){
 // epochs — i.e. a working "Sync full history" pull over a night that WHOOP also scored.
 console.log('\n— Sleep stages —');
 const stageNights = loadSleepEpochs();
+// Trim each capture to WHOOP's actual in-bed window [sleepStart, sleepEnd] when known, so a wide pull
+// (we default the seek to ~20:00, capturing pre-bed evening) is compared like-for-like against WHOOP's
+// stage_summary, which only covers real sleep. Falls back to the whole capture if the window is absent.
+const trimToWindow = (epochs, d)=>{
+  const s = d.sleepStart ? Date.parse(d.sleepStart) : NaN, e = d.sleepEnd ? Date.parse(d.sleepEnd) : NaN;
+  if(!Number.isFinite(s) || !Number.isFinite(e)) return epochs;
+  const t = epochs.filter(ep=> ep.t>=s && ep.t<=e);
+  return t.length>=20 ? t : epochs;
+};
 const stageRows = answers
   .filter(d=> d.remMin!=null && d.swsMin!=null && d.lightMin!=null && stageNights[d.date]?.length>=20)
-  .map(d=> ({ date:d.date, epochs:stageNights[d.date],
+  .map(d=> ({ date:d.date, epochs:trimToWindow(stageNights[d.date], d),
               whoop:{ rem:d.remMin, sws:d.swsMin, light:d.lightMin, awake:d.awakeMin||0 } }));
 if(!stageRows.length){
   console.log('  no night has BOTH a decoded overnight epoch stream AND WHOOP stage minutes yet.');
