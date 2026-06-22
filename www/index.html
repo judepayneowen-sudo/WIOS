@@ -414,6 +414,10 @@
       <div class="muted" style="margin-top:6px;font-size:12px">If <b>Set pointer</b> says “No change”, switch the encoding (16-bit LE / 32-bit BE) and tap again. Save the file after the run so it can be checked.</div>
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:13px;line-height:1.5;margin:0 0 8px"><b>⭐ FORCE_TRIM seek (cmd 25)</b> — this forces the <b>real</b> cursor the history dump reads from (cmd 33 moved a different one). Pick a date &amp; time in the <b>Seek box above</b>, then tap this. If it lands on your target, tap <b>Sync full history</b> to pull that night. Experimental — use a night the WHOOP app already has. Start capture first &amp; save the file.</p>
+      <button class="act" id="forcetrim" disabled>FORCE_TRIM seek (cmd 25)</button>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
       <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Seek to a night</b> — pick a date &amp; time and tap <b>Seek</b>. cmd 33 is the band's “Force Read Pointer” (it takes a flash <b>page</b> number); the app converts your time to a page, jumps there, checks where it actually landed, and corrects itself a couple of times. When it says “within 10 min”, tap <b>Sync full history</b> and it pulls <b>from that point</b> instead of walking days from the start. Aim a couple of hours <b>before</b> bedtime to catch the whole night. (The encoding dropdown is only for the manual <b>Set pointer</b> above — Seek always uses the page format.)</p>
       <div class="row">
         <input class="in" id="seekdt" type="datetime-local" style="flex:1">

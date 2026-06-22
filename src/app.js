@@ -493,7 +493,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','seekbtn','hfsync','pwrcycle','softreboot','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','seekbtn','forcetrim','hfsync','pwrcycle','softreboot','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -818,6 +818,35 @@ async function seekToTime(){
   log('Got as close as it could — tap “Sync full history” to pull from here (Save the file so the page factor can be refined).','dim');
 }
 
+// FORCE_TRIM (cmd 25) — forces the TRIM (the commit cursor the historical dump actually reads from; it's
+// the value we ack). Unlike cmd 33 (a separate read pointer that didn't move the dump), this should move
+// the dump's start. Uses the same date/time box as Seek; sends the trim directly (no page conversion),
+// then probes where the dump starts and refines. EXPERIMENTAL — only on data WHOOP already has.
+async function forceTrimSeek(){
+  if(!deviceId){ log('connect first','err'); return; }
+  const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
+  if(!Number.isFinite(target)){ log('pick a date & time in the Seek box above first','err'); return; }
+  log(`🎯 FORCE_TRIM (cmd 25) to ${new Date(target*1000).toLocaleString()} …`,'cmd');
+  let a=await probeReadPos();
+  if(!a || a.trim==null){ log('probe failed — no records / no trim.','err'); return; }
+  log(`start: read head at ${tsStr(a.ts)} (trim ${a.trim})`,'dim');
+  for(let iter=1; iter<=4; iter++){
+    let trimEst=Math.round(a.trim + (target - a.ts)/SEC_PER_TRIM); if(trimEst<0) trimEst=0;
+    log(`→ FORCE_TRIM (cmd 25) = ${trimEst} [iter ${iter}, ${SEC_PER_TRIM.toFixed(1)} s/trim]`,'cmd');
+    await send(20,[],'abort'); await delay(300);
+    await send(25,[trimEst&0xFF,(trimEst>>>8)&0xFF,(trimEst>>>16)&0xFF,(trimEst>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
+    const b=await probeReadPos();
+    if(!b || b.trim==null){ log('no records after FORCE_TRIM — may be past the end. Try an earlier time.','err'); return; }
+    const errMin=(b.ts-target)/60;
+    log(`landed at ${tsStr(b.ts)} (trim ${b.trim}) — off by ${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
+    if(b.ts===a.ts && b.trim===a.trim && iter>1){ log('✗ FORCE_TRIM did not move the read head. Save the file — the console will show what cmd 25 did.','err'); return; }
+    if(Math.abs(errMin)<10){ log('🎉 Within 10 min — FORCE_TRIM rewound the dump! Tap “Sync full history” to pull this night. Save the file.','ok'); return; }
+    if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>1 && r<120) SEC_PER_TRIM=r; }
+    a=b;
+  }
+  log('Got as close as it could — tap “Sync full history” to pull from here. Save the file.','dim');
+}
+
 // Read-only: report the band's SYNC CURSOR (oldest not-yet-committed point). IMPORTANT: this is only a
 // logical marker, NOT what's physically stored — the band keeps days of records in its NOR flash and a
 // full "Sync full history" reads them from the start regardless of this cursor (proven 2026-06-21: pulled
@@ -920,6 +949,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('ptrread').onclick     = probePointer;
   $('ptrset').onclick      = setPointer;
   $('seekbtn').onclick     = seekToTime;
+  $('forcetrim').onclick   = forceTrimSeek;
   $('hfsync').onclick      = hfSyncProbe;
   $('pwrcycle').onclick    = ()=>rebootStrap(32,'POWER_CYCLE_STRAP');
   $('softreboot').onclick  = ()=>rebootStrap(29,'REBOOT_STRAP');
