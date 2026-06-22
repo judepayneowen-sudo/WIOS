@@ -302,10 +302,11 @@
        To retire it later: delete this <section>, delete the Setup <button> in <nav>, and
        delete the DEV block in app.js (the profile bit graduates to a Settings screen).   -->
   <section class="screen" id="s-setup">
-    <h2>Setup &amp; data extraction</h2>
+    <h2>Calibrate</h2>
 
-    <div class="banner">This tab is temporary scaffolding. Once we've pulled the data off your WHOOP and learned its formats, it gets removed and the screens above fill in for real.</div>
+    <div class="banner">Calibration mode — each morning this pulls last night off the band so we can match it to WHOOP's numbers. Removed once the scores are dialled in.</div>
 
+    <!-- 1 · CONNECT -->
     <div class="card">
       <div style="font-family:ui-monospace,monospace;font-size:13px"><span id="dot" class="dot"></span><span id="status">Not connected</span></div>
       <div class="row" style="margin-top:10px">
@@ -319,7 +320,22 @@
       </div>
     </div>
 
-    <!-- profile: KEEP (graduates to a Settings screen when dev tooling is removed) -->
+    <!-- 2 · THE ONE-TAP DAILY PULL -->
+    <div class="card">
+      <div class="hd" style="margin-bottom:10px"><div class="t">Daily pull</div><span class="muted">one tap</span></div>
+      <div class="step"><div class="n">1</div><div class="t">Open the <b>official WHOOP app</b> and let it finish syncing last night to WHOOP (this is the answer-key we match against), then <b>force-quit it</b> — the band talks to one app at a time.</div></div>
+      <div class="step"><div class="n">2</div><div class="t">Set your <b>laptop drop-box</b> address below (run <code>tools/whoop-dropbox.py</code> on the same WiFi — it prints the IP:port). Remembered after the first time.</div></div>
+      <div class="step"><div class="n">3</div><div class="t">Tap <b>Connect WHOOP</b> above, then the green button. It rewinds to last night, pulls it, and sends it to your laptop automatically.</div></div>
+      <div class="row" style="margin-top:12px">
+        <input class="in" id="laphost" placeholder="laptop IP:port (e.g. 192.168.0.196:8787)" style="flex:1">
+      </div>
+      <label class="fl" style="margin-top:10px">Night to pull <span style="color:var(--dimmer)">(defaults to last night)</span>
+        <input class="in" id="seekdt" type="datetime-local" style="min-width:200px"></label>
+      <button class="act" id="dailysync" disabled style="display:block;width:100%;margin-top:10px;font-size:15px;padding:14px">Pull last night → laptop</button>
+      <div class="muted" style="margin-top:8px;font-size:12px">No laptop on WiFi? It falls back to <b>Save to Files</b> so you can upload the file to Claude. ⚠️ This <b>frees</b> the records it reads — only run it <b>after</b> the WHOOP app has synced that night.</div>
+    </div>
+
+    <!-- 3 · PROFILE -->
     <div class="card">
       <div class="muted" style="margin-bottom:10px">Your profile — used for strain &amp; recovery math</div>
       <div class="row">
@@ -332,29 +348,25 @@
       <div class="await" id="p-note">Max HR auto-fills from age (Tanaka) if left blank.</div>
     </div>
 
-    <div class="card">
-      <div class="muted" style="margin-bottom:12px;color:#fff">How to pull the data — step by step</div>
-      <div class="step"><div class="n">1</div><div class="t"><b>Quit the WHOOP app</b> on your phone first. A band only talks to one device at a time, so if the official app is connected, we can't be.</div></div>
-      <div class="step"><div class="n">2</div><div class="t">Tap <b>Connect WHOOP</b> above and pick your band. Live heart rate should start showing on the other tabs straight away.</div></div>
-      <div class="step"><div class="n">3</div><div class="t">Tap <b>Start capture</b> (it turns green). This records every raw message the band sends, so nothing is lost.</div></div>
-      <div class="step"><div class="n">4</div><div class="t">Tap <b>get_hello</b>, then <b>data_range</b>, then <b>Realtime HR</b> (it turns on) — that asks the band to stream its live sensor data.</div></div>
-      <div class="step"><div class="n">5</div><div class="t">Watch <b>fd4b frames</b> count up for about 20 seconds. The more it climbs, the more data we get.</div></div>
-      <div class="step"><div class="n">6</div><div class="t">Tap <b>Dump &amp; copy</b>. The captured data is copied to your clipboard (and shown in the box). <b>Paste it to Claude</b> — that's the bit we decode to teach the app real recovery / strain / sleep.</div></div>
-      <div class="step"><div class="n">7</div><div class="t">When done, send command <b>3</b> data <b>00</b> to stop the stream. Repeat over a few days (including after sleep) so we capture a full picture.</div></div>
-    </div>
+    <!-- 4 · ADVANCED (collapsed) -->
+    <details class="card">
+      <summary class="muted" style="cursor:pointer;color:#fff">Advanced / manual tools</summary>
 
-    <div class="card">
-      <div class="muted" style="margin-bottom:10px;color:#fff">Collecting &amp; comparing — recommendations</div>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 8px">• <b>Always wear the band</b> while capturing — off the wrist there's no pulse, so the data is just noise.</p>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 8px">• <b>This app and the official WHOOP app take turns</b> on Bluetooth — a band talks to one device at a time. Quit the WHOOP app before connecting here, and reopen it after.</p>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 12px">• <b>Keep using the WHOOP app normally otherwise.</b> It keeps the band recording everything (including sleep) and its numbers are the answer key we calibrate against.</p>
-      <div class="step"><div class="n">A</div><div class="t"><b>Live capture</b> — wear it, quit the WHOOP app, connect, turn <b>Realtime HR</b> on, capture ~20 s, then <b>Dump &amp; copy</b>.</div></div>
-      <div class="step"><div class="n">B</div><div class="t"><b>Full day / sleep</b> — live normally with the WHOOP app (wear it overnight). Later, quit the app, connect here, tap <b>data_range</b>, capture, then <b>Dump &amp; copy</b>.</div></div>
-      <div class="step"><div class="n">C</div><div class="t"><b>With every dump, note the WHOOP app's numbers for that same day</b> — Recovery %, Day Strain, Sleep %, HRV (ms), Resting HR — and send them alongside the dump. That pairing is what calibrates the screens above to match WHOOP.</div></div>
-    </div>
+      <p style="font-size:12px;line-height:1.5;margin:14px 0 6px;color:var(--dim)"><b style="color:#fff">Manual sync</b> — the Daily pull does these two for you. Use them by hand to re-pull an arbitrary night: set <b>Night to pull</b> above, tap <b>FORCE_TRIM seek</b>, then <b>Sync full history</b>.</p>
+      <div class="row">
+        <button class="act" id="forcetrim" disabled>FORCE_TRIM seek</button>
+        <button class="act" id="fullsync" disabled>Sync full history</button>
+      </div>
 
-    <div class="card">
-      <div class="muted" style="margin-bottom:10px">Commands</div>
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b>Quick sync (read-only)</b> streams just the first window <b>without</b> acknowledging anything (non-destructive). <b>Check sync cursor</b> reads the band's oldest-unsynced marker without changing anything.</p>
+      <div class="row">
+        <button class="act" id="synchist" disabled>Quick sync (read-only)</button>
+        <button class="act" id="bandcheck" disabled>Check sync cursor</button>
+      </div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b>Raw commands</b> — for debugging the protocol.</p>
       <div class="row">
         <button class="act" id="hello" disabled>get_hello</button>
         <button class="act" id="battery" disabled>battery</button>
@@ -366,106 +378,19 @@
         <input class="in" id="cdata" placeholder="data hex (e.g. 01)">
         <button class="act" id="csend" disabled>send</button>
       </div>
-    </div>
-
-    <div class="card">
-      <div class="muted" style="margin-bottom:8px;color:#fff">Historical sync — for Recovery / Sleep / Strain</div>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 6px">Live heart rate is only “now”. Your <b>Recovery, Sleep and full-day Strain</b> are built from the band's stored history — recorded while you wear it, <b>especially overnight</b>. This pulls that buffered history off the band so it can be decoded into your real scores.</p>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">Wear it (including a night), then tap <b>Sync full history</b>. It streams each batch of records and acknowledges it so the band releases the next, looping until <code>HISTORY_COMPLETE</code>. Watch <b>HISTORICAL</b> climb in the fd4b counter below. ⚠️ <b style="color:#ff6b6b">This is DESTRUCTIVE</b>: acknowledging <b>frees</b> the records on the band, so anything the official WHOOP app hasn't already synced is <b>permanently lost from WHOOP</b>. <b>Let the WHOOP app finish syncing FIRST.</b> Leave it until it logs <b>SYNC COMPLETE</b>, then <b>Save file</b> / <b>Send to laptop</b>.</p>
-      <button class="act" id="fullsync" disabled>Sync full history</button>
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Quick sync (read-only)</b> — streams just the first window <b>without</b> acknowledging anything, so absolutely nothing changes on the band. Useful for a fast sample capture. Tap to start, tap again to stop, then <b>Save file</b>.</p>
-      <button class="act" id="synchist" disabled>Quick sync (read-only)</button>
-    </div>
-
-    <div class="card">
-      <div class="muted" style="margin-bottom:8px;color:#fff">Band buffer tools</div>
-
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Check the sync cursor</b> — reads the band <b>without changing anything</b> and shows its <b>sync cursor</b> (the oldest point not yet marked as synced). ⚠️ This is only a marker, <b>not</b> what's physically stored: the band keeps <b>days</b> of records in its flash chip, and <b>Sync full history</b> reads them from the very start regardless of this cursor — so data that looks “gone” here can usually still be pulled.</p>
-      <button class="act" id="bandcheck" disabled>Check the sync cursor</button>
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-
-      <p style="font-size:13px;line-height:1.5;margin:0 0 8px"><b>Experiment: can we read without deleting?</b> “Sync full history” normally <b>frees</b> records as it reads (destructive). These options try a different acknowledgement to see if the band will <b>hand over the history without freeing it</b>. ⚠️ <b>Only pick an experiment option on THROWAWAY data you don't mind losing</b> — e.g. an hour of daytime wear with the WHOOP app <b>force-closed</b> — because if it fails it still frees that data. Then run <b>Sync full history</b> above and read the <b>“oldest BEFORE / AFTER”</b> line in the log — if the oldest time <b>did not move</b>, we read it non-destructively. 🎉</p>
-      <select class="in" id="ackmode" style="width:100%">
-        <option value="normal">Normal — frees records (DESTRUCTIVE, the real protocol)</option>
-        <option value="status0">Experiment A — use status byte 00 instead of 01</option>
-        <option value="trim2nd">Experiment B — put the trim index in the second slot</option>
-        <option value="s0trim2">Experiment C — status byte 00 AND trim in the second slot</option>
-      </select>
-      <div class="muted" style="margin-top:6px;font-size:12px">Leave on <b>Normal</b> for real pulls. Try <b>A</b> first, then <b>B</b>, then <b>C</b> — each on a fresh throwaway hour. Save the file after every run.</div>
-    </div>
-
-    <div class="card">
-      <div class="muted" style="margin-bottom:8px;color:#fff">Read-pointer experiment (cmd 33)</div>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px">The band remembers <b>how far it has been read</b> with a little counter (a “read pointer”). The big idea: <b>move that pointer ourselves</b> so we can (a) walk through the whole history without the destructive ack, or (b) rewind it after a pull so the WHOOP app can still read the night. <b>This is read-only and safe</b> — it just moves a counter, it doesn't delete anything.</p>
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>How to test the rewind:</b> ① tap <b>Read pointer</b> (note the oldest time). ② run a normal <b>Sync full history</b> (the oldest jumps to “now”). ③ tap <b>Read pointer</b> again, then type the <b>old</b> pointer value back in and tap <b>Set pointer</b>. If the oldest time jumps <b>backward</b>, we can rewind — and WHOOP can re-read. 🎉</p>
-      <button class="act" id="ptrread" disabled>Read pointer</button>
-      <div class="row" style="margin-top:8px">
-        <input class="in" id="ptrval" inputmode="numeric" placeholder="pointer value (read it first)" style="flex:1">
-        <select class="in" id="ptrenc" style="width:auto">
-          <option value="u64le">64-bit (lo+hi)</option>
-          <option value="u32le">32-bit LE</option>
-          <option value="u16le">16-bit LE</option>
-          <option value="u32be">32-bit BE</option>
-        </select>
-        <button class="act" id="ptrset" disabled>Set pointer</button>
-      </div>
-      <div class="muted" style="margin-top:6px;font-size:12px">If <b>Set pointer</b> says “No change”, switch the encoding (16-bit LE / 32-bit BE) and tap again. Save the file after the run so it can be checked.</div>
-
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 8px"><b>⭐ FORCE_TRIM seek (cmd 25)</b> — this forces the <b>real</b> cursor the history dump reads from (cmd 33 moved a different one). Pick a date &amp; time in the <b>Seek box above</b>, then tap this. If it lands on your target, tap <b>Sync full history</b> to pull that night. Experimental — use a night the WHOOP app already has. Start capture first &amp; save the file.</p>
-      <button class="act" id="forcetrim" disabled>FORCE_TRIM seek (cmd 25)</button>
-
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Seek to a night</b> — pick a date &amp; time and tap <b>Seek</b>. cmd 33 is the band's “Force Read Pointer” (it takes a flash <b>page</b> number); the app converts your time to a page, jumps there, checks where it actually landed, and corrects itself a couple of times. When it says “within 10 min”, tap <b>Sync full history</b> and it pulls <b>from that point</b> instead of walking days from the start. Aim a couple of hours <b>before</b> bedtime to catch the whole night. (The encoding dropdown is only for the manual <b>Set pointer</b> above — Seek always uses the page format.)</p>
-      <div class="row">
-        <input class="in" id="seekdt" type="datetime-local" style="flex:1">
-        <button class="act" id="seekbtn" disabled>Seek</button>
-      </div>
-      <div class="muted" style="margin-top:6px;font-size:12px">Uses the encoding selected above. If it says “the read head did NOT move”, switch the encoding and try again. Start capture first and save the file afterward.</div>
-
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>Try high-freq-sync reset (cmd 96)</b> — the official WHOOP 5.0 app sends a <b>handshake</b> (“enter high-frequency sync”) before pulling history, which we’ve never sent. This taps it and checks whether it <b>rewinds the read back to the oldest record</b> — the reset we’re after. Safe (it’s a normal sync command). Start capture first, then save the file.</p>
-      <button class="act" id="hfsync" disabled>Try cmd 96 reset</button>
-
-      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:13px;line-height:1.5;margin:0 0 10px"><b>⭐ Reboot to rewind</b> — from the decompiled WHOOP command list we found the band’s own reboot commands. A reboot <b>rewinds the read pointer to the oldest record</b> (this is what happened by accident on June 21). <b>Power-cycle (cmd 32)</b> is the strongest candidate; <b>soft reboot (cmd 29)</b> is the gentler one. Each reboots the band (~20–40s) — the same as the official app’s “device reboot”, so it’s safe. <b>Force-close the WHOOP app first</b>, send the reboot, wait, <b>reconnect</b>, then immediately tap <b>Sync full history</b> and watch whether it starts from days ago.</p>
-      <div class="row">
-        <button class="act" id="pwrcycle" disabled>Power-cycle (cmd 32)</button>
-        <button class="act" id="softreboot" disabled>Soft reboot (cmd 29)</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="muted">fd4b frames: <b id="rt" style="color:#fff">none yet</b></div>
+      <div class="muted" style="font-size:12px">fd4b frames: <b id="rt" style="color:#fff">none yet</b></div>
       <div class="row" style="margin-top:10px">
         <button class="act" id="capture">Start capture</button>
         <button class="act" id="dumpbtn">Dump &amp; copy</button>
         <button class="act" id="savefile">Save file</button>
+        <button class="act" id="sendlap">Send to laptop</button>
         <button class="act" id="clear">Clear log</button>
       </div>
-      <div class="muted" style="margin-top:6px;font-size:12px"><b>Save file</b> exports the whole capture as a <b>.txt</b> (Save to Files / AirDrop) — use this for big overnight pulls that are too large to copy‑paste, then upload the file to Claude.</div>
-      <div class="row" style="margin-top:10px">
-        <input class="in" id="laphost" placeholder="laptop IP:port (e.g. 192.168.0.196:8787)" style="flex:1">
-        <button class="act" id="sendlap">Send to laptop</button>
-      </div>
-      <div class="muted" style="margin-top:6px;font-size:12px">Run <b>tools/whoop-dropbox.py</b> on your laptop (same WiFi), enter the IP:port it prints, then tap <b>Send to laptop</b> — the capture goes straight to Claude, no copy-paste.</div>
       <textarea id="dump" readonly></textarea>
       <div id="log" style="margin-top:10px"></div>
-    </div>
-
-    <div class="card">
-      <div class="muted" style="margin-bottom:10px;color:#fff">Roadmap — what's next</div>
-      <p style="font-size:13px;line-height:1.7;margin:0">
-        ✓ Live HR · HRV · battery — working now<br>
-        ◷ Decode the realtime sensor stream (needs your captures)<br>
-        ◷ Historical sync → overnight HR/HRV + sleep<br>
-        ◷ Calibrate Recovery / Strain / Sleep against the WHOOP app's numbers<br>
-        ◷ Then this Setup tab is removed and the screens above go live
-      </p>
-      <div class="await" style="margin-top:12px">Getting it on your phone: a cable once (Sideloadly) for the first install; after that, OTA via Cloudflare Pages + SideStore keep it updated hands-free.</div>
-    </div>
+    </details>
   </section>
   <!-- ===================== END DEV/SETUP ===================== -->
 

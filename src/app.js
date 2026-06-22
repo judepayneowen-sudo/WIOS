@@ -496,7 +496,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['hello','battery','range','rthr','synchist','fullsync','bandcheck','ptrread','ptrset','seekbtn','forcetrim','hfsync','pwrcycle','softreboot','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -537,7 +537,7 @@ async function syncHistory(){
 const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
 const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END before giving up on it
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
-let pulling=false; const pullRecords=[]; const pullSeen=new Set();
+let pulling=false; let autoExport=false; const pullRecords=[]; const pullSeen=new Set();
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
@@ -677,8 +677,17 @@ async function drainHistory(){
     if(nd>60) log(`✅ Pulled ${nd} data records over ${hrs}${drain.complete?'':' (STOPPED early — tap Sync full history again to continue from the new cursor)'}. Now Save file / Send to laptop.`,'ok');
     else if(!drain.strategy) log('⚠️ Only the first window returned — no trim format advanced the stream. The 5.0 HISTORY_END layout may differ; Save file / Send to laptop so I can read the METADATA(49) offsets and lock the trim.','err');
     else log('ℹ️ Little buffered — wear it on-wrist a few hours (some activity / a night) and retry. Save file anyway.','dim');
+    // One-tap flow: ship the capture off the phone automatically — to the laptop drop-box if its address is
+    // set, otherwise pop the iOS share sheet (Save to Files) as a fallback. Only when we actually got a night.
+    if(autoExport && nd>60){
+      const host=(($('laphost')&&$('laphost').value)||'').trim();
+      if(/^[\w.\-]+:\d{2,5}$/.test(host)){ log('③ Auto-sending to laptop…','cmd'); await sendToLaptop(); }
+      else { log('③ No laptop address set — opening Save-to-Files instead…','dim'); await downloadCapture(); }
+    }
   }catch(e){ log('sync error: '+e.message,'err'); }
-  finally{ pulling=false; const bb=$('fullsync'); if(bb){ bb.textContent='Sync full history'; bb.classList.remove('live'); } }
+  finally{ pulling=false; autoExport=false;
+    const bb=$('fullsync'); if(bb){ bb.textContent='Sync full history'; bb.classList.remove('live'); }
+    const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } }
 }
 
 let dataRangeOldestTs=null;
@@ -704,73 +713,6 @@ function pointerCandidates(p){
     if(v>=1000 && v<65536) out.push({off:o, val:v}); }
   return out;
 }
-// EXPERIMENT (safe — cmd 96 is a documented sync command, not firmware): the WHOOP 5.0 protocol
-// (per the whoop-vault project) requires ENTER_HIGH_FREQ_SYNC (cmd 96) BEFORE send_historical_data —
-// a handshake we've never sent. Test whether entering that mode re-initialises the read session to the
-// OLDEST record (the rewind we want). Sends cmd 96, then probes where the next dump starts.
-async function hfSyncProbe(){
-  if(!deviceId){ log('connect first','err'); return; }
-  log('Before (baseline):','cmd');
-  const before=await probeReadPos();
-  if(before) log(`  dump currently starts at ${tsStr(before.ts)} (trim ${before.trim})`,'dim');
-  log('→ enter_high_freq_sync (cmd 96)','cmd');
-  await send(96,[0x01],'enter_high_freq_sync'); await delay(700);
-  const after=await probeReadPos();
-  if(!after){ log('no records after cmd 96 — try again.','err'); return; }
-  log(`After cmd 96: dump starts at ${tsStr(after.ts)} (trim ${after.trim})`,'ok');
-  if(before && after.trim<before.trim-50) log(`🎉 cmd 96 REWOUND the read session by ${before.trim-after.trim} units — toward the oldest! This is the controllable reset. Save the file.`,'ok');
-  else log('cmd 96 did not rewind the read start (same place). Save the file anyway — the console may show what it did.','dim');
-}
-// THE REWIND TRIGGER (from the decompiled WHOOP command enum via whoop-vault): POWER_CYCLE_STRAP=32 and
-// REBOOT_STRAP=29 reboot the band — exactly what the official app's "device reboot" does. A power-style
-// reset clears RAM and rewinds the historical read pointer to the OLDEST flash record (observed 2026-06-21,
-// reboot reason 0x0007). cmd 32 (power cycle) is the strongest candidate; cmd 29 is the softer reboot.
-// NOT a firmware/brick command — but it does reboot, so confirm first.
-async function rebootStrap(cmd, name){
-  if(!deviceId){ log('connect first','err'); return; }
-  if(!window.confirm(`Send ${name} (cmd ${cmd})? This reboots the band — the same thing the official WHOOP app's "device reboot" does. The goal: rewind the read pointer to the oldest record so the next Sync full history re-reads everything (the calibration data).\n\nThe band will disconnect and reboot (~20–40s).\n\nFIRST make sure the official WHOOP app is force-closed, so it can't re-sync and undo the rewind.\n\nContinue?`)) { log('reboot cancelled','dim'); return; }
-  log(`→ ${name} (cmd ${cmd}) — band rebooting & disconnecting…`,'cmd');
-  await send(cmd,[],name);
-  log('Sent. Wait ~30s, RECONNECT, then immediately tap Sync full history (before the WHOOP app reconnects). If it starts from days ago, the rewind worked 🎯. Save the file.','ok');
-}
-// Read-only: dump the band's current data range + read-pointer candidates, and pre-fill the lowest
-// (usually the oldest/read pointer) into the cmd 33 box. Changes nothing on the band.
-async function probePointer(){
-  if(!deviceId){ log('connect first','err'); return; }
-  log('Reading data range + pointers (read-only, changes nothing)…','cmd');
-  const ts=await readOldest();
-  const cands=pointerCandidates(dataRangeRaw);
-  if(!cands.length){ log('No pointer candidates parsed (buffer may be empty). Oldest: '+tsStr(ts),'err'); return; }
-  log(`📍 oldest stored: ${tsStr(ts)}. Pointer candidates: ${cands.map(c=>`@${c.off}=${c.val}`).join('  ')}`,'ok');
-  const lo=Math.min(...cands.map(c=>c.val));
-  const inp=$('ptrval'); if(inp) inp.value=lo;
-  log(`Lowest (likely the read pointer) = ${lo} → pre-filled. To test REWIND: drain destructively, read again, then set this back to a value from BEFORE the drain.`,'dim');
-}
-// Send set_read_pointer (cmd 33) with the chosen value+encoding, then re-read to see if the pointer moved.
-// cmd 33 is NOT a critical/brick command and only moves a read pointer — safe to experiment.
-async function setPointer(){
-  if(!deviceId){ log('connect first','err'); return; }
-  const val=parseInt($('ptrval').value,10);
-  if(!Number.isFinite(val)){ log('read the pointer first, or type a value','err'); return; }
-  const enc=$('ptrenc').value;
-  const data = enc==='u16le' ? [val&0xFF,(val>>>8)&0xFF]
-            : enc==='u32be' ? [(val>>>24)&0xFF,(val>>>16)&0xFF,(val>>>8)&0xFF,val&0xFF]
-            : enc==='u64le' ? [val&0xFF,(val>>>8)&0xFF,(val>>>16)&0xFF,(val>>>24)&0xFF,0,0,0,0]  // [lo32][hi32=0]
-            : [val&0xFF,(val>>>8)&0xFF,(val>>>16)&0xFF,(val>>>24)&0xFF];   // u32le default
-  const beforeTs=await readOldest(), beforeC=pointerCandidates(dataRangeRaw).map(c=>c.val).join(',');
-  log(`→ set_read_pointer (cmd 33) = ${val} (${enc}) [${data.map(b=>b.toString(16).padStart(2,'0')).join(' ')}]`,'cmd');
-  await send(33, data, 'set_read_pointer'); await delay(900);
-  const afterTs=await readOldest(), afterC=pointerCandidates(dataRangeRaw).map(c=>c.val).join(',');
-  log(`BEFORE  oldest ${tsStr(beforeTs)} · pointers [${beforeC}]`,'cmd');
-  log(`AFTER   oldest ${tsStr(afterTs)} · pointers [${afterC}]`,'cmd');
-  // Honest verdict: the NEWEST pointer naturally creeps up as the band records, so a tiny forward change
-  // isn't cmd 33. What matters is the OLDEST timestamp jumping BACKWARD — that's a true rewind.
-  const dt = (beforeTs && afterTs) ? (afterTs - beforeTs) : null;   // seconds; negative = went backward
-  if(dt!=null && dt < -10) log(`🎉 REWIND! oldest jumped BACK ${Math.round(-dt)}s (${tsStr(beforeTs)} → ${tsStr(afterTs)}). cmd 33 (${enc}) moved the read pointer backward — this is exactly what lets WHOOP re-read after our pull. Save file & send it.`,'ok');
-  else if(dt!=null && dt > 60) log(`cmd 33 (${enc}) pushed the read pointer FORWARD ${Math.round(dt)}s (skips data). Good news: it responds to our value — try a LOWER value to rewind instead.`,'ok');
-  else log(`✗ No clear move with ${enc}. (Ignore tiny pointer wiggles — the newest pointer drifts up on its own as the band records.) Try another encoding, or a value far from the current one, on a buffer with more than a few minutes of data.`,'dim');
-}
-
 // Read-only PROBE: stream just the first batch from the current read position, capture (ts, trim) =
 // where the read pointer sits, then ABORT without acking (non-destructive). This is the ground-truth
 // feedback for the seek — the first streamed record is exactly where the read head is.
@@ -785,53 +727,21 @@ async function probeReadPos(){
   const first=pullRecords.reduce((m,r)=> r.ts<m.ts?r:m, pullRecords[0]);
   return { ts:first.ts, trim:drain.endTrim };
 }
-// SEEK TO A TIME: the read pointer is a flash counter linear with time (~15 s/unit, from capture analysis).
-// Convert the target date/time → a pointer estimate, cmd 33 to it, probe where we landed, refine the rate
-// from the two anchors, and repeat. Converging proves cmd 33 seeks AND lands us on the chosen night — then
-// a normal Sync full history pulls just that night instead of walking days from the start.
+// The historical dump reads from the TRIM (the commit cursor); FORCE_TRIM (cmd 25) moves it. The seek
+// converts time→trim using this rate, refined live from probes (~15 s per trim unit on the 5.0).
 let SEC_PER_TRIM = 15.0;     // refined live from probes
-let TRIM_PER_PAGE = 3.0;     // the band addresses the read pointer by flash PAGE; trim ≈ 3 × page (refined live)
-async function seekToTime(){
-  if(!deviceId){ log('connect first','err'); return; }
-  const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
-  if(!Number.isFinite(target)){ log('pick a date & time to seek to','err'); return; }
-  // cmd 33 = "Force Read Pointer" — payload is [page u32 LE][wrap u32 LE]. The band confirmed this in its
-  // console ("Command Force Read Pointer; read page:N wrap count:0"). page ≈ trim/TRIM_PER_PAGE.
-  const sendPage=async(page)=>{ const p=Math.max(0,Math.round(page));
-    await send(20,[],'abort'); await delay(300);   // clear any active transfer (avoids "transfer already active")
-    await send(33, [p&0xFF,(p>>>8)&0xFF,(p>>>16)&0xFF,(p>>>24)&0xFF, 0,0,0,0], 'force_read_pointer'); await delay(500); return p; };
-  log(`🎯 Seeking to ${new Date(target*1000).toLocaleString()} …`,'cmd');
-  let a=await probeReadPos();
-  if(!a || a.trim==null){ log('probe failed — no records / no trim. Connect and make sure the band has buffered data.','err'); return; }
-  log(`start: read head at ${tsStr(a.ts)} (trim ${a.trim}, page ≈ ${Math.round(a.trim/TRIM_PER_PAGE)})`,'dim');
-  for(let iter=1; iter<=4; iter++){
-    const trimEst=Math.round(a.trim + (target - a.ts)/SEC_PER_TRIM);
-    const pageEst=Math.round(trimEst/TRIM_PER_PAGE);
-    log(`→ Force Read Pointer (cmd 33) page ${Math.max(0,pageEst)} (trim≈${trimEst}) [iter ${iter}, ${SEC_PER_TRIM.toFixed(1)} s/trim ÷ ${TRIM_PER_PAGE.toFixed(2)}]`,'cmd');
-    await sendPage(pageEst);
-    const b=await probeReadPos();
-    if(!b || b.trim==null){ log('no records after the seek — the page may be past the end. Try an earlier time.','err'); return; }
-    const errMin=(b.ts-target)/60;
-    log(`landed at ${tsStr(b.ts)} (trim ${b.trim}, page ≈ ${Math.round(b.trim/TRIM_PER_PAGE)}) — off by ${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
-    if(b.ts===a.ts && b.trim===a.trim && iter>1){ log('✗ The read head did NOT move. Save the file — the band console will show the page it used so the factor can be fixed.','err'); return; }
-    if(Math.abs(errMin)<10){ log('✅ Within 10 min of target. Now tap “Sync full history” to pull this night — it starts here, not from days ago.','ok'); return; }
-    if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>1 && r<120) SEC_PER_TRIM=r; }   // refine s/trim
-    a=b;
-  }
-  log('Got as close as it could — tap “Sync full history” to pull from here (Save the file so the page factor can be refined).','dim');
-}
 
 // FORCE_TRIM (cmd 25) — forces the TRIM (the commit cursor the historical dump actually reads from; it's
 // the value we ack). Unlike cmd 33 (a separate read pointer that didn't move the dump), this should move
 // the dump's start. Uses the same date/time box as Seek; sends the trim directly (no page conversion),
 // then probes where the dump starts and refines. EXPERIMENTAL — only on data WHOOP already has.
 async function forceTrimSeek(){
-  if(!deviceId){ log('connect first','err'); return; }
+  if(!deviceId){ log('connect first','err'); return false; }
   const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
-  if(!Number.isFinite(target)){ log('pick a date & time in the Seek box above first','err'); return; }
+  if(!Number.isFinite(target)){ log('pick a date & time (the “Night to pull” box) first','err'); return false; }
   log(`🎯 FORCE_TRIM (cmd 25) to ${new Date(target*1000).toLocaleString()} …`,'cmd');
   let a=await probeReadPos();
-  if(!a || a.trim==null){ log('probe failed — no records / no trim.','err'); return; }
+  if(!a || a.trim==null){ log('probe failed — no records / no trim.','err'); return false; }
   log(`start: read head at ${tsStr(a.ts)} (trim ${a.trim})`,'dim');
   for(let iter=1; iter<=4; iter++){
     let trimEst=Math.round(a.trim + (target - a.ts)/SEC_PER_TRIM); if(trimEst<0) trimEst=0;
@@ -839,15 +749,38 @@ async function forceTrimSeek(){
     await send(20,[],'abort'); await delay(300);
     await send(25,[trimEst&0xFF,(trimEst>>>8)&0xFF,(trimEst>>>16)&0xFF,(trimEst>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
     const b=await probeReadPos();
-    if(!b || b.trim==null){ log('no records after FORCE_TRIM — may be past the end. Try an earlier time.','err'); return; }
+    if(!b || b.trim==null){ log('no records after FORCE_TRIM — may be past the end. Try an earlier time.','err'); return false; }
     const errMin=(b.ts-target)/60;
     log(`landed at ${tsStr(b.ts)} (trim ${b.trim}) — off by ${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
-    if(b.ts===a.ts && b.trim===a.trim && iter>1){ log('✗ FORCE_TRIM did not move the read head. Save the file — the console will show what cmd 25 did.','err'); return; }
-    if(Math.abs(errMin)<10){ log('🎉 Within 10 min — FORCE_TRIM rewound the dump! Tap “Sync full history” to pull this night. Save the file.','ok'); return; }
+    if(b.ts===a.ts && b.trim===a.trim && iter>1){ log('✗ FORCE_TRIM did not move the read head. Save the file — the console will show what cmd 25 did.','err'); return false; }
+    if(Math.abs(errMin)<10){ log('🎉 Within 10 min — FORCE_TRIM rewound the dump to that night.','ok'); return true; }
     if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>1 && r<120) SEC_PER_TRIM=r; }
     a=b;
   }
-  log('Got as close as it could — tap “Sync full history” to pull from here. Save the file.','dim');
+  log('Got as close as it could — pulling from here.','dim');
+  return true;
+}
+
+// ── ONE-TAP daily calibration pull (Phase 1): FORCE_TRIM back to last night → drain → auto-export. ──
+// In calibration mode the WHOOP app syncs first (creating the cloud answer-key) and ITS sync advances the
+// band's commit cursor PAST that night — so a plain Sync would start at "now" and pull nothing. We rewind
+// with FORCE_TRIM (cmd 25) to the chosen evening (data persists ~4–5 days in flash), then drain that night
+// and ship it straight to the laptop drop-box. Defaults the target to ~20:00 yesterday if the box is empty.
+function toLocalInput(d){ const p=n=>String(n).padStart(2,'0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+async function dailySync(){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ await drainHistory(); return; }                 // already running → let the button stop it
+  if(!$('seekdt').value){ const d=new Date(); d.setDate(d.getDate()-1); d.setHours(20,0,0,0);
+    $('seekdt').value = toLocalInput(d); log(`night not set — defaulting to last night (${d.toLocaleString()})`,'dim'); }
+  { const db=$('dailysync'); if(db){ db.textContent='Syncing… (tap to stop)'; db.classList.add('live'); } }
+  log('① Rewinding to that night (FORCE_TRIM)…','cmd');
+  const ok = await forceTrimSeek();
+  if(!ok){ log('seek failed — nothing pulled. Adjust “Night to pull” and tap again.','err');
+    const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } return; }
+  log('② Syncing that night off the band…','cmd');
+  autoExport = true;                                            // drainHistory auto-sends to laptop on completion
+  await drainHistory();
 }
 
 // Read-only: report the band's SYNC CURSOR (oldest not-yet-committed point). IMPORTANT: this is only a
@@ -946,19 +879,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('battery').onclick    = ()=>send(26,[],'get_battery_level');
   $('range').onclick      = ()=>send(34,[],'get_data_range');
   $('rthr').onclick       = toggleRealtimeHr;
+  $('dailysync').onclick  = dailySync;
   $('synchist').onclick   = syncHistory;
   $('fullsync').onclick    = drainHistory;
   $('bandcheck').onclick   = checkBandBuffer;
-  $('ptrread').onclick     = probePointer;
-  $('ptrset').onclick      = setPointer;
-  $('seekbtn').onclick     = seekToTime;
   $('forcetrim').onclick   = forceTrimSeek;
-  $('hfsync').onclick      = hfSyncProbe;
-  $('pwrcycle').onclick    = ()=>rebootStrap(32,'POWER_CYCLE_STRAP');
-  $('softreboot').onclick  = ()=>rebootStrap(29,'REBOOT_STRAP');
-  { const am=$('ackmode'); if(am) am.onchange = (e)=>{ ackMode = e.target.value;
-      log(ackMode==='normal' ? 'Ack mode: NORMAL (real protocol — frees records, destructive).'
-        : `Ack mode: 🧪 EXPERIMENT “${ackMode}”. Only run Sync full history on already-synced data.`, ackMode==='normal'?'dim':'cmd'); }; }
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);
     if(!Number.isFinite(code)){ log('enter a command number','err'); return; }

@@ -67,11 +67,19 @@ permanently lost from WHOOP. So:
 - ✅ **The comparable-data problem is solved:** let the WHOOP app sync a night to its cloud (the Phase-1
   answer-key), then **FORCE_TRIM (cmd 25) back to that night → Sync full history** re-reads the raw `(47)`
   data from flash (persists ~4–5 days). Pair the two → a calibration pair for any night. Repeatable, in-app.
-- ✅ **What actually works (use this):** the historical dump reads from oldest-un-acked, so a **daily
-  `Sync full history`** pulls just the new night incrementally (no seek needed). Old already-acked nights
-  are gone from the dump's reach but were already **physically recovered** by the big walk-from-start drains
-  (the data persists in flash; we pulled 4-day-old nights). For calibration we pair a recovered night's
-  raw `(47)` capture with WHOOP's cloud `stage_summary` for the same date.
+- ⚠️ **Phase-1 vs Phase-2 — the "no seek needed" rule only holds in Phase 2.** In **Phase 2** (subscription
+  cancelled, WHOOP app gone) nobody else acks the band, so the dump's oldest-un-acked frontier *is* last
+  night → a plain **daily `Sync full history`** pulls it incrementally, no seek. **But in Phase 1
+  (calibrating)** we must let the WHOOP app sync first — and **WHOOP's own sync advances the band's commit
+  cursor PAST that night**, so a plain Sync would start at "now" and pull nothing. Therefore the **daily
+  calibration pull MUST FORCE_TRIM-first**: rewind (cmd 25) to last night's evening (data persists ~4–5 days
+  in flash), then drain. Implemented as the one-tap **`dailySync()`** in `src/app.js` (v1.0.15): FORCE_TRIM →
+  drainHistory → auto-send to the laptop drop-box (Save-to-Files fallback).
+- ✅ **The comparable-data routine (use this daily):** WHOOP app syncs the night → cloud answer-key, then
+  in WHOOP Core tap **"Pull last night → laptop"** (FORCE_TRIM back to that night → `Sync full history`
+  re-reads the raw `(47)` from flash → drop-box to laptop). Pair the night capture with WHOOP's cloud
+  `stage_summary` (one `node tools/whoop-api.mjs` covers all nights). Desktop one-shot: **`npm run
+  calibrate:all`** (pull 14 days of answer-key → calibrate across every captured night/day).
 - 📟 **The band's CONSOLE_LOGS(50) are an ASCII debug channel** — decode them (`Trim:`, `Dump Complete`,
   `PullStats`, `BLE_CMD: Command …`). They name commands and give exact pointer values; invaluable for RE.
 - Fallback for live data if ever needed: **live overnight capture** (foreground + keep-awake; streams
