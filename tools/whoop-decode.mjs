@@ -84,14 +84,15 @@ export function decodeHistorical(payload){
   if(n>0 && n<=4 && payload.length >= 16+2*n){
     for(let i=0;i<n;i++){ const v = payload[16+2*i] | (payload[17+2*i]<<8); if(v>250 && v<2500) rr.push(v); }
   }
-  // Accel/orientation triplet (g): f32 LE at 37/41/45. Only present in the 112-byte rich record.
-  // NB (per decompiled WHOOP APK, 2026-06-22): this is a PROCESSED orientation/gravity vector (|v|≈1.0 g),
-  // NOT WHOOP's raw IMU. Raw high-rate actigraphy is a separate int16 6-axis R21 record (cmd 105) — see CLAUDE.md.
+  // Accel triplet (g): f32 LE at 37/41/45 — RAW wrist accelerometer @ ~1 Hz (one per R10 record).
+  // CORRECTED 2026-06-23: NOT normalised — |v| swings 0.45–4.26 g (≈1 g gravity at rest, spikes on motion).
+  // This is the accel WHOOP computes steps from (ML walking-detect + stride estimation). f32@33 is a paired
+  // motion-energy scalar (~0 at rest, spikes with |v|). mag drives our actigraphy; both feed step estimation.
   let acc = null;
   if(payload.length >= 49){
     const f32 = (o)=> new DataView(new Uint8Array(payload.slice(o,o+4)).buffer).getFloat32(0, true);
     const x=f32(37), y=f32(41), z=f32(45), mag=Math.sqrt(x*x+y*y+z*z);
-    if(mag>0.3 && mag<4 && [x,y,z].every(Number.isFinite)) acc = { x, y, z, mag };  // plausible g-vector only
+    if(mag>0.1 && mag<6 && [x,y,z].every(Number.isFinite)) acc = { x, y, z, mag };  // plausible accel only
   }
   // Extra physiology in the 112-byte rich record — MAPPED 2026-06-23 from a full-night capture (these are
   // exactly the "cloud-only" inputs that turned out to be band-resident all along):

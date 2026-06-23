@@ -128,14 +128,19 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
     IS reachable; we just don't need it (R10 already gives HR + SpO2).
   - APK record enum (`oq0/d.java`): `R10, R11, R12, RAW_ECG, R20(optical), R21(IMU), R24(metrics)`. Only
     R10+R20 appear in the default dump; **R21(IMU) and R24(metrics) are NOT delivered** over this sync.
-- ⛔ **STEPS — settled 2026-06-23: not on the band, by WHOOP's design.** The band's data-type enum
-  (`com/whoop/service/network/model/cycles/Metric.java`) is exactly `HEART_RATE, GPS, TEMPERATURE, GSR,
-  ACCELEROMETER_MAGNITUDE, RR_INTERVALS` — **no step metric**, and accel is exposed as **MAGNITUDE only**
-  (the ~1 Hz scalar = our orientation `|v|`), not raw 3-axis. WHOOP sources step count from the **phone**
-  (Android Health Connect / system pedometer — `z6/k3.java` builds `StepsRecord`), NOT the band. ⇒ For
-  WHOOP Core, get steps the same way: the **iOS pedometer** (CoreMotion `CMPedometer` / HealthKit), not the
-  band. (GPS is likewise phone-sourced. `GSR` = galvanic skin response is a real band metric we've not yet
-  located in the record — future.)
+- ✅ **STEPS — band-derivable after all; CORRECTED 2026-06-23 (two earlier wrong calls retracted).** WHOOP's
+  own site: steps come from the **wrist accelerometer** + ML (filters non-walking) + stride estimation. My
+  "phone-sourced" call was wrong — the APK's Health-Connect `StepsRecord` (`z6/k3.java`) is WHOOP *exporting*
+  steps to the OS, not the source; the band's `accelerometer_magnitude` metric is uploaded and WHOOP computes
+  steps cloud-side. We HAVE that accel: **the `f32@37/41/45` vector is RAW wrist accel, not normalised** —
+  `|v|` swings **0.45–4.26 g** (mean 0.999; ~1 g gravity at rest, spikes on motion). Plus **`f32@33` is a
+  motion-energy field** (~0.05–0.2 at rest, spikes 1.4–2.0 in lockstep with `|v|`). Both at **~1 Hz** (one
+  R10 record/sec). ⇒ Steps are computable WHOOP's way: detect walking (sustained accel-energy with walking
+  cadence, ML-filter driving/cycling) → estimate count = walking-time × cadence / stride model. The 1 Hz rate
+  means **estimation, not per-step peak counting** (that's what "ML + stride estimation" is anyway).
+  NEXT: a **WALKING capture** (walk a known count, e.g. 100 steps, then Sync) to see the signal and
+  build/calibrate the walking-detector + step estimator. (GPS is phone-sourced; `GSR` is a real band metric
+  not yet located in the record.)
 - ✅✅ **The `(47)` rich record carries WAY more than HR — MAPPED 2026-06-23 (this corrects the earlier
   "SpO2/skin-temp/resp are cloud-only" claim, which was WRONG).** The band is the only sensor, so everything
   WHOOP computes MUST traverse BLE — and it does, inside the 112-byte `(47)` record. Field map (verified on a
