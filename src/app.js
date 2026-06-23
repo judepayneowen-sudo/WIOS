@@ -414,6 +414,84 @@ function updateLive(){
   else if(SECTION_MAP[curScreen] && LIVE_SCREENS.has(curScreen)){ const h=$('s-'+curScreen); if(h) h.innerHTML=SECTION_MAP[curScreen].build(); }
 }
 
+/* ===================== interaction layer — WHOOP-faithful behaviours ========
+   Reproduces the WHOOP app's interaction model (mapped from its nav graphs) in our own code:
+   in-screen tab/period controls, the centre FAB fan-out, Stealth Mode, and real handlers for the
+   buttons (Journal, Share, alarm, Stress session). All local + our-data; nothing copied. */
+const lget = (k,d=null)=>{ try{ const v=localStorage.getItem('wc.'+k); return v==null?d:JSON.parse(v); }catch(e){ return d; } };
+const lset = (k,v)=>{ try{ localStorage.setItem('wc.'+k, JSON.stringify(v)); }catch(e){} };
+function toast(msg,cls='ok'){ log(msg,cls);
+  let t=$('toast'); if(!t){ t=document.createElement('div'); t.id='toast'; document.body.appendChild(t); }
+  t.textContent=msg; t.className='show'; clearTimeout(toast._t); toast._t=setTimeout(()=>t.className='',2200); }
+
+// In-screen tab/segment state: STAB[screenId] = active key. tabBar() renders a segmented control; a
+// [data-stab="screen:key"] click sets it and re-renders that screen.
+const STAB = {};
+const stab = (screen, def)=> STAB[screen] || def;
+function tabBar(screen, tabs, def){ const cur=stab(screen,def);
+  return `<div class="seg">${tabs.map(([k,l])=>`<button class="${k===cur?'active':''}" data-stab="${screen}:${k}">${l}</button>`).join('')}</div>`; }
+
+// Stealth Mode — WHOOP hides all metrics; we blur value elements via a body class (persisted).
+let stealthOn = lget('stealth', false);
+function applyStealth(){ document.body.classList.toggle('stealth', !!stealthOn); }
+
+// Centre FAB fan-out (WHOOP's middle button → Start Activity / Strength / Journal).
+function toggleFab(force){ const s=$('fabsheet'); if(!s) return;
+  const open = force!=null?force : !s.classList.contains('on'); s.classList.toggle('on', open);
+  const b=$('fab'); if(b) b.classList.toggle('on', open); }
+
+// One delegated handler for every [data-act] button — the real behaviours behind WHOOP's controls.
+function doAction(act){
+  switch(act){
+    case 'fab': toggleFab(); break;
+    case 'fab-activity': toggleFab(false); goScreen('activities'); break;
+    case 'fab-strength': toggleFab(false); goScreen('strength'); break;
+    case 'fab-journal':  toggleFab(false); goScreen('journal'); break;
+    case 'stealth': stealthOn=!stealthOn; lset('stealth',stealthOn); applyStealth();
+      toast(stealthOn?'Stealth Mode on — metrics hidden':'Stealth Mode off'); rerender(); break;
+    case 'stress-session': STAB['stress']='session'; goScreen('stress'); startStressSession(); break;
+    case 'share': shareMetric(); break;
+    case 'alarm': setSmartAlarm(); break;
+    case 'log-journal': logJournal(); break;
+    case 'log-period': { const d=new Date().toISOString().slice(0,10); const j=lget('periods',[]); j.push(d); lset('periods',j);
+      toast('Period logged for today'); break; }
+    default: break;
+  }
+}
+function rerender(){ const h=$('s-'+curScreen); if(SECTION_MAP[curScreen]&&h) h.innerHTML=SECTION_MAP[curScreen].build(); else renderScreen(curScreen); }
+
+// Journal: toggle behaviours, persisted per day (WHOOP's daily behaviour survey).
+function toggleBehaviour(name){ const day=new Date().toISOString().slice(0,10); const j=lget('journal',{}); j[day]=j[day]||{};
+  j[day][name]=!j[day][name]; lset('journal',j); rerender(); }
+function logJournal(){ toast('Journal saved'); goBack(); }
+
+// Share — the iOS share sheet with a recovery/strain/sleep summary card (text).
+async function shareMetric(){
+  const txt=`WHOOP Core — Recovery ${SAMPLE.recovery.pct}% · Sleep ${SAMPLE.sleep.perf}% · Day Strain ${SAMPLE.strain.day.toFixed(1)}`;
+  try{ if(navigator.share){ await navigator.share({ title:'WHOOP Core', text:txt }); return; } }catch(e){ if(e&&e.name==='AbortError') return; }
+  try{ await navigator.clipboard.writeText(txt); toast('Copied to clipboard'); }catch(e){ toast('Share unavailable','err'); }
+}
+
+// Smart alarm — the band has real alarm commands (SET_ALARM_TIME=66 / RUN_ALARM=68). Store the time and,
+// if connected, program the band (behind a confirm since it writes to the strap).
+function setSmartAlarm(){
+  const cur=lget('alarm','07:00');
+  const t=window.prompt('Smart alarm — wake by (HH:MM, 24h). The band buzzes silently at this time.', cur);
+  if(!t || !/^\d{1,2}:\d{2}$/.test(t)) return;
+  lset('alarm',t); toast('Alarm set for '+t);
+  if(deviceId && window.confirm(`Program the band to buzz at ${t}? (sends SET_ALARM_TIME to the strap)`)){
+    const [h,m]=t.split(':').map(Number); send(66,[h&0xFF,m&0xFF],'set_alarm_time'); toast('Sent alarm '+t+' to band');
+  }
+  rerender();
+}
+
+// Stress Session — a guided 60 s reading using our live HRV/HR stress estimate (WHOOP's Stress Monitor session).
+let _stressT=null, _stressEnd=0;
+function startStressSession(){ _stressEnd=Date.now()+60000; clearInterval(_stressT);
+  _stressT=setInterval(()=>{ if(Date.now()>=_stressEnd){ clearInterval(_stressT); _stressT=null; }
+    if(curScreen==='stress') rerender(); }, 1000);
+}
+
 /* ===================== generated screens — every WHOOP section ==============
    A data-driven registry mirroring the WHOOP app's information architecture (mapped from the decompiled
    APK). Each entry.build() returns the screen HTML using our design system + our computed data where we
@@ -512,17 +590,26 @@ const SECTIONS = [
   { id:'stress', build:()=>{
     let v=SAMPLE.stress.now;
     if(state.hr!=null){ const hrC=Math.max(0,Math.min(3,(state.hr-52)/40)); const hrvC=state.hrvMs!=null?Math.max(0,Math.min(3,(70-state.hrvMs)/22)):hrC; v=Math.round((hrC*0.6+hrvC*0.4)*10)/10; }
-    return hd('Stress Monitor','live · 0–3')
+    const tab=stab('stress','home');
+    const head=hd('Stress Monitor','live · 0–3')+tabBar('stress',[['home','Monitor'],['session','Session'],['edu','About']],'home');
+    if(tab==='edu') return head + card(hd('What is Stress?')+scaffold('Stress is estimated continuously from your heart-rate variability and heart rate — higher HR + lower HRV ⇒ higher stress. A guided Session paces your breathing to bring it down. Calibratable to your baselines.'));
+    if(tab==='session'){ const left=Math.max(0,Math.ceil((_stressEnd-Date.now())/1000)); const running=left>0;
+      return head + card(`<div style="text-align:center;padding:6px"><div class="big" style="font-size:40px;color:var(--rec-green)">${running?left+'s':'Ready'}</div><div class="muted" style="letter-spacing:1px">${running?'BREATHE — IN 4s · OUT 6s':'60-second guided reading'}</div></div>`+stressGauge(v))
+        + card(running?`<div class="muted" style="text-align:center">live stress ${v.toFixed(1)} / 3 — keep breathing slowly…</div>`:`<button class="act" style="width:100%" data-act="stress-session">Start a 60-second session</button>`); }
+    return head
     + card(stressGauge(v))
     + card(hd('Today')+kvr('Day stress','—')+kvr('Sleep stress','—')+kvr('High / Medium / Low','— / — / —'))
-    + card(`<button class="act" style="width:100%">Start a Stress Session</button>`+scaffold('<div style="margin-top:8px">Live stress = our HRV/HR blend (calibratable). Day & sleep stress totals come once we accumulate sessions.</div>')); } },
+    + card(`<button class="act" style="width:100%" data-act="stress-session">Start a Stress Session</button>`+scaffold('<div style="margin-top:8px">Live stress = our HRV/HR blend (calibratable). Day & sleep stress totals come once we accumulate sessions.</div>')); } },
 
   // ----- DETAIL: Journal -----
-  { id:'journal', build:()=>
-    hd('Journal','behaviours that affect recovery')
-    + card(['Alcohol','Caffeine late','Screen time in bed','Stressful day','Read in bed','Magnesium','Ate late','Shared bed','Sick / ill','Travel / jet lag']
-        .map(b=>`<div class="hrow"><span class="hk">${b}</span><span class="hv"><span class="soon" style="border-color:var(--strain);color:var(--strain)">log</span></span></div>`).join(''))
-    + card(hd('Journal Insights')+scaffold('Once you log behaviours across nights, we correlate each against your recovery delta — the same as WHOOP’s “behaviours that helped/hurt”.')) },
+  { id:'journal', build:()=>{
+    const day=new Date().toISOString().slice(0,10); const j=(lget('journal',{})[day])||{};
+    const behaviours=['Alcohol','Caffeine late','Screen time in bed','Stressful day','Read in bed','Magnesium','Ate late','Shared bed','Sick / ill','Travel / jet lag'];
+    return hd('Journal',`today · ${Object.values(j).filter(Boolean).length} logged`)
+    + card(behaviours.map(b=>{ const on=!!j[b];
+        return `<div class="hrow" data-beh="${b}" style="cursor:pointer"><span class="hk">${b}</span><span class="hv"><span class="soon" style="${on?'border-color:var(--rec-green);color:#06121f;background:var(--rec-green)':'border-color:var(--strain);color:var(--strain)'}">${on?'✓ yes':'log'}</span></span></div>`; }).join(''))
+    + `<button class="act" style="width:100%" data-act="log-journal">Save journal</button>`
+    + card(hd('Journal Insights')+scaffold('Logged across nights, we correlate each behaviour against your recovery delta — the same as WHOOP’s “behaviours that helped/hurt”.')); } },
 
   // ----- DETAIL: Weekly Plan -----
   { id:'weeklyplan', build:()=>
@@ -536,7 +623,7 @@ const SECTIONS = [
     const need=sleepNeedMinutes({dayStrain:SAMPLE.strain.day});
     return hd('Sleep Coach')
     + card(hd('Tonight’s plan')+kvr('Sleep need',fmtMs(need))+kvr('Recommended bedtime','—')+kvr('Wake target','—')+kvr('For',`${SAMPLE.sleep.perf}% performance`))
-    + card(`<button class="act" style="width:100%">Set a smart alarm</button>`+scaffold('<div style="margin-top:8px">Bedtime/wake derive from our sleep-need model (calibrated) + your consistency. Haptic alarm needs the band alarm command (cmd 66/68).</div>')); } },
+    + card(`<button class="act" style="width:100%" data-act="alarm">Set a smart alarm</button>`+scaffold('<div style="margin-top:8px">Bedtime/wake derive from our sleep-need model (calibrated) + your consistency. Haptic alarm needs the band alarm command (cmd 66/68).</div>')); } },
 
   // ----- DETAIL: WHOOP Coach (AI) -----
   { id:'coach', build:()=>
@@ -586,7 +673,7 @@ const SECTIONS = [
   // ----- DETAIL: Hormonal Insights -----
   { id:'hormonal', build:()=>
     hd('Hormonal Insights')
-    + card(hd('Menstrual Cycle')+kvr('Phase','— (follicular / ovulatory / luteal / menstrual)')+kvr('Cycle day','—')+`<button class="act" style="width:100%;margin-top:10px">Log period</button>`)
+    + card(hd('Menstrual Cycle')+kvr('Phase','— (follicular / ovulatory / luteal / menstrual)')+kvr('Cycle day','—')+`<button class="act" style="width:100%;margin-top:10px" data-act="log-period">Log period</button>`)
     + card(hd('Pregnancy')+kvr('Trimester','—')+kvr('Due date','—'))
     + card(scaffold('Cycle-phase & pregnancy-adjusted baselines. Driven by your logging + our recovery baselines; no cloud needed.')) },
 
@@ -619,9 +706,9 @@ const SECTIONS = [
 
   // ----- DETAIL: Stealth Mode -----
   { id:'stealth', build:()=>
-    hd('Stealth Mode')
-    + card(scaffold('Hide all metrics for a defined period — band keeps recording, scores are concealed.'))
-    + card(`<button class="act" style="width:100%">Turn on Stealth Mode</button>`) },
+    hd('Stealth Mode', stealthOn?'on':'off')
+    + card(scaffold('Hide all metrics — the band keeps recording, scores are concealed (blurred) until you turn it off.'))
+    + card(`<button class="act ${stealthOn?'live':''}" style="width:100%" data-act="stealth">${stealthOn?'Turn off Stealth Mode':'Turn on Stealth Mode'}</button>`) },
 
   // ----- DETAIL: Integrations -----
   { id:'integrations', build:()=>
@@ -636,7 +723,7 @@ const SECTIONS = [
   { id:'share', build:()=>
     hd('Share')
     + card(`<div style="text-align:center;padding:10px"><div style="font-size:46px;font-weight:700;color:var(--rec-green)">${SAMPLE.recovery.pct}%</div><div class="muted" style="letter-spacing:2px">RECOVERY</div></div>`)
-    + card(`<div class="chips">${['Recovery','Sleep','Day Strain','HRV'].map(m=>`<span class="chip">${m}</span>`).join('')}</div>`+`<button class="act" style="width:100%;margin-top:12px">Share card</button>`) },
+    + card(`<div class="chips">${['Recovery','Sleep','Day Strain','HRV'].map(m=>`<span class="chip">${m}</span>`).join('')}</div>`+`<button class="act" style="width:100%;margin-top:12px" data-act="share">Share card</button>`) },
 
   // ----- DETAIL: Device (pairing / battery / firmware) -----
   { id:'device', build:()=>
@@ -1300,9 +1387,15 @@ document.addEventListener('DOMContentLoaded', ()=>{
   document.querySelectorAll('#tabs button').forEach(b=> b.onclick=()=>showTab(b.dataset.tab));
   document.querySelectorAll('[data-go]').forEach(el=> el.onclick=()=>goScreen(el.dataset.go));
   // delegated navigation: any element with data-nav pushes a detail screen; data-back / the back button pops.
-  document.addEventListener('click', (e)=>{ const n=e.target.closest('[data-nav]'); if(n){ goScreen(n.dataset.nav); return; }
+  document.addEventListener('click', (e)=>{
+    const a=e.target.closest('[data-act]'); if(a){ doAction(a.dataset.act); return; }
+    const t=e.target.closest('[data-stab]'); if(t){ const [scr,key]=t.dataset.stab.split(':'); STAB[scr]=key; rerender(); return; }
+    const beh=e.target.closest('[data-beh]'); if(beh){ toggleBehaviour(beh.dataset.beh); return; }
+    const n=e.target.closest('[data-nav]'); if(n){ goScreen(n.dataset.nav); return; }
     if(e.target.closest('[data-back]')) goBack(); });
   { const bb=$('backbtn'); if(bb) bb.onclick=goBack; }
+  { const f=$('fab'); if(f) f.onclick=()=>doAction('fab'); }
+  applyStealth();
   document.querySelectorAll('#trend-seg button').forEach(b=> b.onclick=()=>{ trendPeriod=b.dataset.period; renderTrends(); });
   fillProfileForm();
   if($('laphost')) $('laphost').value = loadLapHost();

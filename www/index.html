@@ -177,6 +177,24 @@
     width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:rgba(10,11,14,.8);backdrop-filter:blur(8px);
     color:var(--text);font-size:22px;line-height:1;font:inherit;font-weight:300}
   #backbtn.on{display:flex;align-items:center;justify-content:center}
+  /* ---- centre FAB + fan-out (WHOOP's middle button) ---- */
+  #fab{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(30px + env(safe-area-inset-bottom));z-index:15;
+    width:56px;height:56px;border-radius:50%;border:0;background:var(--strain);color:#fff;font-size:30px;font-weight:300;
+    line-height:1;box-shadow:0 4px 16px rgba(0,147,231,.45);transition:transform .2s}
+  #fab.on{transform:translateX(-50%) rotate(45deg)}
+  #fabsheet{position:fixed;left:0;right:0;bottom:calc(96px + env(safe-area-inset-bottom));z-index:14;display:none;
+    flex-direction:column;align-items:center;gap:10px}
+  #fabsheet.on{display:flex}
+  #fabsheet button{background:var(--card);border:1px solid var(--line);color:var(--text);font:inherit;font-size:14px;
+    font-weight:600;border-radius:14px;padding:13px 22px;min-width:200px;box-shadow:0 4px 14px rgba(0,0,0,.4)}
+  /* ---- toast ---- */
+  #toast{position:fixed;left:50%;transform:translateX(-50%) translateY(20px);bottom:calc(110px + env(safe-area-inset-bottom));
+    z-index:30;background:#0a0b0e;border:1px solid var(--line);color:var(--text);font-size:13px;padding:11px 16px;
+    border-radius:12px;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:80vw;text-align:center}
+  #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  /* ---- Stealth Mode: hide metric values ---- */
+  body.stealth .big,body.stealth .v,body.stealth .hv,body.stealth .vv,body.stealth .hero .hv,
+  body.stealth #str-val,body.stealth .nval,body.stealth .gval{filter:blur(8px)}
   body.detail .screen.on{padding-top:max(54px,calc(env(safe-area-inset-top) + 44px))}
   /* ---- menu / hub list rows ---- */
   .navlist{display:flex;flex-direction:column}
@@ -456,6 +474,13 @@
   <!-- generated detail + hub screens are injected here at load -->
   <div id="genscreens"></div>
   <button id="backbtn" aria-label="Back">‹</button>
+
+  <div id="fabsheet">
+    <button data-act="fab-activity">▲  Start Activity</button>
+    <button data-act="fab-strength">🏋  Strength Trainer</button>
+    <button data-act="fab-journal">✎  Journal</button>
+  </div>
+  <button id="fab" aria-label="Add">＋</button>
 
   <nav id="tabs">
     <button class="active" data-tab="overview"><span class="ic">◎</span>Home</button>
