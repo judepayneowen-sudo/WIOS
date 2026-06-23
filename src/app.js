@@ -117,7 +117,8 @@ const effMaxHr = ()=> profile.maxHr>0 ? profile.maxHr : maxHeartRate(profile.age
 const newStrainAcc = ()=> makeStrainAccumulator({ restingHr:profile.restingHr||50, maxHr:effMaxHr(), sex:profile.sex||'m' });
 
 /* ----------------------------- live state --------------------------------- */
-const state = { hr:null, hrvMs:null, restHr:null, hrCount:0, hrSum:0, strainAcc:null, recovery:null, sleep:null };
+const state = { hr:null, hrvMs:null, restHr:null, hrCount:0, hrSum:0, strainAcc:null, recovery:null, sleep:null,
+                skinTempC:null, spo2:null };   // band-derived from the (47) record on the last pull
 let lastHrTs=0;
 
 /* ----------------------------- rings + renders ---------------------------- */
@@ -295,10 +296,14 @@ function renderOverview(){
 function renderHealth(){
   const host=$('ov-health'); if(!host) return;
   const rows=SAMPLE.health.map(m=>{
-    let v=m.val; if(m.key==='hr') v=state.hr; else if(m.key==='hrv'&&state.hrvMs!=null) v=state.hrvMs;
+    let v=m.val, real=false;
+    if(m.key==='hr'){ v=state.hr; }
+    else if(m.key==='hrv'&&state.hrvMs!=null){ v=state.hrvMs; }
+    else if(m.key==='skin'&&state.skinTempC!=null){ v=+state.skinTempC.toFixed(1); real=true; }
+    else if(m.key==='spo2'&&state.spo2!=null){ v=state.spo2; real=true; }
     const shown=(v==null?'—':v);
     const ok=v==null?true:(v>=m.lo&&v<=m.hi), flag=v==null?'var(--dimmer)':(ok?'var(--rec-green)':'var(--rec-yellow)');
-    return `<div class="hrow"><span class="hk"><span class="flag" style="background:${flag}"></span>${m.nm}${m.live?' <i class="livedot"></i>':''}</span>`+
+    return `<div class="hrow"><span class="hk"><span class="flag" style="background:${flag}"></span>${m.nm}${m.live?' <i class="livedot"></i>':real?' <span class="soon" style="border-color:var(--rec-green);color:var(--rec-green)">band</span>':''}</span>`+
       `<span class="hv">${shown}<small>${m.unit}</small></span><span class="hr-rng">${m.lo}–${m.hi}</span></div>`;
   }).join('');
   host.innerHTML=rows;
@@ -494,11 +499,14 @@ const SECTIONS = [
 
   // ----- DETAIL: Health Monitor (live vitals + screener) -----
   { id:'healthmonitor', build:()=>
-    hd('Health Monitor','live & resting')
-    + card(SAMPLE.health.map(m=>{ let v=m.val; if(m.key==='hr') v=state.hr; else if(m.key==='hrv'&&state.hrvMs!=null) v=state.hrvMs;
+    hd('Health Monitor','live · band-derived')
+    + card(SAMPLE.health.map(m=>{ let v=m.val, real=false;
+        if(m.key==='hr') v=state.hr; else if(m.key==='hrv'&&state.hrvMs!=null) v=state.hrvMs;
+        else if(m.key==='skin'&&state.skinTempC!=null){ v=+state.skinTempC.toFixed(1); real=true; }
+        else if(m.key==='spo2'&&state.spo2!=null){ v=state.spo2; real=true; }
         const shown=(v==null?'—':v); const ok=v==null?true:(v>=m.lo&&v<=m.hi);
-        return `<div class="hrow"><span class="hk"><span class="flag" style="background:${v==null?'var(--dimmer)':ok?'var(--rec-green)':'var(--rec-yellow)'}"></span>${m.nm}${m.live?' <i class="livedot"></i>':''}</span><span class="hv">${shown}<small>${m.unit}</small></span><span class="hr-rng">${m.lo}–${m.hi}</span></div>`; }).join(''))
-    + card(hd('Heart Screener','ECG-style')+scaffold('WHOOP’s background screening / heart screener is a cloud “labrador” report. SpO₂, skin-temp & respiratory rate are <b>not</b> band-decodable (cloud-only per the APK) — shown here from the last cloud sync.')) },
+        return `<div class="hrow"><span class="hk"><span class="flag" style="background:${v==null?'var(--dimmer)':ok?'var(--rec-green)':'var(--rec-yellow)'}"></span>${m.nm}${m.live?' <i class="livedot"></i>':real?' <span class="soon" style="border-color:var(--rec-green);color:var(--rec-green)">band</span>':''}</span><span class="hv">${shown}<small>${m.unit}</small></span><span class="hr-rng">${m.lo}–${m.hi}</span></div>`; }).join(''))
+    + card(hd('Heart Screener','ECG-style')+scaffold('Heart screener is a cloud “labrador” report. <b>Skin temperature and SpO₂ are now read straight off the band</b> (decoded from the (47) record — skin-temp @65, SpO₂ @74) and update after each history pull — no cloud needed.')) },
 
   // ----- DETAIL: Stress Monitor -----
   { id:'stress', build:()=>{
@@ -703,6 +711,17 @@ function onFrame(label, dv){
 }
 const captureText = ()=> capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
 
+// Pull the band-resident vitals out of the rich (47) records of a pull → state (median over the pull).
+// skin temp = every record; SpO2 = only the sleep records that sampled it. These are real Recovery inputs.
+function updateBandVitals(recs){
+  const temps=recs.filter(r=>r.skinTempC!=null).map(r=>r.skinTempC);
+  const spo2s=recs.filter(r=>r.spo2!=null).map(r=>r.spo2);
+  if(temps.length) state.skinTempC=median(temps);
+  if(spo2s.length) state.spo2=median(spo2s);
+  if(temps.length||spo2s.length)
+    log(`band vitals from this pull: ${temps.length?('skin '+state.skinTempC.toFixed(1)+'°C'):''}${spo2s.length?('  ·  SpO₂ '+state.spo2+'% ('+spo2s.length+' readings)'):''}`,'ok');
+}
+
 // On-device readout after a pull — records / window / HR / a plain verdict, so a short or empty night is
 // obvious before you walk away (no laptop round-trip needed). Fed the same numbers drainHistory computes.
 function showPullPreview({ nd, minTs, maxTs, hrs, hv }){
@@ -776,7 +795,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','imurt','imuraw','imuprobe','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','imurt','imuraw','imuprobe','hifreq','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -821,16 +840,21 @@ let pulling=false; let autoExport=false; let skipDrainConfirm=false; const pullR
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
-  let idx, ts, hr, key;
+  let idx, ts, hr, key, skinTempC=null, spo2=null;
   if(p[0]===48){                                   // 5.0 EVENT(48) record: ts@4, counter@8, HR offset TBD
     ts=u32at(p,4);
     if(ts<1500000000||ts>4000000000) return;       // skip untimestamped boot/info events
     idx=u32at(p,8); hr=0; key='e'+ts+':'+p[2];      // dedup by timestamp+subcode (counter isn't a clean idx)
   }else{                                            // 4.0 HISTORICAL_DATA(47): idx@3, ts@7, HR@14
     idx=u32at(p,3); ts=u32at(p,7); hr=p.length>14?p[14]:0; key='h'+idx;
+    if(p.length>=75){                               // rich record also carries skin temp @65 (int16/100) & SpO2 @74
+      const t=(p[65]|(p[66]<<8))<<16>>16; if(t>2000&&t<4500) skinTempC=t/100;
+      const s=p[74]; if(s>=80&&s<=100) spo2=s;
+    }
   }
-  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0]}); }
+  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0],skinTempC,spo2}); }
 }
+const median = (a)=>{ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); return s[s.length>>1]; };
 const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0});
 const pullMaxTs = ()=> pullRecords.reduce((m,r)=> r.ts>m?r.ts:m, 0);
 
@@ -947,6 +971,7 @@ async function drainHistory(){
     const span=nd?`${new Date(minTs*1000).toLocaleString()} → ${new Date(maxTs*1000).toLocaleString()}`:'—';
     const hrs=nd?((maxTs-minTs)/3600).toFixed(1)+'h':'0h';
     const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
+    updateBandVitals(dump);                                       // pull skin temp + SpO2 out of the (47) records
     showPullPreview({ nd, minTs, maxTs, hrs, hv });               // on-device readout so a bad night shows immediately
     log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
     log(`oldest BEFORE ${tsStr(before)} · AFTER ${tsStr(after)}`,'cmd');
@@ -1174,6 +1199,22 @@ async function imuHistoricalProbe(){
   await send(105,[0x00],'toggle_imu_mode_historical OFF');
   log('✓ Done (read-only — nothing acked, non-destructive). Save file / Send to laptop so I can find & decode the R21 record.','ok');
 }
+// High-freq-sync probe (cmd 96): the WHOOP app enters HIGH_FREQ_SYNC before pulling — this is the most
+// likely path for the band to deliver RAW high-rate records (IMU for steps, raw PPG). Read-only: enter
+// high-freq, stream the first window WITHOUT acking, then exit. Scan the result for new record types/lengths.
+async function hiFreqProbe(){
+  if(!deviceId){ log('connect first','err'); return; }
+  startCaptureIfNeeded();
+  log('High-freq-sync probe (cmd 96, READ-ONLY): entering high-frequency sync, then streaming the first window without acking — testing whether it unlocks raw/IMU records.','ok');
+  await send(96,[0x01],'enter_high_freq_sync'); await delay(700);
+  await send(34,[],'get_data_range'); await delay(700);
+  await send(22,[0x00],'send_historical_data');
+  log('streaming ~20 s — watch the fd4b counter for a NEW record type or longer records…','dim');
+  await delay(20000);
+  await send(20,[],'abort_historical_transmits'); await delay(300);
+  await send(97,[0x00],'exit_high_freq_sync');
+  log('✓ Done (read-only). Save / Send the capture — I’ll scan for raw/IMU records the high-freq mode may add.','ok');
+}
 
 async function checkBandBuffer(){
   if(!deviceId){ log('connect first','err'); return; }
@@ -1280,6 +1321,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   { const a=$('imurt'); if(a) a.onclick=toggleImuRealtime; }
   { const a=$('imuraw'); if(a) a.onclick=toggleRawData; }
   { const a=$('imuprobe'); if(a) a.onclick=imuHistoricalProbe; }
+  { const a=$('hifreq'); if(a) a.onclick=hiFreqProbe; }
   { const a=$('gattbtn'); if(a) a.onclick=listGatt; }
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);

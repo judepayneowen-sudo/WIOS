@@ -36,6 +36,11 @@ const recHi = recoveryScore({ hrv: 85, hrvBase, rhr: 47, rhrBase });   // high H
 const recLo = recoveryScore({ hrv: 45, hrvBase, rhr: 60, rhrBase });   // low HRV, high RHR
 ok(recHi > 50 && recLo < 50 && recHi > recLo, `recovery hi>50>lo (${recHi} vs ${recLo})`);
 ok(recHi <= 100 && recLo >= 0, 'recovery within 0..100');
+// band-derived modifiers (skin temp @65, SpO2 @74 from the (47) record): a temp deviation and low SpO2 hurt
+const recBaseB = recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase });
+ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, skinTempC: 36.5, skinTempBase: 33.5 }) < recBaseB, 'skin-temp deviation lowers recovery');
+ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, spo2: 90 }) < recBaseB, 'low SpO2 lowers recovery');
+ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, spo2: 98 }) === recBaseB, 'normal SpO2 is neutral');
 
 /* sleep */
 const need = sleepNeedMinutes({ baselineMin: 480, debtMin: 120, dayStrain: 14, napMin: 0 });

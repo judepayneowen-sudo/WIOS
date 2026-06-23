@@ -95,15 +95,19 @@ export function makeStrainAccumulator({ restingHr, maxHr, sex = 'm', scale = STR
 // HRV is the dominant driver, then resting HR (inverted), then respiratory rate
 // (inverted), with a small sleep-performance nudge. Each term is a z-score vs the
 // person's own baseline, combined and squashed to 0–100%.
-export const RECOVERY_WEIGHTS = { hrv: 1.1, rhr: 0.6, resp: 0.3, sleep: 0.5, bias: 0 }; // CALIBRATE
+export const RECOVERY_WEIGHTS = { hrv: 1.1, rhr: 0.6, resp: 0.3, sleep: 0.5, skinTemp: 0.4, spo2: 0.15, bias: 0 }; // CALIBRATE
 export function recoveryScore({
   hrv, hrvBase, rhr, rhrBase, respRate = null, respBase = null,
+  skinTempC = null, skinTempBase = null, spo2 = null,
   sleepPerformance = null, weights = RECOVERY_WEIGHTS,
 } = {}) {
   let s = weights.bias || 0; // intercept: shifts the baseline-day recovery off 50% (CALIBRATE)
   if (hrv != null && hrvBase) s += weights.hrv * zScore(hrv, hrvBase);
   if (rhr != null && rhrBase) s -= weights.rhr * zScore(rhr, rhrBase);   // lower RHR is better
   if (respRate != null && respBase) s -= weights.resp * zScore(respRate, respBase); // lower is better
+  // Band-derived (from the (47) record): a skin-temp deviation either way and low SpO2 both hurt recovery.
+  if (skinTempC != null && skinTempBase != null) s -= (weights.skinTemp || 0) * Math.abs(skinTempC - skinTempBase);
+  if (spo2 != null && spo2 < 97) s -= (weights.spo2 || 0) * (97 - spo2);
   if (sleepPerformance != null) s += weights.sleep * (sleepPerformance - 0.9) * 5;  // ~0.9 perf = neutral
   return Math.round(100 * logistic(s));
 }
