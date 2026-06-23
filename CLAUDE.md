@@ -103,16 +103,24 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
 ### Remaining band-RE work for Phase 2 (develop in parallel; nothing is at risk)
 - **Validate `drainHistory` on the real band** — confirm the 5.0 trim strategy/offset (worn-night "Sync
   full history" run; `decodeMetadata` exposes the `HISTORY_END` trim candidates from the capture).
-- Decode the **accel/IMU** → true actigraphy for sleep movement (classifier currently uses an HR-volatility
-  proxy). HR confirmed empirically: `[3..6]`=idx, `[7..10]`=ts, `[14]`=HR. ⚠️ **CLARIFIED 2026-06-22 by the
-  decompiled WHOOP APK — there are TWO accel things, don't conflate them:**
-  - The **`f32@37/41/45`** vector we read in the 112-byte rich `(47)` record is a **PROCESSED orientation /
-    gravity vector** — keep it (empirically `|v|≈1.005 g`, physically correct). It is NOT WHOOP's raw IMU.
-  - WHOOP's **raw high-rate actigraphy** is a **separate `R21` IMU historical record**: `int16`, 6 axes
-    (accelX/Y/Z + gyroX/Y/Z), variable samples sized by `numberOfAccelReadings`/`numberOfGyroReadings`
-    (model `com.whoop.ble.model.ImuData`). No scale constants in the app → raw counts need empirical calib.
-    Next experiment for true actigraphy: send **`TOGGLE_IMU_MODE_HISTORICAL` (cmd 105)** before a sync and
-    look for the R21 record. (The old `HISTORICAL_IMU(52)` label was WRONG — `52`=`SET_DP_TYPE`.)
+- ✅ **Actigraphy — SOLVED via the `(47)` orientation vector; raw IMU is NOT on the BLE interface (settled 2026-06-23).**
+  The classifier uses real accel actigraphy from the **`f32@37/41/45`** vector in the 112-byte rich `(47)`
+  record — a PROCESSED orientation/gravity vector (empirically `|v|≈0.995–1.005 g`, one sample per record
+  ≈1 Hz). Its per-epoch change is the movement signal (drove sleep calibration to 4.1-min RMSE, 2026-06-22).
+  ⛔ **The raw int16 6-axis `R21` IMU is NOT exposed over BLE on the 5.0 — exhaustively tested 2026-06-23:**
+  - **Full GATT enumerated** (`listGatt`/`BleClient.getServices`): the band exposes ONLY `fd4b0001`
+    (chars `0002` write, `0003/0004/0005/0007` notify) + standard HR(180d)/Battery(180f)/DeviceInfo(180a).
+    The 6108/1150/8a58/5983 service families in `op0/p.java` are OTHER device generations, not this band.
+  - **`fd4b0007` exists + supports notify and we subscribe to it, but the band never pushes to it** — no
+    realtime IMU stream over BLE. Realtime `(40)` records are HR/RR only (20 B, no accel).
+  - **`TOGGLE_IMU_MODE(106)` / `START_RAW_DATA(81)` / `TOGGLE_IMU_MODE_HISTORICAL(105)` all just ACK and
+    produce no new stream.** The historical dump with cmd 105 on returns only the usual 112-B `(47)` records
+    — **no `R21` record appears.** So `R21` (the `com.whoop.ble.model.ImuData` int16 6-axis) is recorded
+    on-device/cloud, not delivered over this sync. (Same as SpO2/skin-temp/resp — cloud-only.)
+  - **Consequence:** standalone Recovery/Sleep/Strain need nothing more from the band (HR + RR→HRV + ~1 Hz
+    accel). **Steps / VO₂ / WHOOP-Age** (which need raw high-rate IMU) are not band-derivable over BLE →
+    keep them cloud/scaffold. In-app IMU experiment buttons (`listGatt`, Realtime IMU, Raw data, Historical
+    probe) are retained as diagnostics in case a firmware update ever opens the channel.
 - Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV).
 
 ### 📦 Decompiled-APK intel (2026-06-22 — WHOOP Android 5.456)
