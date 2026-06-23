@@ -133,7 +133,7 @@ function setRing(id, pct, color){ const el=$(id); if(!el) return;
 // captures/decoding fill them in. Replaced by live/decoded values once available.
 const STAGE={ awake:{c:'var(--st-awake)',nm:'Awake',lane:0}, rem:{c:'var(--st-rem)',nm:'REM',lane:1},
   light:{c:'var(--st-light)',nm:'Light',lane:2}, sws:{c:'var(--st-sws)',nm:'Deep (SWS)',lane:3} };
-const ZONE_COL=['#1d6fae','#2a8fd8','#3aa0ff','#7c5cff','#ff9f3a','#ff3b5c'];
+const ZONE_COL=['#ffffff','#adc2cd','#479ac2','#fcac5d','#fcac5d','#ff6422'];  // WHOOP strain_zone_0..5
 const ZONE_NM=['Zone 0','Zone 1','Zone 2','Zone 3','Zone 4','Zone 5'];
 const ZONE_DESC=['Restorative','Very light','Light','Moderate','Hard','Max'];
 const ZONE_PCT=['50–60%','60–70%','70–80%','80–90%','90–100%','Max'];
@@ -195,9 +195,9 @@ SAMPLE.stress.day  = SAMPLE.strain.hr24.map(p=>({t:p.t, v:Math.max(0,Math.min(3,
 
 /* ----------------------------- chart components --------------------------- */
 // SVG presentation attributes don't resolve CSS var() on WebKit — map our theme vars to hex.
-const CSSVAR={'var(--rec-green)':'#16ec84','var(--rec-yellow)':'#ffde2e','var(--rec-red)':'#ff3b5c',
-  'var(--sleep)':'#7c5cff','var(--strain)':'#3aa0ff','var(--st-awake)':'#9aa0a8','var(--st-rem)':'#9b8cff',
-  'var(--st-light)':'#4a78d6','var(--st-sws)':'#27408b'};
+const CSSVAR={'var(--rec-green)':'#00f19f','var(--rec-yellow)':'#ffde00','var(--rec-red)':'#ff0026',
+  'var(--sleep)':'#7ba1bb','var(--strain)':'#0093e7','var(--st-awake)':'#969696','var(--st-rem)':'#7ba1bb',
+  'var(--st-light)':'#479ac2','var(--st-sws)':'#14384d'};
 const cssColor=(c)=> CSSVAR[c]||c;
 // Interactive, horizontally-scrollable line chart with a drag-to-read scrub readout.
 // host: container el · series: [{t,v}] or [number] · opts: {color,h,fill,min,max,unit,fmt,ppP,bands}

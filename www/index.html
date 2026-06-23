@@ -6,10 +6,11 @@
 <title>WHOOP Core</title>
 <style>
   :root{
-    --bg:#000; --bg2:#0c0d10; --card:#16181d; --line:#23262d;
-    --text:#ffffff; --dim:#8b9099; --dimmer:#5b606a;
-    --rec-green:#16ec84; --rec-yellow:#ffde2e; --rec-red:#ff3b5c;
-    --strain:#3aa0ff; --sleep:#7c5cff;
+    /* WHOOP's own design-token values (from the APK resources) so the look matches, implemented in our CSS */
+    --bg:#111619; --bg2:#0d1113; --card:#1a2227; --line:#27333a;
+    --text:#ffffff; --dim:#6a8a9c; --dimmer:#597483;
+    --rec-green:#00f19f; --rec-yellow:#ffde00; --rec-red:#ff0026;
+    --strain:#0093e7; --sleep:#7ba1bb;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
   html,body{margin:0;background:var(--bg);color:var(--text);
@@ -87,7 +88,7 @@
   .banner{background:#14233a;border:1px solid #244;border-radius:10px;padding:10px 12px;font-size:12px;color:#bcd;margin-bottom:14px}
 
   /* ---- faithful WHOOP detail components ---- */
-  :root{ --st-awake:#9aa0a8; --st-rem:#9b8cff; --st-light:#4a78d6; --st-sws:#27408b; }
+  :root{ --st-awake:#969696; --st-rem:#7ba1bb; --st-light:#479ac2; --st-sws:#14384d; }
   .hd{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
   .hd .t{font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);font-weight:600}
   .preview{font-size:9px;letter-spacing:1px;text-transform:uppercase;color:#0a0b0e;background:var(--strain);border-radius:4px;padding:3px 7px;font-weight:700}
