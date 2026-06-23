@@ -1129,6 +1129,8 @@ async function listGatt(){
   let services=[];
   try{ services = await BleClient.getServices(deviceId); }
   catch(e){ log('getServices failed: '+e.message,'err'); return; }
+  startCaptureIfNeeded();                                                  // so the GATT map lands in the exported file
+  capture.push({ t:Date.now(), ch:'GATT', hex:`==== GATT MAP (${services.length} services) ====` });
   log(`GATT map — ${services.length} services:`,'cmd');
   let subbed=0;
   for(const s of services){
@@ -1136,7 +1138,8 @@ async function listGatt(){
     const std=/^0000[0-9a-f]{4}-0000-1000-8000-00805f9b34fb$/.test(su);   // standard 16-bit BLE service
     for(const c of (s.characteristics||[])){
       const cu=(c.uuid||'').toLowerCase(), p=c.properties||{};
-      const flags=['read','write','writeNoResp','notify','indicate'].filter(k=>p[k]||p[k==='writeNoResp'?'writeWithoutResponse':k]).join(',');
+      const flags=['read','write','writeWithoutResponse','notify','indicate'].filter(k=>p[k]).join(',');
+      capture.push({ t:Date.now(), ch:'GATT', hex:`${su} / ${cu} [${flags}]` });   // → exported, so I can read it
       log(`  ${su.slice(0,8)}/${cu.slice(0,8)} [${flags}]`,'dim');
       if((p.notify||p.indicate) && !std && !subscribedChars.has(su+cu)){
         try{ await BleClient.startNotifications(deviceId, s.uuid, c.uuid, (v)=>onFrame(su.slice(0,4)+'·'+cu.slice(0,8), v));
@@ -1145,7 +1148,7 @@ async function listGatt(){
       }
     }
   }
-  log(`Subscribed to ${subbed} extra notify char(s). Now tap Realtime IMU / Raw data while moving the band — any new stream is captured & labelled by its source characteristic.`, subbed?'ok':'dim');
+  log(`✓ GATT map written to the capture (${subbed} extra notify char(s) subscribed). Now run Realtime IMU / Raw data / Historical IMU probe, then Send the capture — it now contains the full characteristic map.`, 'ok');
 }
 
 // Alternative path: START_RAW_DATA(81)/STOP_RAW_DATA(82) — the band's dedicated high-rate raw sensor stream.
