@@ -116,11 +116,24 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
   - **`TOGGLE_IMU_MODE(106)` / `START_RAW_DATA(81)` / `TOGGLE_IMU_MODE_HISTORICAL(105)` all just ACK and
     produce no new stream.** The historical dump with cmd 105 on returns only the usual 112-B `(47)` records
     — **no `R21` record appears.** So `R21` (the `com.whoop.ble.model.ImuData` int16 6-axis) is recorded
-    on-device/cloud, not delivered over this sync. (Same as SpO2/skin-temp/resp — cloud-only.)
-  - **Consequence:** standalone Recovery/Sleep/Strain need nothing more from the band (HR + RR→HRV + ~1 Hz
-    accel). **Steps / VO₂ / WHOOP-Age** (which need raw high-rate IMU) are not band-derivable over BLE →
-    keep them cloud/scaffold. In-app IMU experiment buttons (`listGatt`, Realtime IMU, Raw data, Historical
-    probe) are retained as diagnostics in case a firmware update ever opens the channel.
+    on-device, not delivered over this sync. Only its raw high-rate samples are missing.
+  - **Consequence:** standalone Recovery/Sleep/Strain need nothing more from the band. **Steps** (needs
+    high-rate accel) is the only metric still gated on raw IMU → scaffold.
+- ✅✅ **The `(47)` rich record carries WAY more than HR — MAPPED 2026-06-23 (this corrects the earlier
+  "SpO2/skin-temp/resp are cloud-only" claim, which was WRONG).** The band is the only sensor, so everything
+  WHOOP computes MUST traverse BLE — and it does, inside the 112-byte `(47)` record. Field map (verified on a
+  60,838-record full night, all little-endian):
+  - `[3..6]` idx u32 · `[7..10]` ts u32 · `[14]` HR u8
+  - **`[65..66]` skin temperature = int16 ÷100 °C** (verified 27.6–38.6, mean 33.4 — the thermistor)
+  - **`[74]` SpO2 = u8 %** (0 most records; 88–99 when sampled during sleep — matches WHOOP's sleep-only SpO2;
+    385 readings/night, mean 96.3%)
+  - `[72]` respiratory rate u8 (tentative, sits ~12) · `[37/41/45]` f32 orientation/gravity vector (actigraphy)
+  - Decoded in `decodeHistorical()` → `{hr, rr, acc, skinTempC, spo2, respRate}`; `decodeCapture()` returns
+    `skinTemp[]`, `spo2[]`, `resp[]`. So **skin-temp deviation + SpO2 are now band-derivable Recovery inputs**
+    (no cloud needed). ⚠️ The APK note "the app doesn't PARSE these from the band" is about the *app's display
+    path* (it shows cloud-computed values) — the raw values are nonetheless IN the record the app uploads.
+  - Still unmapped in the 112-B record: a second varying block `[97..101]`/`[105..108]` (likely another
+    processed vector or PPG amplitude) and `[33..51]` beyond the accel triplet — decode next if useful.
 - Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV).
 
 ### 📦 Decompiled-APK intel (2026-06-22 — WHOOP Android 5.456)
@@ -140,8 +153,10 @@ findings stand. What it DID confirm:
   All payloads **little-endian**; timestamps are **32768-Hz fixed-point** (`millis = s·1000 + sub·1000/32768`).
   No `0xAA`/CRC16 in this parser → our SOF+MODBUS-CRC framing is a *lower* transport layer (the absent `hp0.c`).
 - ✅ **Historical record taxonomy**: `R10/R11/R12/RAW_ECG/R20/R21(IMU)/R24` (`oq0/d.java`); HR is R10/R11.
-- ✅ **SpO2 / skin-temp / respiratory rate are NOT parsed from the band** in the app — cloud-computed,
-  API-only. Reinforces Phase-1: those inputs come from the cloud answer-key, never band-raw.
+- ⚠️ **SpO2 / skin-temp / respiratory rate are not parsed from the band *by the WHOOP app's display path*** —
+  it shows cloud-computed values. ❗BUT they ARE present in the band's raw `(47)` record (skin-temp `[65]`,
+  SpO2 `[74]`, resp `[72]` — see the record map above), which we decode directly. So for Phase 1 the cloud
+  is a convenient answer-key, but in Phase 2 these come straight off the band — NOT cloud-only.
 
 ### Sleep — exact WHOOP match is impossible standalone (cloud-staged); target is calibrated-close
 WHOOP computes staging in its cloud, so the band has only raw HR/RR/accel. We run our own

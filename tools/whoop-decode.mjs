@@ -93,7 +93,21 @@ export function decodeHistorical(payload){
     const x=f32(37), y=f32(41), z=f32(45), mag=Math.sqrt(x*x+y*y+z*z);
     if(mag>0.3 && mag<4 && [x,y,z].every(Number.isFinite)) acc = { x, y, z, mag };  // plausible g-vector only
   }
-  return [{ t: ts*1000, hr: hr>0?hr:null, rr: rr.length?rr:null, acc }];
+  // Extra physiology in the 112-byte rich record — MAPPED 2026-06-23 from a full-night capture (these are
+  // exactly the "cloud-only" inputs that turned out to be band-resident all along):
+  //   skin temp  = int16 LE @65 ÷ 100  → °C   (verified 27.6–38.6 °C, mean 33.4, the thermistor reading)
+  //   SpO2       = u8 @74 (%)                 (0 most records; 88–99 when sampled during sleep — WHOOP's SpO2)
+  //   resp rate  = u8 @72 (breaths/min, tentative — sits ~12)
+  let skinTempC=null, spo2=null, respRate=null;
+  if(payload.length >= 75){
+    const t = (payload[65] | (payload[66]<<8)) << 16 >> 16;       // signed int16 LE
+    if(t>2000 && t<4500) skinTempC = t/100;                       // 20–45 °C
+    const s = payload[74];
+    if(s>=80 && s<=100) spo2 = s;                                 // valid SpO2 only (else not sampled)
+    const r = payload[72];
+    if(r>=5 && r<=30) respRate = r;
+  }
+  return [{ t: ts*1000, hr: hr>0?hr:null, rr: rr.length?rr:null, acc, skinTempC, spo2, respRate }];
 }
 
 // HISTORICAL via EVENT(48): on WHOOP 5.0 the buffered dump is NOT framed as HISTORICAL_DATA(47) —
@@ -179,7 +193,7 @@ export function parseCaptureLine(line){
 
 /** Whole capture text → time-ordered HR samples, RR intervals, and historical-sync metadata. */
 export function decodeCapture(text){
-  const hr=[], rrs=[], accel=[], meta=[], histEvents=[];
+  const hr=[], rrs=[], accel=[], meta=[], histEvents=[], skinTemp=[], spo2=[], resp=[];
   let frames=0, realtime=0, historical=0, metadata=0, inHistory=false;
   for(const line of text.split(/\r?\n/)){
     const c=parseCaptureLine(line); if(!c || c.frame.error) continue;
@@ -190,7 +204,10 @@ export function decodeCapture(text){
     if(p && p[0]===47){ historical++; const h=decodeHistorical(p); if(h && h.length) for(const s of h){
       if(s.hr) hr.push({ t:s.t, hr:s.hr });
       if(s.rr) for(const v of s.rr) rrs.push({ t:s.t, rr:v });    // (47) carries RR too — collect it for HRV
-      if(s.acc) accel.push({ t:s.t, ...s.acc }); } }              // and an accel g-vector for actigraphy
+      if(s.acc) accel.push({ t:s.t, ...s.acc });                  // and an accel g-vector for actigraphy
+      if(s.skinTempC!=null) skinTemp.push({ t:s.t, c:s.skinTempC });  // band-resident skin temp / SpO2 / resp
+      if(s.spo2!=null) spo2.push({ t:s.t, v:s.spo2 });
+      if(s.respRate!=null) resp.push({ t:s.t, v:s.respRate }); } }
     if(p && p[0]===49){ metadata++; const m=decodeMetadata(p);
       if(m){ meta.push({ t:c.t, ...m }); if(m.type===1) inHistory=true; else if(m.type===2||m.type===3) inHistory=false; } }
     // EVENT(48) inside a HISTORY_START/END window = a 5.0 buffered record (see decodeHistoricalEvent).
@@ -198,7 +215,8 @@ export function decodeCapture(text){
       if(e){ historical++; histEvents.push(e); if(e.hr) hr.push({ t:e.t, hr:e.hr }); } }
   }
   hr.sort((a,b)=>a.t-b.t); rrs.sort((a,b)=>a.t-b.t); accel.sort((a,b)=>a.t-b.t); histEvents.sort((a,b)=>a.t-b.t);
-  return { hr, rrs, accel, meta, histEvents, stats:{ frames, realtime, historical, metadata } };
+  skinTemp.sort((a,b)=>a.t-b.t); spo2.sort((a,b)=>a.t-b.t); resp.sort((a,b)=>a.t-b.t);
+  return { hr, rrs, accel, meta, histEvents, skinTemp, spo2, resp, stats:{ frames, realtime, historical, metadata } };
 }
 
 export const dayKey = (ms)=> new Date(ms).toISOString().slice(0,10);
