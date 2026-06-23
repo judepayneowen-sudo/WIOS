@@ -113,12 +113,15 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
     The 6108/1150/8a58/5983 service families in `op0/p.java` are OTHER device generations, not this band.
   - **`fd4b0007` exists + supports notify and we subscribe to it, but the band never pushes to it** — no
     realtime IMU stream over BLE. Realtime `(40)` records are HR/RR only (20 B, no accel).
-  - **`TOGGLE_IMU_MODE(106)` / `START_RAW_DATA(81)` / `TOGGLE_IMU_MODE_HISTORICAL(105)` all just ACK and
-    produce no new stream.** The historical dump with cmd 105 on returns only the usual 112-B `(47)` records
-    — **no `R21` record appears.** So `R21` (the `com.whoop.ble.model.ImuData` int16 6-axis) is recorded
-    on-device, not delivered over this sync. Only its raw high-rate samples are missing.
-  - **Consequence:** standalone Recovery/Sleep/Strain need nothing more from the band. **Steps** (needs
-    high-rate accel) is the only metric still gated on raw IMU → scaffold.
+  - **`TOGGLE_IMU_MODE(106)` / `START_RAW_DATA(81)` / `TOGGLE_IMU_MODE_HISTORICAL(105)` / `ENTER_HIGH_FREQ_SYNC(96)`
+    all just ACK and produce no new stream.** The historical dump (with cmd 105 on, AND under high-freq sync)
+    returns only the usual 112-B `(47)` records — **byte-identical**, no `R21`. So `R21` (the
+    `com.whoop.ble.model.ImuData` int16 6-axis) is recorded on-device, not delivered over this sync. Only its
+    raw high-rate samples are missing — every BLE path is exhausted (settled 2026-06-23).
+  - **Consequence:** standalone Recovery/Sleep/Strain need nothing more from the band. **Steps** is the only
+    metric still gated on movement at higher-than-1 Hz. Open hypothesis: WHOOP may compute steps on-device
+    and stash a *cumulative step counter* somewhere in the 112-B record (the unmapped `[33..36]`/`[97..108]`
+    blocks) — find it with a DAYTIME WALKING capture (walk ~100 steps, pull, look for a field that rose ~100).
 - ✅✅ **The `(47)` rich record carries WAY more than HR — MAPPED 2026-06-23 (this corrects the earlier
   "SpO2/skin-temp/resp are cloud-only" claim, which was WRONG).** The band is the only sensor, so everything
   WHOOP computes MUST traverse BLE — and it does, inside the 112-byte `(47)` record. Field map (verified on a
