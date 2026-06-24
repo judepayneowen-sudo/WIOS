@@ -853,6 +853,20 @@ async function persistPull(dump){
 // Render the on-phone history (async — IndexedDB). Called by showScreen when the 'storage' screen opens and
 // by persistPull after a new night lands. Lists each stored night with its summary + Day Strain, plus
 // per-night delete and a clear-all. Pure read of src/store.js; all our own data.
+// Sleep block for a stored night: the standalone auto-detected window + classified stages (no WHOOP cloud).
+function sleepBlock(sl){
+  if(!sl) return '';
+  const hm=(m)=> m!=null? `${Math.floor(m/60)}h ${String(Math.round(m%60)).padStart(2,'0')}m` : '—';
+  const t=(ms)=> new Date(ms).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const bar=(c,m)=>{ const tot=(sl.remMin||0)+(sl.swsMin||0)+(sl.lightMin||0)+(sl.awakeMin||0)||1;
+    return `<i style="width:${Math.round((m||0)/tot*100)}%;background:${c}"></i>`; };
+  return `<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--line)">`
+    +`<div class="kv"><span class="k">Sleep <span class="soon" style="margin-left:4px">on-device</span></span><span class="v">${hm(sl.asleepMin)} asleep${sl.performance!=null?` · ${sl.performance}%`:''}</span></div>`
+    +`<div class="prog" style="display:flex;height:8px;margin:6px 0">${bar('var(--st-rem)',sl.remMin)}${bar('var(--st-light)',sl.lightMin)}${bar('var(--st-sws)',sl.swsMin)}${bar('var(--st-awake)',sl.awakeMin)}</div>`
+    +`<div class="kv"><span class="k">REM / Deep / Light / Awake</span><span class="v">${sl.remMin} / ${sl.swsMin} / ${sl.lightMin} / ${sl.awakeMin} m</span></div>`
+    +`<div class="kv"><span class="k">Window</span><span class="v">${t(sl.start)}–${t(sl.end)} (${hm(sl.inBedMin)})</span></div>`
+    +`</div>`;
+}
 async function renderStorage(){
   const body=$('storage-body'); if(!body) return;
   let days, use;
@@ -874,6 +888,7 @@ async function renderStorage(){
       +`<div class="kv"><span class="k">HRV (RMSSD)</span><span class="v">${d.hrvMs??'—'} ms</span></div>`
       +`<div class="kv"><span class="k">Skin temp / SpO₂</span><span class="v">${d.skinTempC!=null?d.skinTempC+'°C':'—'} / ${d.spo2!=null?d.spo2+'%':'—'}</span></div>`
       +`<div class="kv"><span class="k">Movement index</span><span class="v">${d.activity??'—'}${d.activeMin!=null?` · ~${d.activeMin}m active`:''}</span></div>`
+      +sleepBlock(d.sleep)
       +`<button class="act" data-del="${d.day}" style="${dimBtn};margin-top:8px">Delete this night</button>`
       +`</div>`;
   }
@@ -984,7 +999,7 @@ let pulling=false; let autoExport=false; let skipDrainConfirm=false; const pullR
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
-  let idx, ts, hr, key, skinTempC=null, spo2=null, accMag=null, rr=null, respRate=null;
+  let idx, ts, hr, key, skinTempC=null, spo2=null, acc=null, rr=null, respRate=null;
   if(p[0]===48){                                   // 5.0 EVENT(48) record: ts@4, counter@8, HR offset TBD
     ts=u32at(p,4);
     if(ts<1500000000||ts>4000000000) return;       // skip untimestamped boot/info events
@@ -999,12 +1014,12 @@ function onPullRecord(p){
     if(p.length>=49){                               // RAW accel triplet f32 LE @37/41/45 (the actigraphy/step signal)
       const f32=(o)=> new DataView(new Uint8Array([p[o],p[o+1],p[o+2],p[o+3]]).buffer).getFloat32(0,true);
       const x=f32(37), y=f32(41), z=f32(45), m=Math.sqrt(x*x+y*y+z*z);
-      if(m>0.1&&m<6&&[x,y,z].every(Number.isFinite)) accMag=+m.toFixed(3);
+      if(m>0.1&&m<6&&[x,y,z].every(Number.isFinite)) acc={x,y,z};   // store the vector → |Δ| actigraphy in the store
     }
     const nrr=p[15];                                // RR (tentative): count@15 then u16 LE ms @16…
     if(nrr>0&&nrr<=4&&p.length>=16+2*nrr){ const v=p[16]|(p[17]<<8); if(v>250&&v<2500) rr=v; }
   }
-  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0],skinTempC,spo2,accMag,rr,respRate}); }
+  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0],skinTempC,spo2,acc,rr,respRate}); }
 }
 const median = (a)=>{ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); return s[s.length>>1]; };
 const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0});

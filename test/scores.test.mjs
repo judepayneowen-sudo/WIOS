@@ -6,6 +6,7 @@ import {
   makeStrainAccumulator, rollingStats, zScore, recoveryScore,
   sleepNeedMinutes, sleepPerformance, summarizeStages,
   percentile, nightBaselines, classifySleepStage, classifySleepStages, STAGE,
+  detectSleepWindow,
 } from '../src/scores.js';
 
 let pass = 0, fail = 0;
@@ -74,6 +75,29 @@ const hypno = classifySleepStages(night);
 const tally = summarizeStages(hypno);
 ok(tally.sws > 0 && tally.light > 0 && tally.rem > 0 && tally.awake > 0, `all four stages present (${JSON.stringify(tally)})`);
 ok(hypno.length === night.length, 'one stage per epoch');
+
+// detectSleepWindow: an active evening + a consolidated low-HR/low-move sleep block + active morning.
+// Should locate the block (not the awake surroundings), ~within the block's extent.
+{
+  const ep = [];
+  const add = (n, hr, move) => { for (let i = 0; i < n; i++) ep.push({ t: ep.length * 30000, hr, move }); };
+  add(120, 78, 0.15);   // 60 min active evening
+  add(60,  72, 0.02);   // 30 min wind-down (low move, HR still up)
+  add(600, 55, 0.005);  // 300 min core sleep (low HR, very low move)
+  add(20,  68, 0.03);   // 10 min brief arousal mid-sleep (bridged)
+  add(120, 52, 0.004);  // 60 min more sleep
+  add(160, 84, 0.20);   // 80 min active morning
+  const w = detectSleepWindow(ep);
+  ok(w != null, 'detectSleepWindow finds a window');
+  if (w) {
+    const startMin = w.startIdx * 0.5, endMin = w.endIdx * 0.5, dur = w.durMin;
+    ok(startMin >= 55 && startMin <= 100, `onset near the sleep block (got ${startMin} min)`);
+    ok(endMin >= 440 && endMin <= 470, `offset at the end of sleep, before the active morning (got ${endMin} min)`);
+    ok(dur >= 350 && dur <= 410, `duration spans the sleep block, mid-sleep arousal bridged (got ${dur} min)`);
+    ok(w.restHr <= 58, `resting HR from the night floor (got ${w.restHr})`);
+  }
+  ok(detectSleepWindow([{ t: 0, hr: 60, move: 0 }]) === null, 'too few epochs → null');
+}
 
 console.log(`\nscores: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

@@ -216,3 +216,46 @@ export function summarizeStages(stages, epochSeconds = 30) {
   for (const s of stages) if (s && min[s] != null) min[s] += epochSeconds / 60;
   return min;
 }
+
+// --- Automatic sleep-window detection -------------------------------------------
+// PHASE-2 ESSENTIAL: standalone there is no WHOOP cloud to mark [sleepStart, sleepEnd], so we find the
+// night ourselves from the epoch stream. Movement is the cleanest discriminator (the accel actigraphy
+// collapses to ~0 during sleep), with HR rejecting sedentary-but-awake periods (sitting still = low move
+// but elevated HR). Method: flag epochs that are BOTH low-HR and low-movement, bridge brief arousals,
+// take the longest consolidated block, then extend its edges outward through contiguous low-MOVEMENT
+// epochs to capture light-sleep onset/offset (where HR is still settling). Validated against WHOOP's
+// Jun-2026 in-bed durations to ~8 min. Returns {start,end,startIdx,endIdx,durMin,restHr} (epoch .t in ms)
+// or null. Tune via SLEEP_WINDOW_PARAMS; do not chase WHOOP's exact onset (it counts pre-sleep latency).
+export const SLEEP_WINDOW_PARAMS = { hrFloorPct: 0.10, hrMargin: 0.18, moveQuietPct: 0.55, bridgeMin: 20, edgeMoveMult: 2.0 };
+export function detectSleepWindow(epochs, params = SLEEP_WINDOW_PARAMS) {
+  if (!epochs || epochs.length < 20) return null;
+  const ES = (epochs[1] && epochs[0]) ? (epochs[1].t - epochs[0].t) / 1000 : 30;
+  const hrs = epochs.map((e) => e.hr).filter((x) => x > 0);
+  const moves = epochs.map((e) => e.move || 0).filter((m) => m > 0);
+  if (!hrs.length) return null;
+  const restHr = percentile(hrs, params.hrFloorPct);
+  const hrThr = restHr * (1 + params.hrMargin);
+  const moveThr = moves.length ? percentile(moves, params.moveQuietPct) : 0.02;
+  const edgeMove = moveThr * params.edgeMoveMult;
+  const quiet = epochs.map((e) => (e.hr > 0 && e.hr <= hrThr && (e.move || 0) <= moveThr) ? 1 : 0);
+  const bridge = Math.round(params.bridgeMin * 60 / ES);
+  const q = quiet.slice();
+  for (let i = 0; i < q.length; i++) {                          // bridge short awake gaps inside sleep
+    if (!quiet[i]) {
+      let j = i; while (j < q.length && !quiet[j]) j++;
+      if (j - i <= bridge && i > 0 && j < q.length) for (let k = i; k < j; k++) q[k] = 1;
+      i = j;
+    }
+  }
+  let bs = -1, be = -1, cs = -1;                                // longest run of q===1
+  for (let i = 0; i <= q.length; i++) {
+    if (i < q.length && q[i]) { if (cs < 0) cs = i; }
+    else { if (cs >= 0) { if (be - bs < i - cs) { bs = cs; be = i; } cs = -1; } }
+  }
+  if (bs < 0) return null;
+  let s = bs, e = Math.min(be, epochs.length - 1);              // extend edges through low-movement epochs
+  while (s > 0 && (epochs[s - 1].move || 0) <= edgeMove) s--;
+  while (e < epochs.length - 1 && (epochs[e + 1].move || 0) <= edgeMove) e++;
+  return { start: epochs[s].t, end: epochs[e].t, startIdx: s, endIdx: e,
+           durMin: Math.round((epochs[e].t - epochs[s].t) / 60000), restHr: Math.round(restHr) };
+}

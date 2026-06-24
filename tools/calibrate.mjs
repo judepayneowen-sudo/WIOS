@@ -31,6 +31,7 @@ import {
   rollingStats, recoveryScore, RECOVERY_WEIGHTS,
   sleepNeedMinutes, sleepPerformance, SLEEP_NEED,
   classifySleepStages, summarizeStages, SLEEP_STAGE_PARAMS,
+  detectSleepWindow,
 } from '../src/scores.js';
 import { decodeCapture, buildSleepEpochs, dayKey } from './whoop-decode.mjs';
 
@@ -256,12 +257,17 @@ console.log('\n— Sleep stages —');
 const stageNights = loadSleepEpochs();
 // Trim each capture to WHOOP's actual in-bed window [sleepStart, sleepEnd] when known, so a wide pull
 // (we default the seek to ~20:00, capturing pre-bed evening) is compared like-for-like against WHOOP's
-// stage_summary, which only covers real sleep. Falls back to the whole capture if the window is absent.
+// stage_summary, which only covers real sleep. When the API window is absent (hand-pasted nights, Phase 2),
+// fall back to our own detectSleepWindow; only use the whole capture if even that fails.
 const trimToWindow = (epochs, d)=>{
   const s = d.sleepStart ? Date.parse(d.sleepStart) : NaN, e = d.sleepEnd ? Date.parse(d.sleepEnd) : NaN;
-  if(!Number.isFinite(s) || !Number.isFinite(e)) return epochs;
-  const t = epochs.filter(ep=> ep.t>=s && ep.t<=e);
-  return t.length>=20 ? t : epochs;
+  if(Number.isFinite(s) && Number.isFinite(e)){
+    const t = epochs.filter(ep=> ep.t>=s && ep.t<=e);
+    if(t.length>=20) return t;
+  }
+  const w = detectSleepWindow(epochs);                          // auto-detect fallback
+  if(w){ const t = epochs.slice(w.startIdx, w.endIdx+1); if(t.length>=20) return t; }
+  return epochs;
 };
 const stageRows = answers
   .filter(d=> d.remMin!=null && d.swsMin!=null && d.lightMin!=null && stageNights[d.date]?.length>=20)
