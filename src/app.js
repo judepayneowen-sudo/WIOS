@@ -938,6 +938,25 @@ function sleepBlock(sl){
     +`<div class="kv"><span class="k">Window</span><span class="v">${t(sl.start)}–${t(sl.end)} (${hm(sl.inBedMin)})</span></div>`
     +`</div>`;
 }
+// Export the whole on-phone store as one compact JSON (per-day summaries + 30-s epochs) — the file to share
+// for off-device calibration. Accumulates across all pulls, so a week captured over several pulls exports as
+// a single file. Tries the iOS share sheet (AirDrop / Save to Files / Messages), falls back to a download.
+async function exportStore(){
+  let data; try{ data = await store.exportAll(); }catch(e){ log('export failed: '+e.message,'err'); return; }
+  if(!data.days.length){ log('nothing stored yet to export','err'); return; }
+  const json=JSON.stringify(data), kb=(json.length/1024).toFixed(0);
+  const fname=`wios-export-${new Date().toISOString().slice(0,10)}.json`;
+  try{
+    const file=new File([json], fname, {type:'application/json'});
+    if(navigator.share && (!navigator.canShare || navigator.canShare({files:[file]}))){
+      await navigator.share({files:[file], title:fname});
+      log(`✓ exported ${data.days.length} day(s) · ${kb} KB via share sheet`,'ok'); return; }
+  }catch(e){ if(e&&e.name==='AbortError'){ log('export cancelled','dim'); return; } }
+  try{ const url=URL.createObjectURL(new Blob([json],{type:'application/json'}));
+    const a=document.createElement('a'); a.href=url; a.download=fname; a.click(); setTimeout(()=>URL.revokeObjectURL(url),4000);
+    log(`✓ exported ${data.days.length} day(s) · ${kb} KB (saved file)`,'ok'); }
+  catch(e){ log('export failed: '+e.message,'err'); }
+}
 async function renderStorage(){
   const body=$('storage-body'); if(!body) return;
   let days, use;
@@ -963,8 +982,10 @@ async function renderStorage(){
       +`<button class="act" data-del="${d.day}" style="${dimBtn};margin-top:8px">Delete this night</button>`
       +`</div>`;
   }
+  html+=`<button class="act" id="storage-export" style="width:100%;margin-top:6px">Export all → share for calibration</button>`;
   html+=`<button class="act" id="storage-clear" style="${dimBtn};margin-top:6px">Clear all stored data</button>`;
   body.innerHTML=html;
+  { const ex=$('storage-export'); if(ex) ex.onclick=exportStore; }
   body.querySelectorAll('[data-del]').forEach(b=> b.onclick=async()=>{ if(window.confirm(`Delete stored data for ${b.dataset.del}?`)){ await store.removeDay(b.dataset.del); renderStorage(); } });
   const cl=$('storage-clear'); if(cl) cl.onclick=async()=>{ if(window.confirm('Delete ALL stored data on this phone? This cannot be undone.')){ await store.clearAll(); renderStorage(); } };
 }

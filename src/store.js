@@ -98,24 +98,24 @@ export function computeDaySummary(rec, profile = {}) {
   };
 }
 
-// Build 30-s sleep epochs from a day's columnar series, detect the overnight window, classify stages and
-// score sleep performance. Movement = mean |Δ g-vector| per epoch (the calibrated actigraphy metric; uses
-// the stored accel VECTOR, which is why the store keeps ax/ay/az not just magnitude). Returns null if no
-// plausible night is present (e.g. a daytime-only capture). NOTE: buckets by local day, so a sleep that
-// starts before local midnight has its pre-midnight portion in the previous day's record — detection here
-// sees the post-midnight part. Fine for post-midnight onsets; cross-midnight refinement is a follow-up.
-function stageNight(rec, ctx) {
-  const { ts, hr, rr, ax, ay, az, n } = rec;
-  if (n < 120) return null;                              // < 1 h of data → not a night
+// Build 30-s epochs from a day's columnar series: mean HR · RMSSD over the epoch's RR · accel actigraphy
+// (mean |Δ g-vector|) · median skin temp · max SpO2. Shared by on-device staging AND the calibration export
+// (these epochs are exactly what classifySleepStages consumes, so a 30-s export is sufficient to re-fit
+// sleep staging off-device without shipping the full 1 Hz stream).
+export function buildDayEpochs(rec) {
+  const { ts, hr, rr, ax, ay, az, skin, spo2, n } = rec;
   const ES = 30;
   const eps = [];
   let i = 0;                                             // forward-only pointer; each sample consumed once
   for (let st = ts[0]; st <= ts[n - 1]; st += ES) {
     const en = st + ES;
     let hrSum = 0, hrCnt = 0; const rrSeq = []; let mvSum = 0, mvCnt = 0, px = null, py = null, pz = null;
+    let skinSum = 0, skinCnt = 0, spo2Max = 0;
     while (i < n && ts[i] < en) {
       if (hr[i] > 0) { hrSum += hr[i]; hrCnt++; }
       if (rr[i] > 0) rrSeq.push(rr[i]);
+      if (skin[i] > 0) { skinSum += skin[i]; skinCnt++; }
+      if (spo2[i] > spo2Max) spo2Max = spo2[i];
       if (ax[i] || ay[i] || az[i]) {
         if (px != null) { mvSum += Math.hypot(ax[i] - px, ay[i] - py, az[i] - pz) / 1000; mvCnt++; }
         px = ax[i]; py = ay[i]; pz = az[i];
@@ -125,8 +125,21 @@ function stageNight(rec, ctx) {
     if (!hrCnt) continue;
     let rmssd = null;
     if (rrSeq.length > 2) { let s = 0, c = 0; for (let k = 1; k < rrSeq.length; k++) { const d = rrSeq[k] - rrSeq[k - 1]; s += d * d; c++; } rmssd = Math.sqrt(s / c); }
-    eps.push({ t: st * 1000, hr: hrSum / hrCnt, rmssd, move: mvCnt ? mvSum / mvCnt : 0 });
+    eps.push({ t: st * 1000, hr: hrSum / hrCnt, rmssd, move: mvCnt ? mvSum / mvCnt : 0,
+      skinTempC: skinCnt ? +(skinSum / skinCnt / 100).toFixed(2) : null, spo2: spo2Max || null });
   }
+  return eps;
+}
+
+// Build 30-s sleep epochs from a day's columnar series, detect the overnight window, classify stages and
+// score sleep performance. Movement = mean |Δ g-vector| per epoch (the calibrated actigraphy metric; uses
+// the stored accel VECTOR, which is why the store keeps ax/ay/az not just magnitude). Returns null if no
+// plausible night is present (e.g. a daytime-only capture). NOTE: buckets by local day, so a sleep that
+// starts before local midnight has its pre-midnight portion in the previous day's record — detection here
+// sees the post-midnight part. Fine for post-midnight onsets; cross-midnight refinement is a follow-up.
+function stageNight(rec, ctx) {
+  if (rec.n < 120) return null;                          // < 1 h of data → not a night
+  const eps = buildDayEpochs(rec);
   if (eps.length < 40) return null;
   const win = detectSleepWindow(eps);
   if (!win || win.durMin < 90) return null;              // need a real consolidated block
@@ -209,6 +222,27 @@ export async function ingest(records, profile = {}) {
   }
   db.close();
   return summaries.sort((a, b) => a.day < b.day ? 1 : -1);
+}
+
+// Calibration export: every stored day as { summary, epochs[] } (30-s epochs — HR/RMSSD/movement/skin/SpO2).
+// This is what off-device calibration (sleep staging, recovery, strain, WHOOP-Age inputs) needs, and it's
+// ~1-2 MB for a week vs tens of MB of raw hex — small enough to share in chat. Pass {raw:true} to also embed
+// the full 1 Hz columnar series (for steps / fine actigraphy work) at the cost of size.
+export async function exportAll(opts = {}) {
+  const db = await open();
+  const days = await wrap(db.transaction(DAYS).objectStore(DAYS).getAll());
+  const meta = await wrap(db.transaction(META).objectStore(META).getAll());
+  db.close();
+  const metaBy = Object.fromEntries(meta.map((m) => [m.day, m]));
+  const out = { schema: 'wios-store-export/1', days: [] };
+  for (const rec of days.sort((a, b) => a.day < b.day ? -1 : 1)) {
+    const { sleep, zoneSeconds, ...summary } = metaBy[rec.day] || {};
+    const day = { day: rec.day, n: rec.n, minTs: rec.minTs, maxTs: rec.maxTs, summary: { ...summary, sleep, zoneSeconds },
+      epochs: buildDayEpochs(rec).map((e) => ({ t: e.t, hr: Math.round(e.hr), rmssd: e.rmssd != null ? Math.round(e.rmssd) : null, move: +e.move.toFixed(4), skinTempC: e.skinTempC, spo2: e.spo2 })) };
+    if (opts.raw) day.raw = { ts: Array.from(rec.ts), hr: Array.from(rec.hr), rr: Array.from(rec.rr), ax: Array.from(rec.ax), ay: Array.from(rec.ay), az: Array.from(rec.az), skin: Array.from(rec.skin), spo2: Array.from(rec.spo2) };
+    out.days.push(day);
+  }
+  return out;
 }
 
 // Light list for the History screen — meta rows only (no heavy arrays loaded). Newest first.
