@@ -1258,11 +1258,13 @@ async function drainHistory(){
 }
 
 let dataRangeOldestTs=null;
-// Scan a get_data_range payload for the oldest plausible record timestamp (u32 within now±window).
-// WHOOP states the band stores up to 14 days, so look back 15 to be safe (our earlier 6-day cap — based on
-// an empirical "~4–5 days" guess — would under-report the oldest on a band actually holding ~2 weeks).
+// Scan a get_data_range payload for the oldest plausible record timestamp (u32 within now±window). A real
+// response (2026-06-24) carried the structured fields oldest=May-11 (44 days back) and newest=now — proving
+// the band can hold far more than WHOOP's "up to 14 days" spec. The old 15-day window CLIPPED that true
+// oldest (44 d > 15 d), leaving only the "now" field in range → it wrongly reported "oldest = now". Widen to
+// 90 days; the only out-of-range junk u32 in that frame was a 2030 value, excluded by the hi bound.
 function parseDataRangeOldest(p){
-  const nowS=Math.floor(Date.now()/1000), lo=nowS-15*86400, hi=nowS+3600; let oldest=null;
+  const nowS=Math.floor(Date.now()/1000), lo=nowS-90*86400, hi=nowS+3600; let oldest=null;
   for(let o=3;o+4<=p.length;o++){ const v=(p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
     if(v>=lo && v<=hi && (oldest===null||v<oldest)) oldest=v; }
   return oldest;
@@ -1273,35 +1275,39 @@ const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
 
 // Show the oldest record still on the band's flash (read-only get_data_range) so you can tell, before
 // seeking, whether a target night is still pullable. Updates the on-screen readout + the log.
-// Find the TRUE oldest record still in raw flash. NOTE: get_data_range reports the band's COMMITTED/synced
-// frontier (which, once the WHOOP app has synced and we've acked, sits at ~now) — NOT the oldest raw record,
-// so it wrongly said "oldest = now" even with days of data physically present. The reliable way is to
-// FORCE_TRIM to the buffer start and see where the dump actually lands. Read-only: it repositions the read
-// head but never acks/frees anything.
+// Show the oldest record on the band from its get_data_range marker — READ-ONLY (doesn't move the read head
+// or free anything). The marker carries the true oldest ts (a real frame showed May-11, ~44 days back). To
+// actually pull from there, use “Trim to oldest” which positions the dump.
 async function showOldest(){
   if(!deviceId){ log('connect first','err'); return null; }
-  if(pulling){ log('a sync is already running — stop it first.','err'); return null; }
   const out=$('oldestout');
   if(out) out.innerHTML='Oldest on flash: <b style="color:#fff">reading…</b>';
-  log('→ FORCE_TRIM → 0 (buffer start) to find the true oldest raw record…','cmd');
-  await forceTrimTo(0);
-  let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }   // one retry (rides a transient reboot)
-  if(!m || m.ts==null){
-    if(out) out.innerHTML='Oldest on flash: <b style="color:var(--bad,#f66)">probe failed</b> — try again';
-    log('couldn’t read the oldest — retry, and keep the app in the foreground.','err'); return null;
+  log('→ get_data_range (read-only)…','cmd');
+  const ts=await readOldest();
+  if(!ts){
+    if(out) out.innerHTML='Oldest on flash: <b style="color:var(--bad,#f66)">couldn’t parse</b> — try again';
+    log('could not parse an oldest ts from get_data_range.','err'); return null;
   }
-  const ageH=((Date.now()/1000)-m.ts)/3600;
-  if(out) out.innerHTML=`Oldest on flash: <b style="color:#fff">${tsStr(m.ts)}</b> <span style="color:var(--dimmer)">(${(ageH/24).toFixed(1)} d ago) · read head is here now</span>`;
-  $('seekdt').value = toLocalInput(new Date(m.ts*1000));            // also drop it in the Night box for a one-tap full pull
-  log(`oldest reachable record: ${tsStr(m.ts)} (${ageH.toFixed(1)} h / ${(ageH/24).toFixed(1)} d ago). Read head positioned here — tap “Sync full history” to pull from here.`,'ok');
-  return m.ts;
+  const ageD=((Date.now()/1000)-ts)/86400;
+  if(out) out.innerHTML=`Oldest on flash: <b style="color:#fff">${tsStr(ts)}</b> <span style="color:var(--dimmer)">(${ageD.toFixed(1)} d ago)</span>`;
+  $('seekdt').value = toLocalInput(new Date(ts*1000));               // drop into the Night box for convenience
+  log(`band's data-range marker: oldest ≈ ${tsStr(ts)} (${ageD.toFixed(1)} d ago). Use “Trim to oldest”, then “Sync full history”, to pull from there.`,'ok');
+  return ts;
 }
 
-// Trim the dump all the way back to the oldest record still on flash, ready for Sync full history. Same
-// FORCE_TRIM→0 mechanism as Show oldest (which already positions the read head) — kept as the explicit action.
+// Position the dump at the oldest record (FORCE_TRIM → 0 = buffer start), confirm by probe, ready for Sync
+// full history. Repositions the read head but never acks/frees (the ack/free happens only on the drain).
 async function trimToOldest(){
-  const ts=await showOldest();
-  if(ts!=null) log('✓ Read head is at the oldest data. Tap “Sync full history” to pull everything on the band.','ok');
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ log('a sync is already running — stop it first.','err'); return; }
+  log('🎯 FORCE_TRIM → 0 (buffer start) to position the dump at the oldest…','cmd');
+  await forceTrimTo(0);
+  let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }    // one retry (rides a transient reboot)
+  if(!m || m.ts==null){ log('couldn’t confirm the landing — try again, keep the app in the foreground.','err'); return; }
+  const ageD=((Date.now()/1000)-m.ts)/86400;
+  $('seekdt').value = toLocalInput(new Date(m.ts*1000));
+  const out=$('oldestout'); if(out) out.innerHTML=`Read head at oldest: <b style="color:#fff">${tsStr(m.ts)}</b> <span style="color:var(--dimmer)">(${ageD.toFixed(1)} d ago)</span>`;
+  log(`✓ Read head positioned at ${tsStr(m.ts)} (${ageD.toFixed(1)} d ago). Tap “Sync full history” to pull everything on the band.`,'ok');
 }
 
 

@@ -71,12 +71,16 @@ permanently lost from WHOOP. So:
     earlier guessed here.** That earlier figure was an under-observation, now retracted. ✅ **EMPIRICALLY
     CONFIRMED ≥5 days (2026-06-24):** a seek capture streamed real records spanning **Jun 19 17:05 → Jun 23**,
     so the band clearly holds well past 4–5 days.
-  - ⚠️ **`get_data_range` (cmd 34) reports the COMMITTED/synced frontier, NOT the oldest raw record (corrected
-    2026-06-24).** After the WHOOP app syncs + our acks, that frontier sits at ~now, so the old
-    `get_data_range`-based "Show oldest" wrongly said "oldest = now" even with days of data physically in flash.
-    The raw flash still holds it (FORCE_TRIM to a low trim reaches Jun-19). So **"Show oldest on flash" now
-    FORCE_TRIMs to 0 and probes where the dump actually lands** — the true oldest reachable record — instead of
-    parsing `get_data_range`. Read-only (repositions the read head, never acks).
+  - 📅 **DECODED a real `get_data_range` (cmd 34) response (2026-06-24): the band held ~44 DAYS.** Structured
+    fields (u32 LE unix ts; the "newest" field matched wall-clock exactly, confirming the epoch): oldest =
+    **May-11 00:42:53**, newest = **now (Jun-24 18:25)**. So actual retention ≫ WHOOP's "up to 14 days" spec
+    when the buffer isn't full. (Pointer fields in the same frame — 2293/14745/20316 — are a DIFFERENT counter
+    space from the FORCE_TRIM "trim" / writeptr ≈104534; not yet reconciled.)
+  - ⚠️ **The "oldest = now" bug was a WINDOW-CLIP, not a wrong pointer (corrected 2026-06-24).** `get_data_range`
+    DOES carry the true oldest ts, but `parseDataRangeOldest` scanned only `now−15d`; the real oldest (44 d
+    back) fell outside, leaving only the "now" field in range. Widened the scan to **90 days**. So **"Show
+    oldest on flash" is back to a READ-ONLY `get_data_range` read** (moves nothing); **"Trim to oldest" is the
+    action** (FORCE_TRIM→0 + probe) that positions the dump for a pull.
   - ⚙️ **FORCE_TRIM seek REWRITTEN to a bracketed (false-position) search (2026-06-24).** The old linear-rate
     extrapolation went unstable on a real seek — it computed a trim of **257431** (~5× beyond the valid ~50k
     range); the band wrapped/clamped it, so probes bounced **Jun-19 ↔ Jun-23** and never converged. The rewrite

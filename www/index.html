@@ -430,7 +430,7 @@
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b style="color:#fff">② Flash data range</b> — WHOOP states the band stores <b>up to 14 days</b>. <b>Show oldest on flash</b> rewinds the dump to the buffer start and reports the <i>true</i> oldest raw record still on the band (read-only — it repositions the read head but frees nothing). It reads the raw flash directly, <i>not</i> the synced cursor — so it stays accurate even after the WHOOP app has synced everything up to now. <b>Trim to oldest</b> does the same and leaves the head there — then <b>Sync full history</b> pulls everything still on the band.</p>
+      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b style="color:#fff">② Flash data range</b> — WHOOP states <b>up to 14 days</b>, but a real read showed this band holding <b>~44 days</b>. <b>Show oldest on flash</b> reads the band's data-range marker (read-only — moves nothing) and reports the oldest record on the band. <b>Trim to oldest</b> positions the dump at that oldest record (FORCE_TRIM to the buffer start) — then <b>Sync full history</b> pulls everything still on the band.</p>
       <div class="row">
         <button class="act" id="showoldest" disabled>Show oldest on flash</button>
         <button class="act" id="trimoldest" disabled>Trim to oldest</button>
