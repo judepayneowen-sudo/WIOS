@@ -1173,22 +1173,37 @@ async function dailySync(){
   { const db=$('dailysync'); if(db){ db.textContent='Syncing… (tap to stop)'; db.classList.add('live'); } }
   skipDrainConfirm = true; autoExport = false;                 // we confirm once here and export once at the end
   const agg = { n:0, minTs:Infinity, maxTs:0, hv:[] };          // aggregate across continuation passes
-  let lastMax = 0;
+  let lastMax = 0; let userStopped = false;
+  const MAX_PASSES = 24;                                        // a full night across slow batches + reconnects
   try{
-    for(let pass=1; pass<=8; pass++){
+    for(let pass=1; pass<=MAX_PASSES; pass++){
+      // If the link dropped mid-pull (the band's backstop-abort), reconnect and resume from where we got to
+      // rather than losing the rest of the night. Bail only if the user stopped or we can't get back on.
+      if(linkDown){ if(!await reconnect()){ break; } }
       if(pass===1) log('① Rewinding to last night (FORCE_TRIM)…','cmd');
       else { $('seekdt').value = toLocalInput(new Date(lastMax)); log(`↻ Continuing from ${new Date(lastMax).toLocaleTimeString()} (pass ${pass})…`,'cmd'); }
       const ok = await forceTrimSeek();
-      if(!ok){ if(pass===1){ log('seek failed — nothing pulled. Adjust “Night to pull” and tap again.','err'); return; } break; }
+      if(!ok){
+        if(linkDown){ continue; }                              // dropped during the seek → reconnect loop above
+        if(pass===1){ log('seek failed — nothing pulled. Adjust “Night to pull” and tap again.','err'); return; }
+        break;
+      }
       log(`② Draining the night${pass>1?` (pass ${pass})`:''}…`,'cmd');
       await drainHistory();
       for(const r of pullRecords) if(r.src===47){ agg.n++; if(r.ts<agg.minTs)agg.minTs=r.ts; if(r.ts>agg.maxTs)agg.maxTs=r.ts; if(r.hr>0)agg.hv.push(r.hr); }
       const passMaxMs = pullMaxTs()*1000;
-      if(!pulling && passMaxMs<=lastMax){ break; }              // user stopped, no new ground → done
+      // Distinguish a user-stop from a link-drop: linkDown means the band/BLE cut out, so resume; pulling
+      // false WITHOUT linkDown means the user tapped stop.
+      if(linkDown){
+        if(passMaxMs>lastMax) lastMax = passMaxMs;             // bank whatever ground this partial pass gained
+        log('link dropped mid-pull — will reconnect and resume from the last record received.','dim');
+        continue;
+      }
+      if(!pulling && passMaxMs<=lastMax){ userStopped=true; break; }   // user stopped, no new ground → done
       if(passMaxMs <= lastMax + 60000){ log('no further records — reached the end of the buffer.','dim'); break; }
       lastMax = passMaxMs;
       if(Date.now() - lastMax < 20*60000){ log('✓ Caught up to now — whole night captured.','ok'); break; }
-      if(pass===8) log('reached pass limit — stopping. Tap again if more remains.','dim');
+      if(pass===MAX_PASSES) log('reached pass limit — stopping. Tap again if more remains.','dim');
     }
   }
   catch(e){ log('daily pull error: '+e.message,'err'); }
@@ -1316,7 +1331,7 @@ async function checkBandBuffer(){
 /* ===================== END DEV/SETUP ===================== */
 
 /* ----------------------------- BLE flow ----------------------------------- */
-let deviceId=null, seq=1;
+let deviceId=null, seq=1; let linkDown=false;
 
 async function connect(){
   try{
@@ -1331,6 +1346,7 @@ async function connect(){
     log(`selected: ${device.name||'WHOOP'} [${deviceId}]`);
     setStatus('connecting…');
     await BleClient.connect(deviceId, onDisconnect);
+    linkDown=false;
     setStatus('connected — '+(device.name||'WHOOP'), true);
     enableDev(true);
 
@@ -1338,15 +1354,45 @@ async function connect(){
     for(const [ch,id] of [[DEV_MODEL,'model'],[DEV_FW,'fw'],[DEV_SERIAL,'serial'],[DEV_MFR,'mfr']]){
       try{ const v=await BleClient.read(deviceId,DEV_SVC,ch); setField(id, new TextDecoder().decode(v).replace(/\0/g,'').trim()); }catch(e){}
     }
-    try{ await BleClient.startNotifications(deviceId,HR_SVC,HR_MEAS, onHR); log('subscribed: live Heart Rate ✓','ok'); }
-    catch(e){ log('HR subscribe failed: '+e.message,'err'); }
-    for(const [ch,label] of [[RX_CMD,'command_from_strap'],[RX_EVT,'events_from_strap'],[RX_DAT,'data_from_strap'],[RX_HF,'hifreq_from_strap']]){
-      try{ await BleClient.startNotifications(deviceId,SVC,ch,(v)=>onFrame(label,v)); subscribedChars.add((SVC+ch).toLowerCase()); log('subscribed: '+label+' ✓','ok'); }
-      catch(e){ log('subscribe '+label+' FAILED: '+e.message,'err'); }
-    }
+    await subscribeAll();
     log('connected. Live HR is flowing — see the Strain/Overview tabs.','ok');
     renderAll();
   }catch(e){ log('connect error: '+e.message,'err'); setStatus('not connected'); }
+}
+
+// Subscribe to HR + the four WHOOP custom-service notify channels. Shared by connect() and reconnect() so
+// a dropped link can be restored with the same notifications wired back up (otherwise a resumed drain would
+// reconnect but never receive any records).
+async function subscribeAll(){
+  try{ await BleClient.startNotifications(deviceId,HR_SVC,HR_MEAS, onHR); log('subscribed: live Heart Rate ✓','ok'); }
+  catch(e){ log('HR subscribe failed: '+e.message,'err'); }
+  for(const [ch,label] of [[RX_CMD,'command_from_strap'],[RX_EVT,'events_from_strap'],[RX_DAT,'data_from_strap'],[RX_HF,'hifreq_from_strap']]){
+    try{ await BleClient.startNotifications(deviceId,SVC,ch,(v)=>onFrame(label,v)); subscribedChars.add((SVC+ch).toLowerCase()); log('subscribed: '+label+' ✓','ok'); }
+    catch(e){ log('subscribe '+label+' FAILED: '+e.message,'err'); }
+  }
+}
+
+// Re-establish a dropped BLE link to the SAME band and re-wire notifications, so a mid-pull disconnect (the
+// band's "Abort History Transmit handled by backstop" we saw on 2026-06-24) can be recovered and the drain
+// resumed from where it left off. Retries with exponential backoff. Returns true once reconnected.
+async function reconnect(tries=6){
+  if(!deviceId){ return false; }
+  for(let i=0;i<tries;i++){
+    const wait = Math.min(8000, 1000*Math.pow(2,i));      // 1s,2s,4s,8s,8s,8s
+    log(`link down — reconnecting in ${wait/1000}s [${i+1}/${tries}]…`,'dim');
+    await delay(wait);
+    try{
+      try{ await BleClient.disconnect(deviceId); }catch(e){}   // clear any half-open handle first
+      await BleClient.connect(deviceId, onDisconnect);
+      linkDown=false;
+      setStatus('reconnected', true); enableDev(true);
+      await subscribeAll();
+      log('✓ reconnected to band.','ok');
+      return true;
+    }catch(e){ log('reconnect attempt failed: '+e.message,'err'); }
+  }
+  log('could not reconnect after several tries — stopping. Tap Pull last night again when the band is back in range.','err');
+  return false;
 }
 
 async function send(command, data=[], label=''){
@@ -1356,9 +1402,11 @@ async function send(command, data=[], label=''){
     log(`TX ${label||command} seq=${seq}  ${hex(frame)}`,'cmd'); seq=(seq+1)&0xFF; if(seq===0) seq=1;
   }catch(e){ log('TX failed: '+e.message,'err'); }
 }
-async function onDisconnect(){ setStatus('disconnected'); enableDev(false);
+async function onDisconnect(){ setStatus('disconnected'); enableDev(false); linkDown=true;
   rtHrOn=false; const b=$('rthr'); if(b){ b.textContent='Realtime HR: off'; b.classList.remove('live'); }
-  pulling=false; drain=null;
+  // Stop the active drain, but DON'T null `drain` — a managed pull (dailySync) inspects linkDown to decide
+  // whether to reconnect and resume from the last record it received, rather than losing the whole night.
+  pulling=false;
   const sb=$('synchist'); if(sb){ sb.textContent='Quick sync (read-only)'; sb.classList.remove('live'); }
   const fb=$('fullsync'); if(fb){ fb.textContent='Sync full history'; fb.classList.remove('live'); }
   log('device disconnected.','err'); }
