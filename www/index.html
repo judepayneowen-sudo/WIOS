@@ -423,14 +423,22 @@
     <details class="card">
       <summary class="muted" style="cursor:pointer;color:#fff">Advanced / manual tools</summary>
 
-      <p style="font-size:12px;line-height:1.5;margin:14px 0 6px;color:var(--dim)"><b style="color:#fff">Manual sync</b> — the Daily pull does these two for you. Use them by hand to re-pull an arbitrary night: set <b>Night to pull</b> above, tap <b>FORCE_TRIM seek</b>, then <b>Sync full history</b>.</p>
+      <p style="font-size:12px;line-height:1.5;margin:14px 0 6px;color:var(--dim)"><b style="color:#fff">① Pull a specific night (manual)</b> — the Daily pull does this for you. To re-pull an arbitrary night by hand: set <b>Night to pull</b> (top of screen), tap <b>FORCE_TRIM seek</b> (rewinds the dump to that night), then <b>Sync full history</b> (drains it forward through the night). ⚠️ The drain <b>frees</b> the records — let the WHOOP app sync first.</p>
       <div class="row">
         <button class="act" id="forcetrim" disabled>FORCE_TRIM seek</button>
         <button class="act" id="fullsync" disabled>Sync full history</button>
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b>Quick sync (read-only)</b> streams just the first window <b>without</b> acknowledging anything (non-destructive). <b>Check sync cursor</b> reads the band's oldest-unsynced marker without changing anything.</p>
+      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b style="color:#fff">② Flash data range</b> — the band keeps only the most recent <b>~4–5 days</b>; older nights have rolled off and can't be pulled. <b>Show oldest on flash</b> reads the band's data-range marker (read-only) so you can check a night is still there <i>before</i> seeking. <b>Trim to oldest</b> rewinds the dump all the way back to that point — then <b>Sync full history</b> pulls everything still on the band.</p>
+      <div class="row">
+        <button class="act" id="showoldest" disabled>Show oldest on flash</button>
+        <button class="act" id="trimoldest" disabled>Trim to oldest</button>
+      </div>
+      <div class="muted" id="oldestout" style="margin-top:8px;font-size:12px">Oldest on flash: <b style="color:#fff">— tap “Show oldest on flash”</b></div>
+
+      <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
+      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b style="color:#fff">③ Read-only checks (non-destructive)</b> — neither acks or frees anything. <b>Quick sync</b> streams just the first window so you can see what's there. <b>Check sync cursor</b> reads the band's oldest-unsynced marker without changing it.</p>
       <div class="row">
         <button class="act" id="synchist" disabled>Quick sync (read-only)</button>
         <button class="act" id="bandcheck" disabled>Check sync cursor</button>

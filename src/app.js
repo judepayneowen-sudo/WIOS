@@ -1046,7 +1046,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','imurt','imuraw','imuprobe','hifreq','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','showoldest','trimoldest','imurt','imuraw','imuprobe','hifreq','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -1259,8 +1259,9 @@ async function drainHistory(){
 
 let dataRangeOldestTs=null;
 // Scan a get_data_range payload for the oldest plausible record timestamp (u32 within now±window).
+// Flash holds ~4–5 days, so look back 6 to be safe (the old 3-day cap could miss the true oldest).
 function parseDataRangeOldest(p){
-  const nowS=Math.floor(Date.now()/1000), lo=nowS-3*86400, hi=nowS+3600; let oldest=null;
+  const nowS=Math.floor(Date.now()/1000), lo=nowS-6*86400, hi=nowS+3600; let oldest=null;
   for(let o=3;o+4<=p.length;o++){ const v=(p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
     if(v>=lo && v<=hi && (oldest===null||v<oldest)) oldest=v; }
   return oldest;
@@ -1268,6 +1269,38 @@ function parseDataRangeOldest(p){
 let dataRangeRaw=null;   // last raw get_data_range response (for read-pointer analysis)
 async function readOldest(){ dataRangeOldestTs=null; dataRangeRaw=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
 const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
+
+// Show the oldest record still on the band's flash (read-only get_data_range) so you can tell, before
+// seeking, whether a target night is still pullable. Updates the on-screen readout + the log.
+async function showOldest(){
+  if(!deviceId){ log('connect first','err'); return null; }
+  const out=$('oldestout');
+  if(out) out.innerHTML='Oldest on flash: <b style="color:#fff">reading…</b>';
+  log('→ get_data_range (oldest on flash)…','cmd');
+  const ts=await readOldest();
+  if(!ts){
+    if(out) out.innerHTML='Oldest on flash: <b style="color:var(--bad,#f66)">couldn’t parse</b> — try again';
+    log('could not parse an oldest timestamp from get_data_range.','err'); return null;
+  }
+  const ageH=((Date.now()/1000)-ts)/3600;
+  if(out) out.innerHTML=`Oldest on flash: <b style="color:#fff">${tsStr(ts)}</b> <span style="color:var(--dimmer)">(${ageH.toFixed(1)} h ago)</span>`;
+  log(`oldest on flash: ${tsStr(ts)} (${ageH.toFixed(1)} h ago) — anything before this has rolled off.`,'ok');
+  return ts;
+}
+
+// Trim the dump all the way back to the oldest record still on flash, then you can Sync full history to
+// pull everything the band still holds. Reads the oldest, drops it into the Night-to-pull box, and seeks.
+async function trimToOldest(){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ log('a sync is already running — stop it first.','err'); return; }
+  const ts=await showOldest();
+  if(!ts) return;
+  $('seekdt').value = toLocalInput(new Date(ts*1000));
+  log('🎯 Trimming the dump back to the oldest record on flash…','cmd');
+  const ok=await forceTrimSeek();
+  if(ok) log('✓ Read head is at the oldest data. Tap “Sync full history” to pull everything on the band.','ok');
+}
+
 
 // The historical read/write pointers live in the get_data_range response header as small counters
 // (~thousands–tens-of-thousands), NOT the big record index. Pull the clean ones (top 2 bytes zero) so we
@@ -1641,6 +1674,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('fullsync').onclick    = drainHistory;
   $('bandcheck').onclick   = checkBandBuffer;
   $('forcetrim').onclick   = forceTrimSeek;
+  { const a=$('showoldest'); if(a) a.onclick=showOldest; }
+  { const a=$('trimoldest'); if(a) a.onclick=trimToOldest; }
   { const a=$('imurt'); if(a) a.onclick=toggleImuRealtime; }
   { const a=$('imuraw'); if(a) a.onclick=toggleRawData; }
   { const a=$('imuprobe'); if(a) a.onclick=imuHistoricalProbe; }
