@@ -76,6 +76,14 @@ permanently lost from WHOOP. So:
     **May-11 00:42:53**, newest = **now (Jun-24 18:25)**. So actual retention ≫ WHOOP's "up to 14 days" spec
     when the buffer isn't full. (Pointer fields in the same frame — 2293/14745/20316 — are a DIFFERENT counter
     space from the FORCE_TRIM "trim" / writeptr ≈104534; not yet reconciled.)
+  - ⛔ **FORCE_TRIM → 0 CRASHES the band (2026-06-24).** A capture showed the strap hard-rebooting TWICE (full
+    boot logs, `SUPERVISOR: Post reboot reason: 0x0007`, `error code 0x05`) ~3 s after a `FORCE_TRIM→0`, and
+    the historical dump returned ZERO `(47)` records (only EVENT(48)/METADATA(49)/CONSOLE(50) frames). Trim 0
+    points BELOW the valid floor into erased flash, and reading it faults the firmware → supervisor reboot. So:
+    **never FORCE_TRIM to 0 / the raw buffer start.** `trimToOldest()` now reads the data-range marker and
+    SEEKS to ~1 h INSIDE the oldest valid data (clear of the erased edge); `forceTrimSeek()` detects the reset
+    (`linkDown`), raises its floor past the offending trim, and BAILS after 2 reboots rather than hammering.
+    The very oldest data sits on this erased edge — prefer seeking a specific RECENT night over "trim to oldest".
   - ⚠️ **The "oldest = now" bug was a WINDOW-CLIP, not a wrong pointer (corrected 2026-06-24).** `get_data_range`
     DOES carry the true oldest ts, but `parseDataRangeOldest` scanned only `now−15d`; the real oldest (44 d
     back) fell outside, leaving only the "now" field in range. Widened the scan to **90 days**. So **"Show

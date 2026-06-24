@@ -1295,19 +1295,22 @@ async function showOldest(){
   return ts;
 }
 
-// Position the dump at the oldest record (FORCE_TRIM → 0 = buffer start), confirm by probe, ready for Sync
-// full history. Repositions the read head but never acks/frees (the ack/free happens only on the drain).
+// Position the dump near the oldest record, ready for Sync full history. ⚠️ FORCE_TRIM → 0 (raw buffer start)
+// CRASHES the band — a capture (2026-06-24) showed it hard-rebooting (reason 0x0007, error 0x05) ~3 s after a
+// trim→0, because 0 points into ERASED flash below the valid floor and the firmware faults reading it. So
+// instead we read the data-range marker (non-destructive) and SEEK to a margin INSIDE the oldest valid data,
+// staying clear of the erased boundary.
 async function trimToOldest(){
   if(!deviceId){ log('connect first','err'); return; }
   if(pulling){ log('a sync is already running — stop it first.','err'); return; }
-  log('🎯 FORCE_TRIM → 0 (buffer start) to position the dump at the oldest…','cmd');
-  await forceTrimTo(0);
-  let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }    // one retry (rides a transient reboot)
-  if(!m || m.ts==null){ log('couldn’t confirm the landing — try again, keep the app in the foreground.','err'); return; }
-  const ageD=((Date.now()/1000)-m.ts)/86400;
-  $('seekdt').value = toLocalInput(new Date(m.ts*1000));
-  const out=$('oldestout'); if(out) out.innerHTML=`Read head at oldest: <b style="color:#fff">${tsStr(m.ts)}</b> <span style="color:var(--dimmer)">(${ageD.toFixed(1)} d ago)</span>`;
-  log(`✓ Read head positioned at ${tsStr(m.ts)} (${ageD.toFixed(1)} d ago). Tap “Sync full history” to pull everything on the band.`,'ok');
+  log('→ reading the band’s oldest marker (get_data_range)…','cmd');
+  const ts=await readOldest();
+  if(!ts){ log('couldn’t read the oldest marker — tap “Show oldest on flash” first.','err'); return; }
+  const safe=ts+3600;                                // aim 1 h INSIDE the oldest valid data (clear of erased flash)
+  $('seekdt').value = toLocalInput(new Date(safe*1000));
+  log(`oldest ≈ ${tsStr(ts)} — seeking to ~1 h inside it (avoiding the erased edge that crashes the band)…`,'cmd');
+  const ok=await forceTrimSeek();
+  if(ok) log('✓ Positioned near the oldest. Tap “Sync full history” to pull everything on the band.','ok');
 }
 
 
@@ -1370,6 +1373,7 @@ async function forceTrimSeek(){
   // Bounds in TRIM space: (loTrim, loTs) older side — unknown ts until probed; (hiTrim, hiTs) newer side = now.
   let loTrim=0, loTs=null, hiTrim=now.trim, hiTs=now.ts, best=null;
   const probe=async(t)=>{ await forceTrimTo(t); let m=await probeReadPos(); if(!m) { await delay(400); m=await probeReadPos(); } return m; };  // one retry
+  let reboots=0;
   for(let iter=1; iter<=11; iter++){
     let mid;
     if(loTs!=null && hiTs>loTs){ let f=(target-loTs)/(hiTs-loTs); f=Math.min(0.9,Math.max(0.1,f)); mid=Math.round(loTrim+f*(hiTrim-loTrim)); }
@@ -1378,6 +1382,11 @@ async function forceTrimSeek(){
     if(mid===loTrim||mid===hiTrim){ break; }
     log(`→ FORCE_TRIM = ${mid} [iter ${iter}, trim ${loTrim}…${hiTrim}]`,'cmd');
     const m=await probe(mid);
+    // The band hard-reboots (reason 0x0007) when a FORCE_TRIM lands in erased flash near the floor — the link
+    // drops. Don't hammer it: raise the floor past this trim and bail after 2 reboots so it can recover.
+    if(linkDown){ reboots++; log(`⚠️ band reset/link dropped at trim ${mid} — that region faults the firmware. Raising the floor.`, 'err');
+      loTrim=mid; if(reboots>=2){ log('stopping — too many resets. Pick a more recent night (the very oldest data sits on an erased edge that crashes the band).','err'); return false; }
+      if(!await reconnect()){ return false; } continue; }
     if(!m || m.trim==null){ log('empty there — erased/too-old flash, raising the floor.','dim'); loTrim=mid; continue; }
     const errMin=(m.ts-target)/60;
     log(`landed ${tsStr(m.ts)} (trim ${m.trim}) — ${errMin>0?'+':''}${errMin.toFixed(0)} min vs target`, Math.abs(errMin)<15?'ok':'cmd');
