@@ -85,6 +85,16 @@ permanently lost from WHOOP. So:
     **`MIN_SAFE_TRIM=2000`** so a near-zero trim is structurally impossible → no `0x0007` crash, no clamp-to-now.
     The user picks a date/time and the pull is stored **in the app** (not just the laptop). `trimToOldest` (the
     FORCE_TRIM→0 crash path) and its button were REMOVED; `showOldest` stays read-only (range info only).
+  - ⚠️ **THE CURSOR IS NOT "NOW" — first rebuild never sent a FORCE_TRIM (capture-proven 2026-06-24 eve).** A
+    capture showed the seek doing only `get_data_range`/`send_historical`/`abort`/`ack` — **zero cmd 25**. Root
+    cause: the rebuild probed the band's CURRENT read cursor and treated it as the newest data. But WHOOP had
+    only synced part-way, so the cursor was parked at **Jun-18 08:29** while `get_data_range` knew the newest was
+    **Jun-24 21:08**. The seek saw `target ≥ cursor` → "nothing to rewind" → returned without trimming, and the
+    drain streamed+**acked Jun-18 (destructive)**. FIX: take the TRUE range (oldest+newest) from the read-only
+    `get_data_range`, use the cursor probe ONLY as a measured `(ts,trim)` anchor, gate the target to
+    `[oldest,newest]`, and jump `trim = anchorTrim + (target−anchorTs)/rate` in **EITHER direction** (target can
+    be older OR newer than the parked cursor) with the ceiling = the estimated writeptr (so a forward seek isn't
+    capped at the cursor). `parseDataRange` now returns `{oldest,newest}`; `readDataRange()` exposes both.
   - ⛔ **FORCE_TRIM → 0 CRASHES the band (2026-06-24).** A capture showed the strap hard-rebooting TWICE (full
     boot logs, `SUPERVISOR: Post reboot reason: 0x0007`, `error code 0x05`) ~3 s after a `FORCE_TRIM→0`, and
     the historical dump returned ZERO `(47)` records (only EVENT(48)/METADATA(49)/CONSOLE(50) frames). Trim 0

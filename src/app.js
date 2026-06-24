@@ -872,7 +872,8 @@ function onFrame(label, dv){
   if(pulling && info.packetType===49 && info.payloadBytes) onHistMeta(info.payloadBytes);  // METADATA: HISTORY_END trim / COMPLETE
   if(info.packetType===36 && info.code===0x22 && info.payloadBytes){     // get_data_range response
     dataRangeRaw = info.payloadBytes;                                    // keep raw for pointer analysis
-    const ts=parseDataRangeOldest(info.payloadBytes); if(ts) dataRangeOldestTs=ts;
+    const r=parseDataRange(info.payloadBytes);
+    if(r.oldest) dataRangeOldestTs=r.oldest; if(r.newest) dataRangeNewestTs=r.newest;
   }
   if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex});
     if(capture.length>CAP_MAX+CAP_TRIM) capture.splice(0, CAP_TRIM); }   // trim in chunks, not shift-per-frame (O(n²))
@@ -1257,20 +1258,30 @@ async function drainHistory(){
     const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } }
 }
 
-let dataRangeOldestTs=null;
-// Scan a get_data_range payload for the oldest plausible record timestamp (u32 within now±window). A real
-// response (2026-06-24) carried the structured fields oldest=May-11 (44 days back) and newest=now — proving
-// the band can hold far more than WHOOP's "up to 14 days" spec. The old 15-day window CLIPPED that true
-// oldest (44 d > 15 d), leaving only the "now" field in range → it wrongly reported "oldest = now". Widen to
-// 90 days; the only out-of-range junk u32 in that frame was a 2030 value, excluded by the hi bound.
-function parseDataRangeOldest(p){
-  const nowS=Math.floor(Date.now()/1000), lo=nowS-90*86400, hi=nowS+3600; let oldest=null;
+let dataRangeOldestTs=null, dataRangeNewestTs=null;
+// Scan a get_data_range payload for the oldest AND newest plausible record timestamps (u32 within now±window).
+// A real response (2026-06-24) carried the structured fields oldest=May-11 (44 days back) and newest=now —
+// proving the band can hold far more than WHOOP's "up to 14 days" spec, AND that the newest field is the TRUE
+// end of data regardless of where the read cursor currently sits. The old 15-day window CLIPPED that true
+// oldest (44 d > 15 d); widened to 90 days. The only out-of-range junk u32 in that frame was a 2030 value,
+// excluded by the hi bound.
+function parseDataRange(p){
+  const nowS=Math.floor(Date.now()/1000), lo=nowS-120*86400, hi=nowS+3600; let oldest=null, newest=null;
   for(let o=3;o+4<=p.length;o++){ const v=(p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
-    if(v>=lo && v<=hi && (oldest===null||v<oldest)) oldest=v; }
-  return oldest;
+    if(v>=lo && v<=hi){ if(oldest===null||v<oldest) oldest=v; if(newest===null||v>newest) newest=v; } }
+  return {oldest, newest};
 }
+function parseDataRangeOldest(p){ return parseDataRange(p).oldest; }
 let dataRangeRaw=null;   // last raw get_data_range response (for read-pointer analysis)
-async function readOldest(){ dataRangeOldestTs=null; dataRangeRaw=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
+// Read the band's data range (cmd 34, READ-ONLY — moves nothing, frees nothing). Returns {oldestTs, newestTs}:
+// the true span of records still on flash. newestTs is the real "now" end of data, which is NOT necessarily
+// where the read cursor sits (WHOOP's sync can leave the cursor parked mid-buffer).
+async function readDataRange(){
+  dataRangeOldestTs=null; dataRangeNewestTs=null; dataRangeRaw=null;
+  await send(34,[],'get_data_range'); await delay(1500);
+  return {oldestTs:dataRangeOldestTs, newestTs:dataRangeNewestTs};
+}
+async function readOldest(){ return (await readDataRange()).oldestTs; }
 const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
 
 // Show the band's data range from its get_data_range marker — READ-ONLY (sends no FORCE_TRIM, moves nothing,
@@ -1338,35 +1349,41 @@ async function forceTrimTo(trim){
   await send(25,[trim&0xFF,(trim>>>8)&0xFF,(trim>>>16)&0xFF,(trim>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
 }
 
-// FORCE_TRIM seek — REBUILT 2026-06-24 from the ground up on everything the captures taught us. The dump
-// streams from the "trim" (commit cursor); FORCE_TRIM (cmd 25) moves it. Hard facts the rebuild respects:
-//   • trim ↑ = newer; the WRITE POINTER (≈ now's trim) is the CEILING — above it the band clamps to "now".
+// FORCE_TRIM seek — REBUILT 2026-06-24, then CORRECTED 2026-06-24 (eve) after a capture proved the first
+// rebuild never sent a single FORCE_TRIM. The dump streams from the "trim" (commit cursor); FORCE_TRIM (cmd 25)
+// moves it. Hard facts the seek respects:
+//   • trim ↑ = newer; the WRITE POINTER (≈ the newest record's trim) is the CEILING — above it the band clamps.
 //   • trims near 0 are ERASED flash and HARD-REBOOT the band — never go there (MIN_SAFE_TRIM + range gate).
-//   • time↔trim is monotonic but variable-rate, so ANCHOR at now and jump by a MEASURED rate, refined each probe.
-// Method: gate the target to the valid range (get_data_range), anchor at the current head (a plain probe — no
-// FORCE_TRIM, so safe — which also gives the ceiling), then jump trim = anchorTrim + (target−anchorTs)/rate,
-// CLAMPED to [floor, ceiling], probe where it landed, refine the rate from the (ts,trim) feedback, repeat.
-// Lands at/just before the target so the drain reads forward through the window. Never sends an out-of-range or
-// near-zero trim → no clamp-to-now, no crash. (This is the anchor+rate method that worked originally; the later
-// binary-search rewrite discarded the rate and groped upward from trim 0 = the crash zone.)
+//   • time↔trim is monotonic but variable-rate → ANCHOR on a measured (ts,trim) point and jump by a rate, refined.
+//   • ⚠️ THE CURSOR IS NOT "NOW". The first rebuild probed the current cursor and treated it as the newest data,
+//     so when WHOOP had only synced part-way (a real capture: cursor parked at Jun-18 while get_data_range knew
+//     the newest was Jun-24) the seek concluded "target ≥ now, nothing to rewind" and returned WITHOUT trimming.
+// So: take the TRUE range from get_data_range (oldest+newest, read-only), use the cursor probe ONLY as a measured
+// anchor (not as "now"), gate the target to [oldest, newest], then jump trim = anchorTrim + (target−anchorTs)/rate
+// in EITHER direction (the target can be older OR newer than the parked cursor), clamped to [floor, ceiling],
+// probe, refine the rate, repeat. Ceiling = the estimated writeptr (anchorTrim + (newest−anchorTs)/rate) so a
+// forward seek isn't capped at the cursor. Lands at/just before the target so the drain reads forward through it.
 async function forceTrimSeek(){
   if(!deviceId){ log('connect first','err'); return false; }
   const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
   if(!Number.isFinite(target)){ log('pick a date & time first','err'); return false; }
   log(`🎯 Seeking to ${new Date(target*1000).toLocaleString()} …`,'cmd');
-  const oldestTs=await readOldest();                              // valid-range floor (read-only, never crashes)
-  const now=await probeReadPos();                                 // anchor at the head; its trim = the ceiling
-  if(!now || now.trim==null){ log('probe failed — connect and keep the app in the foreground.','err'); return false; }
-  const ceil=now.trim;
-  log(`now: ${tsStr(now.ts)} @ trim ${ceil}${oldestTs?` · oldest ≈ ${tsStr(oldestTs)}`:''}`,'dim');
-  if(target >= now.ts-60){ log('that time is at/after the newest data — nothing to rewind. Pulling from here.','cmd'); return true; }
-  if(oldestTs && target < oldestTs-60){ log(`that time has rolled off the band (oldest ≈ ${tsStr(oldestTs)}). Pick a later time.`,'err'); return false; }
-  let sPerTrim=SEED_S_PER_TRIM, floor=Math.max(MIN_SAFE_TRIM, Math.round(ceil*0.04));
-  let aTs=now.ts, aTrim=ceil, best=null, reboots=0;
+  const range=await readDataRange();                             // TRUE span on flash (read-only, never crashes)
+  const cur=await probeReadPos();                                // measured anchor = where the cursor sits NOW
+  if(!cur || cur.trim==null){ log('probe failed — connect and keep the app in the foreground.','err'); return false; }
+  const newest=range.newestTs, oldest=range.oldestTs;
+  log(`band: cursor at ${tsStr(cur.ts)} @ trim ${cur.trim}${oldest?` · range ${tsStr(oldest)} → ${tsStr(newest)}`:''}`,'dim');
+  if(newest && target>=newest-60){ log(`that time is at/after the newest data on the band (${tsStr(newest)}) — nothing to pull. Pick an earlier time.`,'err'); return false; }
+  if(oldest && target<oldest-60){ log(`that time has rolled off the band (oldest ≈ ${tsStr(oldest)}). Pick a later time.`,'err'); return false; }
+  let sPerTrim=SEED_S_PER_TRIM, floor=MIN_SAFE_TRIM;
+  // Ceiling = the estimated writeptr (the newest record's trim), so a forward seek (target newer than the parked
+  // cursor) isn't capped at the cursor. If we don't know the newest ts, fall back to the cursor's own trim.
+  let ceil = (newest && newest>cur.ts) ? Math.round(cur.trim + (newest-cur.ts)/sPerTrim) : cur.trim;
+  let aTs=cur.ts, aTrim=cur.trim, best=null, reboots=0;
   const clampTrim=(t)=> Math.min(ceil-1, Math.max(floor, Math.round(t)));
   for(let iter=1; iter<=6; iter++){
-    let est=clampTrim(aTrim + (target-aTs)/sPerTrim);             // trim↑=newer ⇒ older target ⇒ lower trim
-    if(est===aTrim) est=clampTrim(aTrim-1000);                    // guarantee movement
+    let est=clampTrim(aTrim + (target-aTs)/sPerTrim);            // trim↑=newer ⇒ older target ⇒ lower trim, & vice-versa
+    if(est===aTrim) est=clampTrim(aTrim + (target<aTs?-1000:1000)); // guarantee movement, in the right direction
     log(`→ FORCE_TRIM ${est} [iter ${iter}, ${sPerTrim.toFixed(1)} s/trim, range ${floor}…${ceil}]`,'cmd');
     await forceTrimTo(est);
     let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }
@@ -1377,7 +1394,7 @@ async function forceTrimSeek(){
     if(!m || m.ts==null){ floor=Math.max(floor,est+2500); log('empty here — near the erased edge; raising the floor.','dim'); continue; }
     const errMin=(m.ts-target)/60;
     log(`landed ${tsStr(m.ts)} @ trim ${m.trim} — ${errMin>0?'+':''}${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
-    if(m.ts<=target && (!best||m.ts>best.ts)) best=m;             // best safe landing = newest at/before target
+    if(m.ts<=target && (!best||m.ts>best.ts)) best=m;            // best safe landing = newest at/before target
     if(errMin>=-20 && errMin<=5){ await forceTrimTo(m.trim); log('🎉 Landed at/just before the target — pulling from here.','ok'); return true; }
     if(m.trim!==aTrim){ const r=(aTs-m.ts)/(aTrim-m.trim); if(r>0.3 && r<20) sPerTrim=r; }   // refine local rate
     aTs=m.ts; aTrim=m.trim;
