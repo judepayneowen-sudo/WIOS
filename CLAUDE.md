@@ -68,9 +68,19 @@ permanently lost from WHOOP. So:
   answer-key), then **FORCE_TRIM (cmd 25) back to that night → Sync full history** re-reads the raw `(47)`
   data from flash. Pair the two → a calibration pair for any night. Repeatable, in-app.
   - 📏 **Flash retention — WHOOP's spec is "up to 14 days" (per their website, 2026-06-24), NOT the "~4–5 days"
-    earlier guessed here.** That earlier figure was an under-observation, now retracted. The **"Show oldest on
-    flash"** button (cmd 34 `get_data_range`, `parseDataRangeOldest`, 15-day scan window) reads the band's
-    ACTUAL oldest record — use it to settle the real retention empirically rather than assuming.
+    earlier guessed here.** That earlier figure was an under-observation, now retracted. ✅ **EMPIRICALLY
+    CONFIRMED ≥5 days (2026-06-24):** a seek capture streamed real records spanning **Jun 19 17:05 → Jun 23**,
+    so the band clearly holds well past 4–5 days. The **"Show oldest on flash"** button (cmd 34
+    `get_data_range`, `parseDataRangeOldest`, 15-day scan window) reads the ACTUAL oldest record — use it to
+    settle the full retention.
+  - ⚙️ **FORCE_TRIM seek REWRITTEN to a bracketed (false-position) search (2026-06-24).** The old linear-rate
+    extrapolation went unstable on a real seek — it computed a trim of **257431** (~5× beyond the valid ~50k
+    range); the band wrapped/clamped it, so probes bounced **Jun-19 ↔ Jun-23** and never converged. The rewrite
+    in `forceTrimSeek()` probes both ends (now + oldest via FORCE_TRIM→0) to BOUND the valid trim range, then
+    interpolates the target strictly INSIDE that bracket and shrinks it — never extrapolating out of range.
+    Also fixed `probeReadPos()`: it took the MIN ts of a probe window, but bursts stream non-monotonically (one
+    window held both 06:45 and 03:57), so it now uses the median of the first arrivals. `trimToOldest()` no
+    longer seeks — it FORCE_TRIMs straight to 0 (the buffer start) and confirms by probe.
 - ⚠️ **Phase-1 vs Phase-2 — the "no seek needed" rule only holds in Phase 2.** In **Phase 2** (subscription
   cancelled, WHOOP app gone) nobody else acks the band, so the dump's oldest-un-acked frontier *is* last
   night → a plain **daily `Sync full history`** pulls it incrementally, no seek. **But in Phase 1

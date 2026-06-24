@@ -1294,12 +1294,13 @@ async function showOldest(){
 async function trimToOldest(){
   if(!deviceId){ log('connect first','err'); return; }
   if(pulling){ log('a sync is already running — stop it first.','err'); return; }
-  const ts=await showOldest();
-  if(!ts) return;
-  $('seekdt').value = toLocalInput(new Date(ts*1000));
-  log('🎯 Trimming the dump back to the oldest record on flash…','cmd');
-  const ok=await forceTrimSeek();
-  if(ok) log('✓ Read head is at the oldest data. Tap “Sync full history” to pull everything on the band.','ok');
+  log('🎯 Trimming the dump back to the oldest record on flash (FORCE_TRIM → 0)…','cmd');
+  await forceTrimTo(0);                              // trim 0 = start of the buffer; the band lands at its oldest
+  const m=await probeReadPos();                      // confirm where it landed
+  if(!m || m.ts==null){ log('couldn’t confirm the landing — try again.','err'); return; }
+  $('seekdt').value = toLocalInput(new Date(m.ts*1000));
+  const out=$('oldestout'); if(out) out.innerHTML=`Oldest on flash: <b style="color:#fff">${tsStr(m.ts)}</b>`;
+  log(`✓ Read head is at the oldest data — ${tsStr(m.ts)}. Tap “Sync full history” to pull everything on the band.`,'ok');
 }
 
 
@@ -1325,48 +1326,69 @@ async function probeReadPos(){
   pulling=wasPulling;
   await send(20,[],'abort_historical_transmits'); await delay(300);
   if(!pullRecords.length) return null;
-  const first=pullRecords.reduce((m,r)=> r.ts<m.ts?r:m, pullRecords[0]);
-  return { ts:first.ts, trim:drain.endTrim };
+  // The read head is where the dump STARTS, i.e. the first records that arrived — NOT the minimum ts. Bursts
+  // stream non-monotonically (a single window was seen holding both 06:45 and 03:57 on 2026-06-24), so taking
+  // the min ts gave a noisy/wrong landing. Use the median of the first few arrivals — robust to a stray.
+  const head=pullRecords.slice(0,7).map(r=>r.ts).filter(t=>t>1500000000).sort((a,b)=>a-b);
+  if(!head.length) return null;
+  return { ts:head[head.length>>1], trim:drain.endTrim };
 }
-// The historical dump reads from the TRIM (the commit cursor); FORCE_TRIM (cmd 25) moves it. The seek
-// converts time→trim using this rate, refined live from probes (~15 s per trim unit on the 5.0).
-let SEC_PER_TRIM = 5.0;      // refined live from probes; seeded LOW so the first jump errs BACKWARD (safe — see below)
+// Send FORCE_TRIM (cmd 25) to a specific trim: abort any in-flight dump, then set the commit cursor.
+async function forceTrimTo(trim){
+  trim=Math.max(0,Math.round(trim));
+  await send(20,[],'abort'); await delay(300);
+  await send(25,[trim&0xFF,(trim>>>8)&0xFF,(trim>>>16)&0xFF,(trim>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
+}
 
-// FORCE_TRIM (cmd 25) — forces the TRIM (the commit cursor the historical dump actually reads from; it's
-// the value we ack). Unlike cmd 33 (a separate read pointer that didn't move the dump), this should move
-// the dump's start. Uses the same date/time box as Seek; sends the trim directly (no page conversion),
-// then probes where the dump starts and refines. EXPERIMENTAL — only on data WHOOP already has.
+// FORCE_TRIM (cmd 25) seek — moves the dump's commit cursor (TRIM) to a chosen time. REWRITTEN 2026-06-24
+// after a capture showed the old linear-rate extrapolation going unstable: it computed a trim of 257431
+// (~5× beyond the valid ~50k range), which the band wrapped/clamped, so probes bounced Jun-19↔Jun-23 and
+// never converged. The fix is a BRACKETED search: probe both ends (now + oldest) to bound the valid trim
+// range, then interpolate the target WITHIN that bracket (false-position) and shrink it — never
+// extrapolating out of range. Robust to the non-linear, variable-density time↔trim mapping.
 async function forceTrimSeek(){
   if(!deviceId){ log('connect first','err'); return false; }
   const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
   if(!Number.isFinite(target)){ log('pick a date & time (the “Night to pull” box) first','err'); return false; }
-  log(`🎯 FORCE_TRIM (cmd 25) to ${new Date(target*1000).toLocaleString()} …`,'cmd');
-  let a=await probeReadPos();
-  if(!a || a.trim==null){ log('probe failed — no records / no trim.','err'); return false; }
-  log(`start: read head at ${tsStr(a.ts)} (trim ${a.trim})`,'dim');
-  // Aim a margin BEFORE the target. Landing before the night is harmless — the drain reads FORWARD through
-  // the night from wherever the read head sits. Landing AFTER the target misses the night entirely (the bug
-  // observed 2026-06-24: a Jun-22 17:26 seek undershot to Jun-23 07:26 and pulled the wrong day). So we treat
-  // "at or before target" as success and only keep jumping back while still too recent.
-  const MARGIN_S = 1800;                 // land ~30 min before the night start
-  const aim = target - MARGIN_S;
-  for(let iter=1; iter<=6; iter++){
-    let trimEst=Math.round(a.trim + (aim - a.ts)/SEC_PER_TRIM); if(trimEst<0) trimEst=0;
-    log(`→ FORCE_TRIM (cmd 25) = ${trimEst} [iter ${iter}, ${SEC_PER_TRIM.toFixed(1)} s/trim]`,'cmd');
-    await send(20,[],'abort'); await delay(300);
-    await send(25,[trimEst&0xFF,(trimEst>>>8)&0xFF,(trimEst>>>16)&0xFF,(trimEst>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
-    const b=await probeReadPos();
-    if(!b || b.trim==null){ log('no records after FORCE_TRIM — may be past the end. Try an earlier time.','err'); return false; }
-    const errMin=(b.ts-target)/60;
-    log(`landed at ${tsStr(b.ts)} (trim ${b.trim}) — ${errMin>0?'+':''}${errMin.toFixed(0)} min vs target`, errMin<=5?'ok':'cmd');
-    if(b.ts===a.ts && b.trim===a.trim && iter>1){ log('✗ FORCE_TRIM did not move the read head. Save the file — the console will show what cmd 25 did.','err'); return false; }
-    if(errMin<=5){ log('🎉 Read head is at/just before the night — the whole window is ahead. Pulling from here.','ok'); return true; }
-    // Landed too RECENT (after the target): refine the rate from this move and jump further back.
-    if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>0.5 && r<400) SEC_PER_TRIM=r; }
-    a=b;
+  log(`🎯 FORCE_TRIM seek to ${new Date(target*1000).toLocaleString()} …`,'cmd');
+  // Bracket end A — the current read position (most recent), probed without moving anything.
+  const now=await probeReadPos();
+  if(!now || now.trim==null){ log('probe failed — no records / no trim.','err'); return false; }
+  log(`now: head at ${tsStr(now.ts)} (trim ${now.trim})`,'dim');
+  // Bracket end B — the oldest on flash (FORCE_TRIM to 0 lands at the start of the buffer).
+  await forceTrimTo(0);
+  const old=await probeReadPos();
+  if(!old || old.trim==null){ log('probe at oldest failed.','err'); return false; }
+  log(`oldest: head at ${tsStr(old.ts)} (trim ${old.trim})`,'dim');
+  // Order the two endpoints by time (don't assume which trim direction is newer — derive it).
+  let lo = old.ts<=now.ts ? {...old} : {...now};   // smaller ts (older)
+  let hi = old.ts<=now.ts ? {...now} : {...old};   // larger ts (newer)
+  if(hi.ts-lo.ts < 120 || lo.trim===hi.trim){ log('band returned too small a range to seek — just use “Sync full history”.','err'); return false; }
+  if(target <= lo.ts){ log(`target is at/older than the oldest on flash (${tsStr(lo.ts)}) — landing at the oldest.`,'cmd'); await forceTrimTo(lo.trim); return true; }
+  if(target >= hi.ts){ log('target is newer than the current read head — nothing to rewind.','cmd'); await forceTrimTo(hi.trim); return true; }
+  // False-position search strictly inside [lo,hi]. Each probe replaces the endpoint on its side of the target.
+  let best=lo;                                       // best safe landing = newest point still at/before target
+  for(let iter=1; iter<=8; iter++){
+    let frac=(target-lo.ts)/(hi.ts-lo.ts); frac=Math.min(0.9,Math.max(0.1,frac));   // stay inside the bracket
+    let trimEst=Math.round(lo.trim + frac*(hi.trim-lo.trim));
+    const tmin=Math.min(lo.trim,hi.trim), tmax=Math.max(lo.trim,hi.trim);
+    trimEst=Math.min(tmax,Math.max(tmin,trimEst));
+    log(`→ FORCE_TRIM = ${trimEst} [iter ${iter}, bracket ${tsStr(lo.ts)} … ${tsStr(hi.ts)}]`,'cmd');
+    await forceTrimTo(trimEst);
+    const m=await probeReadPos();
+    if(!m || m.trim==null){ log('no records there — shrinking toward the older side.','dim'); hi={ts:(lo.ts+hi.ts)/2, trim:trimEst}; continue; }
+    const errMin=(m.ts-target)/60;
+    log(`landed ${tsStr(m.ts)} (trim ${m.trim}) — ${errMin>0?'+':''}${errMin.toFixed(0)} min vs target`, Math.abs(errMin)<15?'ok':'cmd');
+    if(m.ts<=target){ if(m.ts>best.ts) best=m; }
+    if(errMin>=-30 && errMin<=5){ log('🎉 Landed at/just before the night — the whole window is ahead. Pulling from here.','ok'); await forceTrimTo(m.trim); return true; }
+    // Narrow the bracket, keeping the target straddled.
+    if(m.ts<target) lo={...m}; else hi={...m};
+    if(Math.abs(hi.trim-lo.trim)<=2){ log('bracket converged.','dim'); break; }
   }
-  log('⚠️ Still landed after the target after 6 tries — set “Night to pull” earlier and tap again.','err');
-  return false;
+  // Land on the safe side: the newest probe that was still at/before the target.
+  await forceTrimTo(best.trim);
+  log(`landed at ${tsStr(best.ts)} — closest at/before the target. Pulling from here.`, best.ts<=target?'ok':'err');
+  return best.ts<=target;
 }
 
 // ── ONE-TAP daily calibration pull (Phase 1): FORCE_TRIM back to last night → drain → auto-export. ──
