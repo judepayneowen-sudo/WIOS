@@ -4,6 +4,16 @@ Standalone iOS app that reads a **WHOOP 5.0** directly over Bluetooth. Independe
 other project. This file is the portable context: read it on your phone (GitHub) or hand it
 to Claude on `claude.ai/code` pointed at this repo to continue with full context.
 
+## FORCE_TRIM seek undershoot — fixed (v2.5.1, 2026-06-24)
+A real pull (target Jun-22 17:26 night) was diagnosed from a capture: FORCE_TRIM rewound from "now"
+(Jun-24) only back to **Jun-23 07:26** — ~14 h SHORT of the target — so the drain read forward through
+the wrong day. Causes: (1) initial `SEC_PER_TRIM=15` was ~5× too high → the first jump moved back far too
+little; (2) the seek accepted landing on *either* side of the target, so a short link window bailed while
+still past the night. Fix in `forceTrimSeek()`: seed the rate LOW (5 s/trim, biases the safe/backward
+direction), aim 30 min BEFORE the target, accept only "at or before target" as success, keep jumping back
+while still too recent, 6 iterations, and FAIL LOUDLY (return false) rather than silently pull the wrong
+day. Landing before the night is harmless — the drain reads forward through it.
+
 ## UI overhaul (v0.2.0)
 WHOOP-style dashboard rebuilt against the official app: **interactive, horizontally-scrollable
 charts with a drag-to-read scrub readout** (HR 24h, recovery/strain/sleep trends), a new **Trends**

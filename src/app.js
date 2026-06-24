@@ -1296,7 +1296,7 @@ async function probeReadPos(){
 }
 // The historical dump reads from the TRIM (the commit cursor); FORCE_TRIM (cmd 25) moves it. The seek
 // converts time→trim using this rate, refined live from probes (~15 s per trim unit on the 5.0).
-let SEC_PER_TRIM = 15.0;     // refined live from probes
+let SEC_PER_TRIM = 5.0;      // refined live from probes; seeded LOW so the first jump errs BACKWARD (safe — see below)
 
 // FORCE_TRIM (cmd 25) — forces the TRIM (the commit cursor the historical dump actually reads from; it's
 // the value we ack). Unlike cmd 33 (a separate read pointer that didn't move the dump), this should move
@@ -1310,22 +1310,29 @@ async function forceTrimSeek(){
   let a=await probeReadPos();
   if(!a || a.trim==null){ log('probe failed — no records / no trim.','err'); return false; }
   log(`start: read head at ${tsStr(a.ts)} (trim ${a.trim})`,'dim');
-  for(let iter=1; iter<=4; iter++){
-    let trimEst=Math.round(a.trim + (target - a.ts)/SEC_PER_TRIM); if(trimEst<0) trimEst=0;
+  // Aim a margin BEFORE the target. Landing before the night is harmless — the drain reads FORWARD through
+  // the night from wherever the read head sits. Landing AFTER the target misses the night entirely (the bug
+  // observed 2026-06-24: a Jun-22 17:26 seek undershot to Jun-23 07:26 and pulled the wrong day). So we treat
+  // "at or before target" as success and only keep jumping back while still too recent.
+  const MARGIN_S = 1800;                 // land ~30 min before the night start
+  const aim = target - MARGIN_S;
+  for(let iter=1; iter<=6; iter++){
+    let trimEst=Math.round(a.trim + (aim - a.ts)/SEC_PER_TRIM); if(trimEst<0) trimEst=0;
     log(`→ FORCE_TRIM (cmd 25) = ${trimEst} [iter ${iter}, ${SEC_PER_TRIM.toFixed(1)} s/trim]`,'cmd');
     await send(20,[],'abort'); await delay(300);
     await send(25,[trimEst&0xFF,(trimEst>>>8)&0xFF,(trimEst>>>16)&0xFF,(trimEst>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
     const b=await probeReadPos();
     if(!b || b.trim==null){ log('no records after FORCE_TRIM — may be past the end. Try an earlier time.','err'); return false; }
     const errMin=(b.ts-target)/60;
-    log(`landed at ${tsStr(b.ts)} (trim ${b.trim}) — off by ${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
+    log(`landed at ${tsStr(b.ts)} (trim ${b.trim}) — ${errMin>0?'+':''}${errMin.toFixed(0)} min vs target`, errMin<=5?'ok':'cmd');
     if(b.ts===a.ts && b.trim===a.trim && iter>1){ log('✗ FORCE_TRIM did not move the read head. Save the file — the console will show what cmd 25 did.','err'); return false; }
-    if(Math.abs(errMin)<10){ log('🎉 Within 10 min — FORCE_TRIM rewound the dump to that night.','ok'); return true; }
-    if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>1 && r<120) SEC_PER_TRIM=r; }
+    if(errMin<=5){ log('🎉 Read head is at/just before the night — the whole window is ahead. Pulling from here.','ok'); return true; }
+    // Landed too RECENT (after the target): refine the rate from this move and jump further back.
+    if(b.trim!==a.trim){ const r=(b.ts-a.ts)/(b.trim-a.trim); if(r>0.5 && r<400) SEC_PER_TRIM=r; }
     a=b;
   }
-  log('Got as close as it could — pulling from here.','dim');
-  return true;
+  log('⚠️ Still landed after the target after 6 tries — set “Night to pull” earlier and tap again.','err');
+  return false;
 }
 
 // ── ONE-TAP daily calibration pull (Phase 1): FORCE_TRIM back to last night → drain → auto-export. ──
