@@ -81,6 +81,17 @@ permanently lost from WHOOP. So:
     Also fixed `probeReadPos()`: it took the MIN ts of a probe window, but bursts stream non-monotonically (one
     window held both 06:45 and 03:57), so it now uses the median of the first arrivals. `trimToOldest()` no
     longer seeks — it FORCE_TRIMs straight to 0 (the buffer start) and confirms by probe.
+  - 🔑 **THE TRIM CEILING — the band's own console explains the clamp (2026-06-24).** A capture showed the
+    firmware logging: **`Trim request @ 257431 is beyond writeptr in erased data` → `Setting trim to writeptr @
+    104534`** → `Hist pull too short for valid stats`. So **trim ↑ = newer; the WRITE POINTER (≈104534 on
+    Jun-24, i.e. "now") is the HARD CEILING**; any FORCE_TRIM above it lands in erased flash and is clamped to
+    the writeptr (= now, which has no history to stream → empty probe). This is why the upfront "oldest"
+    probe (`FORCE_TRIM→0`) was the step that "failed" and why overshoots clamped to now. `forceTrimSeek()`
+    REWRITTEN AGAIN to a **bounded binary search downward from now**: `hi` starts at now's trim (never exceeds
+    the writeptr), `lo` at 0; bisect/interpolate on trim via the monotonic ts feedback; an **empty probe = fell
+    into erased/too-old flash → raise the floor**. No upfront oldest probe; nothing is ever sent above the
+    writeptr. (Same capture also showed the band can REBOOT mid-seek — boot logs `Maverick main Ver 50.36.2.0`,
+    reset reason `0x0007` — so the search tolerates transient empty probes with one retry.)
 - ⚠️ **Phase-1 vs Phase-2 — the "no seek needed" rule only holds in Phase 2.** In **Phase 2** (subscription
   cancelled, WHOOP app gone) nobody else acks the band, so the dump's oldest-un-acked frontier *is* last
   night → a plain **daily `Sync full history`** pulls it incrementally, no seek. **But in Phase 1
