@@ -127,6 +127,18 @@ permanently lost from WHOOP. So:
     into erased/too-old flash → raise the floor**. No upfront oldest probe; nothing is ever sent above the
     writeptr. (Same capture also showed the band can REBOOT mid-seek — boot logs `Maverick main Ver 50.36.2.0`,
     reset reason `0x0007` — so the search tolerates transient empty probes with one retry.)
+- 🔁 **BLE frame REASSEMBLY (v2.8.2).** The band splits OVERSIZED frames (the 1.2–2 kB end-of-dump blocks) across
+  several notifications; only the first carries the `0xAA` SOF. The old per-notification parse logged every
+  continuation fragment as a red `no 0xAA / short` (one real sync produced 1,451) and spawned bogus `?NNN`
+  unknown-type ghosts in the `fd4b frames:` counter. `onFrame` now buffers per channel and slices COMPLETE frames
+  by **SOF + declared length** (full frame = 8-byte header + declared) before parsing; raw notifications are still
+  captured verbatim for RE. Replaying a real capture: 1,451 red errors → 0, same 79,710 frames, 0 leftover.
+- 📲 **AUTO-SYNC pill (v2.8.3, Phase-1 = tap-to-sync).** Top-right `#syncpill` (WHOOP-style). On launch
+  `autoConnect()` reconnects to the remembered band by saved `deviceId` (no chooser — same call `reconnect()`
+  uses). The pill shows how far **behind** the app's stored data is (`now − max stored maxTs`), and a **tap**
+  runs `resumeSync()` → seek to `lastStoredTs − 15 min` (overlap so a seek overshoot can't leave a gap; dedup
+  absorbs it) → `dailySync` drain → store. It **never auto-drains** (the ack is destructive — would free records
+  WHOOP hasn't synced in Phase 1); the drain's confirm stays the gate. Flip to fully-automatic only in Phase 2.
 - ⚠️ **Phase-1 vs Phase-2 — the "no seek needed" rule only holds in Phase 2.** In **Phase 2** (subscription
   cancelled, WHOOP app gone) nobody else acks the band, so the dump's oldest-un-acked frontier *is* last
   night → a plain **daily `Sync full history`** pulls it incrementally, no seek. **But in Phase 1

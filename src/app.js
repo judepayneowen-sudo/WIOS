@@ -1442,6 +1442,7 @@ async function dailySync(){
   if(!window.confirm(`Trim the band to ${when.toLocaleString()} and sync everything from there into the app?\n\nIt keeps draining forward until it reaches now, then stores it on the phone (Health → Stored data).\n\n⚠️ Reading FREES those records on the band, so let the official WHOOP app sync FIRST if you still need them there.\n\nProceed?`)){
     log('sync cancelled — let the WHOOP app sync first.','dim'); return; }
   { const db=$('dailysync'); if(db){ db.textContent='Syncing… (tap to stop)'; db.classList.add('live'); } }
+  setSync('syncing');
   skipDrainConfirm = true; autoExport = false;                 // we confirm once here and export once at the end
   const agg = { n:0, minTs:Infinity, maxTs:0, hv:[] };          // aggregate across continuation passes
   let lastMax = 0; let userStopped = false;
@@ -1478,7 +1479,8 @@ async function dailySync(){
     }
   }
   catch(e){ log('daily pull error: '+e.message,'err'); }
-  finally{ skipDrainConfirm=false; const db=$('dailysync'); if(db){ db.textContent='Trim to date & sync to app'; db.classList.remove('live'); } }
+  finally{ skipDrainConfirm=false; const db=$('dailysync'); if(db){ db.textContent='Trim to date & sync to app'; db.classList.remove('live'); }
+    await refreshSyncState(); }                                 // pill → "Up to date" / new "behind"
   // One aggregate preview for the whole multi-pass capture. The data is already stored on the phone (each
   // drain pass calls persistPull → store.ingest); the laptop send below is just an optional extra copy.
   const hrs = agg.n ? ((agg.maxTs-agg.minTs)/3600).toFixed(1)+'h' : '0h';
@@ -1605,12 +1607,86 @@ async function checkBandBuffer(){
 /* ----------------------------- BLE flow ----------------------------------- */
 let deviceId=null, seq=1; let linkDown=false;
 
+// ── Sync status pill (top-right, WHOOP-style) ───────────────────────────────
+// States: off (no band) · connecting · idle ("Up to date") · behind ("Xd behind · tap") · syncing · error.
+function setSync(state, detail){
+  const pill=$('syncpill'); if(!pill) return;
+  pill.dataset.state=state;
+  const COL={off:'#777',connecting:'#3b82f6',idle:'#22c55e',behind:'#f59e0b',syncing:'#3b82f6',error:'#ef4444'};
+  const LBL={off:'Not connected',connecting:'Connecting…',idle:'Up to date',behind:'Tap to sync',syncing:'Syncing…',error:'Error'};
+  const dot=pill.querySelector('.sd'), txt=pill.querySelector('.stx');
+  if(dot) dot.style.background=COL[state]||COL.off;
+  if(txt) txt.textContent=detail!=null?detail:(LBL[state]||LBL.off);
+  pill.classList.toggle('spin', state==='syncing'||state==='connecting');
+}
+function humanBehind(sec){
+  if(sec<3600)  return Math.max(1,Math.round(sec/60))+'m behind';
+  if(sec<86400) return (sec/3600).toFixed(sec<36000?1:0).replace(/\.0$/,'')+'h behind';
+  return (sec/86400).toFixed(1).replace(/\.0$/,'')+'d behind';
+}
+// The last data point we have stored = the newest maxTs across all stored days.
+async function lastStoredTs(){
+  try{ const days=await store.listDays(); let mx=0; for(const d of days) if(d.maxTs>mx) mx=d.maxTs; return mx||null; }
+  catch(e){ return null; }
+}
+// Refresh the pill from current state: how far behind the band the app's stored data is.
+async function refreshSyncState(){
+  if(!deviceId){ setSync('off'); return; }
+  if(pulling){ setSync('syncing'); return; }
+  const last=await lastStoredTs();
+  if(!last){ setSync('behind','Sync · tap'); return; }
+  const behind=Math.floor(Date.now()/1000)-last;
+  if(behind < 30*60) setSync('idle','Up to date');
+  else setSync('behind', humanBehind(behind)+' · tap');
+}
+const RESUME_OVERLAP=15*60;   // start a few min BEFORE the last stored point so a slight seek overshoot can't leave a gap
+// Tap-to-sync (Phase-1 safe): resume from the last stored point → drain forward to now → store. The drain's own
+// confirm (it FREES records on the band) stays the safety gate; this just sets the target and lets it run.
+async function resumeSync(){
+  if(!deviceId){ await connect(); return; }
+  if(pulling){ await drainHistory(); return; }                 // already running → stop
+  const last=await lastStoredTs();
+  if(last){
+    $('seekdt').value = toLocalInput(new Date((last-RESUME_OVERLAP)*1000));
+    log(`↻ Resuming from the last stored point (${new Date(last*1000).toLocaleString()})…`,'cmd');
+  } else {
+    const d=new Date(); d.setDate(d.getDate()-1); d.setHours(20,0,0,0); $('seekdt').value = toLocalInput(d);
+    log('no stored data yet — starting from last night.','dim');
+  }
+  await dailySync();                                           // drives the pill (syncing → refresh) itself
+}
+// Pill tap: off → connect (chooser) · syncing → stop · otherwise → resume sync.
+async function onSyncPillTap(){
+  const st=($('syncpill')||{}).dataset?.state;
+  if(st==='off') return connect();
+  if(st==='syncing') return drainHistory();
+  return resumeSync();
+}
+function resetSession(){
+  rt.counts={}; renderRt();
+  state.hrCount=0; state.hrSum=0; state.restHr=null; lastHrTs=0; rr.length=0;
+  state.strainAcc=newStrainAcc();
+}
+// Shared post-connection setup for BOTH the manual chooser (connect) and the saved-id auto-connect (autoConnect):
+// remember the band, read battery/device info, wire notifications, then show how far behind the app is.
+async function finishConnect(name){
+  linkDown=false;
+  setStatus('connected — '+(name||'WHOOP'), true);
+  enableDev(true);
+  lset('bandId', deviceId); lset('bandName', name||'WHOOP');   // remember for next launch's auto-connect
+  try{ const b=await BleClient.read(deviceId,BATT_SVC,BATT_LVL); setField('batt', b.getUint8(0)+'%'); }catch(e){ log('battery read: '+e.message,'err'); }
+  for(const [ch,id] of [[DEV_MODEL,'model'],[DEV_FW,'fw'],[DEV_SERIAL,'serial'],[DEV_MFR,'mfr']]){
+    try{ const v=await BleClient.read(deviceId,DEV_SVC,ch); setField(id, new TextDecoder().decode(v).replace(/\0/g,'').trim()); }catch(e){}
+  }
+  await subscribeAll();
+  log('connected. Live HR is flowing — see the Strain/Overview tabs.','ok');
+  renderAll();
+  await refreshSyncState();                                   // → "up to date" / "Xd behind · tap"
+}
 async function connect(){
   try{
-    rt.counts={}; renderRt();
-    state.hrCount=0; state.hrSum=0; state.restHr=null; lastHrTs=0; rr.length=0;
-    state.strainAcc=newStrainAcc();
-    setStatus('initialising…');
+    resetSession();
+    setStatus('initialising…'); setSync('connecting');
     await BleClient.initialize();
     log('select your WHOOP in the chooser…');
     const device=await BleClient.requestDevice({ namePrefix:'WHOOP', optionalServices:[...WHOOP_SERVICES,HR_SVC,BATT_SVC,DEV_SVC] });
@@ -1618,18 +1694,24 @@ async function connect(){
     log(`selected: ${device.name||'WHOOP'} [${deviceId}]`);
     setStatus('connecting…');
     await BleClient.connect(deviceId, onDisconnect);
-    linkDown=false;
-    setStatus('connected — '+(device.name||'WHOOP'), true);
-    enableDev(true);
-
-    try{ const b=await BleClient.read(deviceId,BATT_SVC,BATT_LVL); setField('batt', b.getUint8(0)+'%'); }catch(e){ log('battery read: '+e.message,'err'); }
-    for(const [ch,id] of [[DEV_MODEL,'model'],[DEV_FW,'fw'],[DEV_SERIAL,'serial'],[DEV_MFR,'mfr']]){
-      try{ const v=await BleClient.read(deviceId,DEV_SVC,ch); setField(id, new TextDecoder().decode(v).replace(/\0/g,'').trim()); }catch(e){}
-    }
-    await subscribeAll();
-    log('connected. Live HR is flowing — see the Strain/Overview tabs.','ok');
-    renderAll();
-  }catch(e){ log('connect error: '+e.message,'err'); setStatus('not connected'); }
+    await finishConnect(device.name);
+  }catch(e){ log('connect error: '+e.message,'err'); setStatus('not connected'); setSync('off'); }
+}
+// Auto-connect to the remembered band on app open — no chooser/gesture, just BleClient.connect(savedId) (the
+// same call reconnect() already uses). Silent, graceful fallback if the band isn't nearby.
+async function autoConnect(){
+  const id=lget('bandId'); if(!id){ setSync('off'); return; }
+  const name=lget('bandName')||'WHOOP';
+  try{
+    resetSession();
+    setSync('connecting'); setStatus('auto-connecting…');
+    await BleClient.initialize();
+    await BleClient.connect(id, onDisconnect);
+    deviceId=id;
+    log(`auto-connected to ${name}.`,'ok');
+    await finishConnect(name);
+  }catch(e){ setSync('off'); setStatus('not connected');
+    log(`auto-connect skipped (${e.message}) — tap the sync pill or Connect WHOOP.`,'dim'); }
 }
 
 // Subscribe to HR + the four WHOOP custom-service notify channels. Shared by connect() and reconnect() so
@@ -1676,6 +1758,7 @@ async function send(command, data=[], label=''){
   }catch(e){ log('TX failed: '+e.message,'err'); }
 }
 async function onDisconnect(){ setStatus('disconnected'); enableDev(false); linkDown=true;
+  setSync(pulling?'syncing':'off');                             // keep "syncing" during a mid-drain reconnect
   rtHrOn=false; const b=$('rthr'); if(b){ b.textContent='Realtime HR: off'; b.classList.remove('live'); }
   // Stop the active drain, but DON'T null `drain` — a managed pull (dailySync) inspects linkDown to decide
   // whether to reconnect and resume from the last record it received, rather than losing the whole night.
@@ -1724,7 +1807,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if($('laphost')) $('laphost').value = loadLapHost();
   selfTest();
   $('connect').onclick    = connect;
-  $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} } };
+  { const sp=$('syncpill'); if(sp) sp.onclick = onSyncPillTap; }
+  $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} lset('bandId',null); deviceId=null; setSync('off'); } };
   $('hello').onclick      = ()=>send(145,[0x01],'get_hello');
   $('battery').onclick    = ()=>send(26,[],'get_battery_level');
   $('range').onclick      = ()=>send(34,[],'get_data_range');
@@ -1758,4 +1842,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   renderRt();
   renderAll();
   refreshHist();                                     // load stored nights → real-data screens (async)
+  refreshSyncState();                                // pill → "Not connected" until auto-connect resolves
+  autoConnect();                                     // reconnect to the remembered band (no chooser); pill drives the rest
 });
