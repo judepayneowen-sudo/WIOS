@@ -7,6 +7,7 @@ import {
   sleepNeedMinutes, sleepPerformance, summarizeStages,
   percentile, nightBaselines, classifySleepStage, classifySleepStages, STAGE,
   detectSleepWindow,
+  sleepConsistency, vo2maxFromRun, vo2maxFromHrRatio, leanBodyMass, whoopAge,
 } from '../src/scores.js';
 
 let pass = 0, fail = 0;
@@ -97,6 +98,34 @@ ok(hypno.length === night.length, 'one stage per epoch');
     ok(w.restHr <= 58, `resting HR from the night floor (got ${w.restHr})`);
   }
   ok(detectSleepWindow([{ t: 0, hr: 60, move: 0 }]) === null, 'too few epochs → null');
+}
+
+// --- Healthspan / WHOOP Age foundation ---------------------------------------
+{
+  const H = 22 * 3600000; // 22:00 in ms-of-day
+  // very regular schedule (22:00→06:00 every night) → high consistency; jittered → lower
+  const regular = [0, 1, 2, 3].map((d) => ({ start: H + d * 60000, end: H + 8 * 3600000 + d * 60000 }));
+  const jittery = [{ start: H, end: H + 8 * 3600000 }, { start: H + 100 * 60000, end: H + 8 * 3600000 + 90 * 60000 },
+    { start: H - 80 * 60000, end: H + 7 * 3600000 }, { start: H + 130 * 60000, end: H + 9 * 3600000 }];
+  const cReg = sleepConsistency(regular), cJit = sleepConsistency(jittery);
+  ok(cReg > 90, `regular schedule → high consistency (${cReg})`);
+  ok(cJit < cReg, `jittery schedule → lower consistency (${cJit} < ${cReg})`);
+  ok(sleepConsistency([{ start: 0, end: 1 }]) === null, 'one night → null consistency');
+
+  const v = vo2maxFromRun({ distanceM: 3000, durationS: 900, hrAtPace: 150, restingHr: 50, maxHr: 190 }); // 12 km/h, HR 150
+  ok(v > 30 && v < 80, `VO2max from run in physiological range (${v})`);
+  const vFit = vo2maxFromRun({ distanceM: 3000, durationS: 900, hrAtPace: 130, restingHr: 50, maxHr: 190 });
+  ok(vFit > v, 'lower HR at the same pace → higher VO2max (fitter)');
+  ok(vo2maxFromHrRatio({ maxHr: 190, restingHr: 50 }) > vo2maxFromHrRatio({ maxHr: 190, restingHr: 70 }), 'HR-ratio: lower RHR → higher VO2max');
+
+  ok(leanBodyMass({ weightKg: 80, heightCm: 180, sex: 'm' }) > leanBodyMass({ weightKg: 60, heightCm: 180, sex: 'm' }), 'LBM rises with weight');
+  ok(approx(leanBodyMass({ weightKg: 80, bodyFatPct: 25 }), 60, 0.5), 'LBM from body-fat% (80kg @25% → 60kg)');
+
+  const fit = whoopAge({ chronoAge: 40, vo2max: 55, restingHr: 48, hrv: 90, sleepConsistency: 90, steps: 12000, strain: 14 });
+  const unfit = whoopAge({ chronoAge: 40, vo2max: 30, restingHr: 72, hrv: 30, sleepConsistency: 40, steps: 3000, strain: 4 });
+  ok(fit.age < 40 && unfit.age > 40, `healthier metrics → younger WHOOP Age (${fit.age} vs ${unfit.age})`);
+  ok(fit.pace < 1 && unfit.pace > 1, 'pace of aging tracks age/chrono');
+  ok(whoopAge({ chronoAge: 40 }).age === 40, 'no metrics → age = chronological');
 }
 
 console.log(`\nscores: ${pass} passed, ${fail} failed`);

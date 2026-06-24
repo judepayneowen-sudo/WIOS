@@ -259,3 +259,87 @@ export function detectSleepWindow(epochs, params = SLEEP_WINDOW_PARAMS) {
   return { start: epochs[s].t, end: epochs[e].t, startIdx: s, endIdx: e,
            durMin: Math.round((epochs[e].t - epochs[s].t) / 60000), restHr: Math.round(restHr) };
 }
+
+/* ===================== Healthspan / WHOOP Age =================================
+ * WHOOP Age (Pace of Aging) is a model over ~9 health metrics. It's reproducible the same way as sleep:
+ * WHOOP's value is the answer-key (read off the app), and we compute the inputs from band + profile. These
+ * are the input estimators + a transparent linear Age model; all weights/anchors are CALIBRATE placeholders
+ * to be fit against the user's WHOOP Age over a calibration week. Inputs still needing band work: Steps
+ * (accel walking-detection — needs a calibration walk) and VO2 max (needs a GPS-paced run). */
+
+// Sleep consistency 0–100: how stable bedtime + wake time are night-to-night (WHOOP uses ~last 4 days). Lower
+// night-to-night variation in sleep onset and offset → higher consistency. `windows` = [{start,end}] ms.
+export const SLEEP_CONSISTENCY = { devFloorMin: 15, devCeilMin: 120 }; // ≤15 min dev → 100%, ≥120 min → 0% (CALIBRATE)
+export function sleepConsistency(windows, params = SLEEP_CONSISTENCY) {
+  const w = (windows || []).filter((x) => x && x.start != null && x.end != null);
+  if (w.length < 2) return null;
+  const tod = (ms) => { const d = ((ms / 60000) % 1440 + 1440) % 1440; return d; }; // minutes into local-ish day
+  // circular mean-absolute-deviation of onset and offset times across consecutive nights
+  const dev = (times) => {
+    let s = 0, c = 0;
+    for (let i = 1; i < times.length; i++) {
+      let d = Math.abs(times[i] - times[i - 1]); if (d > 720) d = 1440 - d; // wrap midnight
+      s += d; c++;
+    }
+    return c ? s / c : 0;
+  };
+  const onsetDev = dev(w.map((x) => tod(x.start)));
+  const offsetDev = dev(w.map((x) => tod(x.end)));
+  const avgDev = (onsetDev + offsetDev) / 2;
+  const { devFloorMin: lo, devCeilMin: hi } = params;
+  return Math.round(100 * clamp((hi - avgDev) / (hi - lo), 0, 1));
+}
+
+// VO2 max — WHOOP's method: pair pace (phone GPS) with HR during an outdoor activity, extrapolate the
+// sub-maximal VO2 to HR-max via the HR-reserve ratio. ACSM running VO2 (ml/kg/min) from speed; Fick-style
+// extrapolation: VO2max = VO2@pace × (HRmax−HRrest)/(HR@pace−HRrest).
+export function vo2maxFromRun({ distanceM, durationS, hrAtPace, restingHr, maxHr }) {
+  if (!(distanceM > 0) || !(durationS > 0) || !(hrAtPace > 0) || !(maxHr > hrAtPace) || !(hrAtPace > restingHr)) return null;
+  const speedMperMin = distanceM / (durationS / 60);
+  const vo2AtPace = 0.2 * speedMperMin + 3.5;                 // ACSM walking/running gross VO2 (flat)
+  const vo2max = vo2AtPace * (maxHr - restingHr) / (hrAtPace - restingHr);
+  return +vo2max.toFixed(1);
+}
+// Standalone fallback when no GPS run is available: Uth–Sørensen–Overgaard–Pedersen HR-ratio estimate.
+export function vo2maxFromHrRatio({ maxHr, restingHr }) {
+  if (!(maxHr > 0) || !(restingHr > 0)) return null;
+  return +(15.3 * (maxHr / restingHr)).toFixed(1);
+}
+
+// Lean body mass (kg) — Boer formula from height/weight/sex (a WHOOP Age input; profile-entered, not band).
+export function leanBodyMass({ weightKg, heightCm, sex = 'm', bodyFatPct = null }) {
+  if (bodyFatPct != null && weightKg > 0) return +(weightKg * (1 - bodyFatPct / 100)).toFixed(1);
+  if (!(weightKg > 0) || !(heightCm > 0)) return null;
+  return +(sex === 'f' ? 0.252 * weightKg + 0.473 * heightCm - 48.3
+                       : 0.407 * weightKg + 0.267 * heightCm - 19.2).toFixed(1);
+}
+
+// WHOOP Age model: physiological age = chronological age + Σ wᵢ·(metric better/worse than its age-norm). Each
+// term lowers age when the metric is healthier than typical-for-age and raises it when worse. Weights + norms
+// are CALIBRATE placeholders (literature-anchored) to be fit to the user's WHOOP Age. Returns {age, pace,
+// contributions} where pace = physiological/chronological. Only the metrics provided are used; the rest are
+// skipped (and their weight redistributed implicitly by absence).
+export const WHOOP_AGE = {
+  // norm(age) anchors + per-unit year impact (CALIBRATE)
+  vo2max:          { w: -0.18, norm: (a) => 50 - 0.30 * a },         // higher fitness → younger
+  restingHr:       { w:  0.10, norm: () => 60 },                     // lower RHR → younger
+  hrv:             { w: -0.06, norm: (a) => 70 - 0.5 * a },          // higher HRV → younger
+  sleepConsistency:{ w: -0.05, norm: () => 75 },                     // more consistent → younger
+  steps:           { w: -0.0008, norm: () => 7000 },                 // more steps → younger
+  leanBodyMass:    { w: -0.05, norm: (a, sex) => sex === 'f' ? 45 : 60 },
+  strain:          { w: -0.20, norm: () => 10 },                     // more (healthy) activity → younger
+};
+export function whoopAge({ chronoAge, sex = 'm', vo2max = null, restingHr = null, hrv = null,
+  sleepConsistency: sc = null, steps = null, leanBodyMass: lbm = null, strain = null, model = WHOOP_AGE } = {}) {
+  if (!(chronoAge > 0)) return null;
+  const vals = { vo2max, restingHr, hrv, sleepConsistency: sc, steps, leanBodyMass: lbm, strain };
+  let age = chronoAge; const contributions = {};
+  for (const k of Object.keys(model)) {
+    const v = vals[k]; if (v == null) continue;
+    const m = model[k]; const norm = m.norm(chronoAge, sex);
+    const delta = +(m.w * (v - norm)).toFixed(2);
+    contributions[k] = delta; age += delta;
+  }
+  age = Math.max(18, +age.toFixed(1));
+  return { age, pace: +(age / chronoAge).toFixed(2), contributions };
+}
