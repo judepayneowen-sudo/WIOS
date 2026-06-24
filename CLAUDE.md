@@ -70,9 +70,13 @@ permanently lost from WHOOP. So:
   - 📏 **Flash retention — WHOOP's spec is "up to 14 days" (per their website, 2026-06-24), NOT the "~4–5 days"
     earlier guessed here.** That earlier figure was an under-observation, now retracted. ✅ **EMPIRICALLY
     CONFIRMED ≥5 days (2026-06-24):** a seek capture streamed real records spanning **Jun 19 17:05 → Jun 23**,
-    so the band clearly holds well past 4–5 days. The **"Show oldest on flash"** button (cmd 34
-    `get_data_range`, `parseDataRangeOldest`, 15-day scan window) reads the ACTUAL oldest record — use it to
-    settle the full retention.
+    so the band clearly holds well past 4–5 days.
+  - ⚠️ **`get_data_range` (cmd 34) reports the COMMITTED/synced frontier, NOT the oldest raw record (corrected
+    2026-06-24).** After the WHOOP app syncs + our acks, that frontier sits at ~now, so the old
+    `get_data_range`-based "Show oldest" wrongly said "oldest = now" even with days of data physically in flash.
+    The raw flash still holds it (FORCE_TRIM to a low trim reaches Jun-19). So **"Show oldest on flash" now
+    FORCE_TRIMs to 0 and probes where the dump actually lands** — the true oldest reachable record — instead of
+    parsing `get_data_range`. Read-only (repositions the read head, never acks).
   - ⚙️ **FORCE_TRIM seek REWRITTEN to a bracketed (false-position) search (2026-06-24).** The old linear-rate
     extrapolation went unstable on a real seek — it computed a trim of **257431** (~5× beyond the valid ~50k
     range); the band wrapped/clamped it, so probes bounced **Jun-19 ↔ Jun-23** and never converged. The rewrite

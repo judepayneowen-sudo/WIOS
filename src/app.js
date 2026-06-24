@@ -1273,34 +1273,35 @@ const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
 
 // Show the oldest record still on the band's flash (read-only get_data_range) so you can tell, before
 // seeking, whether a target night is still pullable. Updates the on-screen readout + the log.
+// Find the TRUE oldest record still in raw flash. NOTE: get_data_range reports the band's COMMITTED/synced
+// frontier (which, once the WHOOP app has synced and we've acked, sits at ~now) — NOT the oldest raw record,
+// so it wrongly said "oldest = now" even with days of data physically present. The reliable way is to
+// FORCE_TRIM to the buffer start and see where the dump actually lands. Read-only: it repositions the read
+// head but never acks/frees anything.
 async function showOldest(){
   if(!deviceId){ log('connect first','err'); return null; }
+  if(pulling){ log('a sync is already running — stop it first.','err'); return null; }
   const out=$('oldestout');
   if(out) out.innerHTML='Oldest on flash: <b style="color:#fff">reading…</b>';
-  log('→ get_data_range (oldest on flash)…','cmd');
-  const ts=await readOldest();
-  if(!ts){
-    if(out) out.innerHTML='Oldest on flash: <b style="color:var(--bad,#f66)">couldn’t parse</b> — try again';
-    log('could not parse an oldest timestamp from get_data_range.','err'); return null;
+  log('→ FORCE_TRIM → 0 (buffer start) to find the true oldest raw record…','cmd');
+  await forceTrimTo(0);
+  let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }   // one retry (rides a transient reboot)
+  if(!m || m.ts==null){
+    if(out) out.innerHTML='Oldest on flash: <b style="color:var(--bad,#f66)">probe failed</b> — try again';
+    log('couldn’t read the oldest — retry, and keep the app in the foreground.','err'); return null;
   }
-  const ageH=((Date.now()/1000)-ts)/3600;
-  if(out) out.innerHTML=`Oldest on flash: <b style="color:#fff">${tsStr(ts)}</b> <span style="color:var(--dimmer)">(${ageH.toFixed(1)} h ago)</span>`;
-  log(`oldest on flash: ${tsStr(ts)} (${ageH.toFixed(1)} h ago) — anything before this has rolled off.`,'ok');
-  return ts;
+  const ageH=((Date.now()/1000)-m.ts)/3600;
+  if(out) out.innerHTML=`Oldest on flash: <b style="color:#fff">${tsStr(m.ts)}</b> <span style="color:var(--dimmer)">(${(ageH/24).toFixed(1)} d ago) · read head is here now</span>`;
+  $('seekdt').value = toLocalInput(new Date(m.ts*1000));            // also drop it in the Night box for a one-tap full pull
+  log(`oldest reachable record: ${tsStr(m.ts)} (${ageH.toFixed(1)} h / ${(ageH/24).toFixed(1)} d ago). Read head positioned here — tap “Sync full history” to pull from here.`,'ok');
+  return m.ts;
 }
 
-// Trim the dump all the way back to the oldest record still on flash, then you can Sync full history to
-// pull everything the band still holds. Reads the oldest, drops it into the Night-to-pull box, and seeks.
+// Trim the dump all the way back to the oldest record still on flash, ready for Sync full history. Same
+// FORCE_TRIM→0 mechanism as Show oldest (which already positions the read head) — kept as the explicit action.
 async function trimToOldest(){
-  if(!deviceId){ log('connect first','err'); return; }
-  if(pulling){ log('a sync is already running — stop it first.','err'); return; }
-  log('🎯 Trimming the dump back to the oldest record on flash (FORCE_TRIM → 0)…','cmd');
-  await forceTrimTo(0);                              // trim 0 = start of the buffer; the band lands at its oldest
-  const m=await probeReadPos();                      // confirm where it landed
-  if(!m || m.ts==null){ log('couldn’t confirm the landing — try again.','err'); return; }
-  $('seekdt').value = toLocalInput(new Date(m.ts*1000));
-  const out=$('oldestout'); if(out) out.innerHTML=`Oldest on flash: <b style="color:#fff">${tsStr(m.ts)}</b>`;
-  log(`✓ Read head is at the oldest data — ${tsStr(m.ts)}. Tap “Sync full history” to pull everything on the band.`,'ok');
+  const ts=await showOldest();
+  if(ts!=null) log('✓ Read head is at the oldest data. Tap “Sync full history” to pull everything on the band.','ok');
 }
 
 
