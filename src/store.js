@@ -136,10 +136,18 @@ function stageNight(rec, ctx) {
   const asleepMin = Math.round(m.rem + m.sws + m.light);
   const needMin = Math.round(sleepNeedMinutes({ dayStrain: ctx.strain || 0 }));
   const perf = sleepPerformance(asleepMin, needMin);
+  // Run-length-encode the per-epoch hypnogram into compact segments [{s, m}] so the Sleep screen can draw a
+  // real hypnogram without re-loading the heavy arrays (each night is only a few dozen segments).
+  const segs = [];
+  for (const st of stages) {
+    const last = segs[segs.length - 1];
+    if (last && last.s === st) last.m += 0.5; else segs.push({ s: st, m: 0.5 });
+  }
   return {
     start: win.start, end: win.end, inBedMin: win.durMin,
     remMin: Math.round(m.rem), swsMin: Math.round(m.sws), lightMin: Math.round(m.light), awakeMin: Math.round(m.awake),
     asleepMin, needMin, performance: perf != null ? Math.round(perf * 100) : null,
+    needBaselineMin: 480, disturbances: segs.filter((g) => g.s === 'awake').length, segs,
   };
 }
 

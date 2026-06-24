@@ -13,7 +13,7 @@
  */
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
 import { SplashScreen } from '@capacitor/splash-screen';
-import { makeStrainAccumulator, maxHeartRate, sleepNeedMinutes } from './scores.js';
+import { makeStrainAccumulator, maxHeartRate, sleepNeedMinutes, rollingStats, recoveryScore } from './scores.js';
 import * as store from './store.js';
 
 /* ----------------------------- GATT map ----------------------------------- */
@@ -121,6 +121,33 @@ const newStrainAcc = ()=> makeStrainAccumulator({ restingHr:profile.restingHr||5
 const state = { hr:null, hrvMs:null, restHr:null, hrCount:0, hrSum:0, strainAcc:null, recovery:null, sleep:null,
                 skinTempC:null, spo2:null };   // band-derived from the (47) record on the last pull
 let lastHrTs=0;
+
+/* ----- on-device history cache (from the IndexedDB store) — drives the REAL-data screens -----
+   The detail screens (Sleep/Strain/Trends/Recovery) read live from here when we have stored nights,
+   falling back to SAMPLE only when the store is empty. Refreshed on launch + after every pull. */
+let histDays = [];                                            // newest-first day summaries from the store
+function computeRecoveryTrend(){
+  const asc=[...histDays].reverse();                          // oldest→newest for trailing baselines
+  for(let i=0;i<asc.length;i++){ const d=asc[i];
+    const prior=asc.slice(Math.max(0,i-14),i).filter(x=>x.hrvMs&&x.restHr);
+    if(d.hrvMs&&d.restHr&&prior.length>=3){
+      const hrvBase=rollingStats(prior.map(x=>x.hrvMs)), rhrBase=rollingStats(prior.map(x=>x.restHr));
+      d.rec=recoveryScore({ hrv:d.hrvMs, hrvBase, rhr:d.restHr, rhrBase,
+        skinTempC:d.skinTempC, skinTempBase:prior.length?prior.reduce((a,x)=>a+(x.skinTempC||0),0)/prior.length:null,
+        spo2:d.spo2, sleepPerformance:d.sleep&&d.sleep.performance!=null?d.sleep.performance/100:null });
+    } else d.rec=null;
+  }
+}
+async function refreshHist(){
+  try{ histDays = await store.listDays(); }catch(e){ histDays=[]; }
+  computeRecoveryTrend();
+  // patch live state with the most recent night so Home tiles reflect real data
+  const ls=histDays.find(d=>d.sleep), ld=histDays[0];
+  if(ld){ if(ld.hrvMs!=null && state.hrvMs==null) state.hrvMs=ld.hrvMs; if(ld.restHr!=null && state.restHr==null) state.restHr=ld.restHr; }
+  if(['sleep','strain','trends','recovery','overview'].includes(curScreen)) showScreen(curScreen);
+}
+const latestDay   = ()=> histDays[0]||null;
+const latestSleep = ()=> histDays.find(d=>d.sleep)||null;
 
 /* ----------------------------- rings + renders ---------------------------- */
 const RING_C = 2*Math.PI*88;
@@ -325,8 +352,36 @@ function renderRecovery(){
   interactiveChart($('rec-trend'), R.trend, {color:c,h:120,unit:'%',min:0,max:100});
   setField('rec-trend-avg', 'avg '+Math.round(R.trend.reduce((a,b)=>a+b.v,0)/R.trend.length)+'%');
 }
+// Flip a hand-coded screen's "preview · sample" badge to "your data" (green) once it's backed by the store.
+function markPreview(sectionId, isSample){
+  const sec=$(sectionId); if(!sec) return; const p=sec.querySelector('.preview'); if(!p) return;
+  p.textContent = isSample ? 'preview · sample' : 'your data';
+  p.style.color = isSample ? '' : 'var(--rec-green)';
+  p.style.borderColor = isSample ? '' : 'var(--rec-green)';
+}
+// Adapt a stored day's sleep summary → the shape renderSleep expects.
+function sleepFromStore(d){
+  const sl=d.sleep;
+  return { perf: sl.performance!=null?sl.performance:0, eff:null, consistency:null, respiratory:null,
+    debtMin:0, inBedMin:sl.inBedMin, disturbances:sl.disturbances||0, segs:sl.segs||[],
+    need:{ baseline:sl.needBaselineMin||480, debt:0, strain:Math.max(0,(sl.needMin||0)-(sl.needBaselineMin||480)), nap:0 } };
+}
+// Adapt a stored day → the shape renderStrain expects. Calories estimated from TRIMP load; workouts come from
+// activity detection (not built yet) so the list stays empty until then.
+function strainFromStore(d){
+  const zs=d.zoneSeconds||[0,0,0,0,0,0];
+  return { day:d.strain||0, optLo:Math.max(0,(d.strain||0)-2), optHi:(d.strain||0)+3,
+    cal: d.strain?Math.round(d.strain*180):0, avg:d.avgHr||0, max:d.maxHr||0, maxHr:effMaxHr(),
+    vow:`Your stored day: strain ${(d.strain||0).toFixed(1)}, average HR ${d.avgHr||'—'} bpm over ${d.spanH||0}h on-band.`,
+    zones:zs, workouts:[], hr24:[], hr:[] };
+}
 function renderStrain(){
-  const S=SAMPLE.strain, live=state.strainAcc?state.strainAcc.strain:null;
+  const real=latestDay();
+  if(real){ const S=strainFromStore(real); markPreview('s-strain', false); return renderStrainWith(S); }
+  markPreview('s-strain', true); renderStrainWith(SAMPLE.strain);
+}
+function renderStrainWith(S){
+  const live=state.strainAcc?state.strainAcc.strain:null;
   setField('str-val', S.day.toFixed(1));
   const mk=$('str-mk'); if(mk) mk.style.left=(S.day/21*100)+'%';
   const opt=$('str-opt'); if(opt){ opt.style.left=(S.optLo/21*100)+'%'; opt.style.width=((S.optHi-S.optLo)/21*100)+'%'; }
@@ -338,11 +393,15 @@ function renderStrain(){
   setHTML('str-zones', zoneRows(S.zones, S.maxHr));
   setField('str-cal', S.cal); setField('str-avg', S.avg); setField('str-max', S.max);
   const wk=$('str-workouts');
-  if(wk) wk.innerHTML=S.workouts.map(w=>`<div class="wk"><div class="wk-top"><span class="wk-nm">${w.nm}</span><span class="wk-str">${w.strain.toFixed(1)}</span></div>`+
-    `<div class="wk-sub">${w.t} · ${fmtDur(w.dur)} · ${w.cal} cal · avg ${w.avg} · max ${w.max} bpm</div></div>`).join('');
+  if(wk) wk.innerHTML=S.workouts.length? S.workouts.map(w=>`<div class="wk"><div class="wk-top"><span class="wk-nm">${w.nm}</span><span class="wk-str">${w.strain.toFixed(1)}</span></div>`+
+    `<div class="wk-sub">${w.t} · ${fmtDur(w.dur)} · ${w.cal} cal · avg ${w.avg} · max ${w.max} bpm</div></div>`).join('')
+    : '<div class="muted" style="font-size:12px">No tagged activities — automatic activity detection is coming. Your whole-day strain above is computed from the band.</div>';
 }
 function renderSleep(){
-  const S=SAMPLE.sleep, t=sleepTotals(S.segs);
+  const real=latestSleep();
+  const S = real ? sleepFromStore(real) : SAMPLE.sleep;
+  markPreview('s-sleep', !real);
+  const t=sleepTotals(S.segs);
   const asleep=t.light+t.rem+t.sws, inbed=asleep+t.awake;
   setField('slp-pct', S.perf); setRing('slp-arc', S.perf, 'var(--sleep)');
   setField('slp-hours', fmtMs(asleep)+' asleep · '+fmtMs(inbed)+' in bed');
@@ -356,22 +415,33 @@ function renderSleep(){
     .map(p=>`<i style="width:${(p[1]/needTot*100).toFixed(1)}%;background:${p[2]}" title="${p[0]}"></i>`).join('');
   setHTML('slp-needrows', [['Baseline need',need.baseline],['From sleep debt',need.debt],['From recent strain',need.strain],['Credited from naps',need.nap]]
     .map(p=>`<div class="metric"><span class="k">${p[0]}</span><span class="v">${p[1]<0?'−':''}${fmtMs(Math.abs(p[1]))}</span></div>`).join(''));
-  setField('slp-need', fmtMs(sleepNeedMinutes({dayStrain:SAMPLE.strain.day})));
-  setField('slp-debt', fmtMs(S.debtMin)); setField('slp-eff', S.eff+'%');
-  setField('slp-consistency', S.consistency+'%'); setField('slp-resp', S.respiratory.toFixed(1));
+  const dayStrain = (latestDay()&&latestDay().strain) || SAMPLE.strain.day;
+  setField('slp-need', fmtMs(sleepNeedMinutes({dayStrain})));
+  setField('slp-debt', fmtMs(S.debtMin)); setField('slp-eff', S.eff!=null?S.eff+'%':'—');
+  setField('slp-consistency', S.consistency!=null?S.consistency+'%':'—'); setField('slp-resp', S.respiratory!=null?S.respiratory.toFixed(1):'—');
   setField('slp-disturb', S.disturbances); setField('slp-inbed', fmtMs(S.inBedMin));
 }
 let trendPeriod='1W';
 function renderTrends(){
-  const d=SAMPLE.trends[trendPeriod];
   document.querySelectorAll('#trend-seg button').forEach(b=>b.classList.toggle('active', b.dataset.period===trendPeriod));
-  const avg=(a)=>Math.round(a.reduce((x,y)=>x+y.v,0)/a.length);
-  interactiveChart($('tr-rec'), d.rec, {color:recColor(avg(d.rec)),h:120,unit:'%',min:0,max:100});
-  setField('tr-rec-avg','avg '+avg(d.rec)+'%');
-  interactiveChart($('tr-strain'), d.strain, {color:'#3aa0ff',h:120,fmt:v=>v.toFixed(1),min:0,max:21});
-  setField('tr-strain-avg','avg '+(d.strain.reduce((x,y)=>x+y.v,0)/d.strain.length).toFixed(1));
-  interactiveChart($('tr-sleep'), d.sleep, {color:'var(--sleep)',h:120,unit:'%',min:0,max:100});
-  setField('tr-sleep-avg','avg '+avg(d.sleep)+'%');
+  const N={'1W':7,'1M':30,'6M':180}[trendPeriod]||7;
+  const days=histDays.slice(0,N).reverse();                  // oldest→newest within the window
+  const haveReal = days.length>=2;
+  markPreview('s-trends', !haveReal);
+  let rec, strain, sleep;
+  if(haveReal){
+    const lbl=(d)=>d.day.slice(5);
+    rec=days.filter(d=>d.rec!=null).map(d=>({t:lbl(d),v:d.rec}));
+    strain=days.map(d=>({t:lbl(d),v:+(d.strain||0)}));
+    sleep=days.filter(d=>d.sleep&&d.sleep.performance!=null).map(d=>({t:lbl(d),v:d.sleep.performance}));
+  } else { const s=SAMPLE.trends[trendPeriod]; rec=s.rec; strain=s.strain; sleep=s.sleep; }
+  const avg=(a)=> a.length?Math.round(a.reduce((x,y)=>x+y.v,0)/a.length):null;
+  const plot=(id,data,opts,avgId,fmt)=>{ const host=$(id);
+    if(data&&data.length){ interactiveChart(host,data,opts); const a=avg(data); setField(avgId, a!=null?('avg '+(fmt?fmt(data):a)) : '—'); }
+    else { if(host) host.innerHTML='<div class="muted" style="padding:18px 4px;font-size:12px">Not enough nights yet — pull a few days and this fills in.</div>'; setField(avgId,'—'); } };
+  plot('tr-rec', rec, {color:recColor(avg(rec)||0),h:120,unit:'%',min:0,max:100}, 'tr-rec-avg', d=>avg(d)+'%');
+  plot('tr-strain', strain, {color:'#3aa0ff',h:120,fmt:v=>v.toFixed(1),min:0,max:21}, 'tr-strain-avg', d=>(d.reduce((x,y)=>x+y.v,0)/d.length).toFixed(1));
+  plot('tr-sleep', sleep, {color:'var(--sleep)',h:120,unit:'%',min:0,max:100}, 'tr-sleep-avg', d=>avg(d)+'%');
 }
 
 /* ===================== navigation: 5 tabs + push/back detail stack ========= */
@@ -845,7 +915,8 @@ async function persistPull(dump){
     const saved = await store.ingest(dump, profile);
     if(saved.length){
       const d = saved[0];
-      log(`💾 Stored on phone: ${saved.map(s=>s.day).join(', ')} — ${d.n} records, Day Strain ${d.strain}. View under Health → Stored data.`,'ok');
+      log(`💾 Stored on phone: ${saved.map(s=>s.day).join(', ')} — ${d.n} records, Day Strain ${d.strain}${d.sleep?`, sleep ${d.sleep.asleepMin}m`:''}. View under Health → Stored data.`,'ok');
+      await refreshHist();                                    // refresh the real-data screens (Sleep/Strain/Trends)
       if(curScreen==='storage') renderStorage();
     }
   }catch(e){ log('on-phone store failed (pull still fine): '+e.message,'err'); }
@@ -1507,7 +1578,7 @@ function saveProfileForm(){
   state.strainAcc=newStrainAcc();                       // note: resets live strain accumulation
   setField('p-note', `saved · max HR ${effMaxHr()} bpm`);
   // Day Strain for every stored night depends on resting/max HR + sex — recompute them with the new profile.
-  store.recomputeAll(profile).then(n=>{ if(n) log(`recomputed Day Strain for ${n} stored night(s) with the new profile.`,'dim'); if(curScreen==='storage') renderStorage(); }).catch(()=>{});
+  store.recomputeAll(profile).then(n=>{ if(n) log(`recomputed Day Strain for ${n} stored night(s) with the new profile.`,'dim'); return refreshHist(); }).then(()=>{ if(curScreen==='storage') renderStorage(); }).catch(()=>{});
   renderAll();
 }
 
@@ -1564,4 +1635,5 @@ document.addEventListener('DOMContentLoaded', ()=>{
   enableDev(false);
   renderRt();
   renderAll();
+  refreshHist();                                     // load stored nights → real-data screens (async)
 });
