@@ -14,6 +14,7 @@
 import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { makeStrainAccumulator, maxHeartRate, sleepNeedMinutes } from './scores.js';
+import * as store from './store.js';
 
 /* ----------------------------- GATT map ----------------------------------- */
 const SVC    = 'fd4b0001-cce1-4033-93ce-002d5875f58a';   // custom command service
@@ -386,6 +387,7 @@ function showScreen(id){
   if(sec){ const host=$('s-'+id); if(host){ try{ host.innerHTML = sec.build(); }   // generated screen
       catch(e){ host.innerHTML = `<div class="card"><div class="err">screen “${id}” error: ${e.message}</div></div>`; } } }
   else renderScreen(id);                                                      // hand-coded screen
+  if(id==='storage') renderStorage();                                         // async-fill the on-phone history
   window.scrollTo(0,0);
 }
 function goScreen(id){
@@ -517,8 +519,17 @@ const SECTIONS = [
     + cardNav('healthmonitor', hd('Health Monitor')+`<div class="kv"><span class="k">Heart rate <i class="livedot"></i></span><span class="v">${liveHr()}<small> bpm</small></span></div>`+kvr('HRV','<span class="v">'+liveHrv()+'<small> ms</small></span>')+kvr('Resting HR',SAMPLE.recovery.rhr+' bpm'))
     + cardNav('stress', hd('Stress Monitor','live')+`<div class="muted" style="font-size:13px">Day stress, sleep stress & live Stress Sessions — from HRV.</div>`)
     + cardNav('recovery', hd('Recovery')+`<div class="muted" style="font-size:13px">HRV, resting HR, respiratory rate, SpO₂, skin temp.</div>`)
+    + card(navRow('storage','💾','Stored data','Nights kept on this phone · Day Strain'))
     + navRow('hormonal','❤','Hormonal Insights','Menstrual cycle · pregnancy')
     + card(navRow('advancedlabs','🧪','Advanced Labs','Blood biomarker results')+navRow('whooplabs','🔬','WHOOP Labs','Research studies')) },
+
+  // ----- DETAIL: STORED DATA (on-phone IndexedDB history — Phase 2 substrate) -----
+  // build() is synchronous but the data is async (IndexedDB), so it returns a skeleton and showScreen()
+  // kicks renderStorage() to fill #storage-body once the day rows load.
+  { id:'storage', build:()=>
+    hd('Stored data','on this phone')
+    + card(`<div class="muted" style="font-size:12px;line-height:1.55">Every history pull is kept here on the phone — bucketed by night, dedup-merged so re-pulling the same night updates rather than duplicates. This is the standalone (Phase 2) data store that feeds your scores without the cloud.</div>`)
+    + `<div id="storage-body"><div class="card"><div class="muted">Loading…</div></div></div>` },
 
   // ----- TAB HUB: COACHING -----
   { id:'coaching', build:()=>
@@ -825,6 +836,52 @@ function showPullPreview({ nd, minTs, maxTs, hrs, hv }){
   else if(nd){ v.className='ln dim'; v.textContent=`ℹ️ Very short (${hrs}). Wear it a full night and re-pull.`; }
   else { v.className='ln err'; v.textContent='No records pulled — check the seek landed on the night, then try again.'; }
 }
+// ⭐ Phase-2 persistence: keep a copy of every pull ON THE PHONE (IndexedDB via src/store.js). Bucketed +
+// dedup-merged by local day, so re-pulling a night updates rather than duplicates. Never lets a storage hiccup
+// break the pull. Refreshes the History screen if it's open.
+async function persistPull(dump){
+  if(!dump || !dump.length) return;
+  try{
+    const saved = await store.ingest(dump, profile);
+    if(saved.length){
+      const d = saved[0];
+      log(`💾 Stored on phone: ${saved.map(s=>s.day).join(', ')} — ${d.n} records, Day Strain ${d.strain}. View under Health → Stored data.`,'ok');
+      if(curScreen==='storage') renderStorage();
+    }
+  }catch(e){ log('on-phone store failed (pull still fine): '+e.message,'err'); }
+}
+// Render the on-phone history (async — IndexedDB). Called by showScreen when the 'storage' screen opens and
+// by persistPull after a new night lands. Lists each stored night with its summary + Day Strain, plus
+// per-night delete and a clear-all. Pure read of src/store.js; all our own data.
+async function renderStorage(){
+  const body=$('storage-body'); if(!body) return;
+  let days, use;
+  try{ days=await store.listDays(); use=await store.usage(); }
+  catch(e){ body.innerHTML=`<div class="card"><div class="err">store error: ${e.message}</div></div>`; return; }
+  if(!days.length){ body.innerHTML=`<div class="card"><div class="muted">No nights stored yet. Pull a night (Setup → “Pull last night → laptop”) and it’s saved here automatically.</div></div>`; return; }
+  const fmtDay=(k)=>{ const [y,m,d]=k.split('-'); return new Date(+y,+m-1,+d).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); };
+  const mb=(b)=> b? (b/1048576).toFixed(1)+' MB':'—';
+  const totalRecords=days.reduce((a,d)=>a+(d.n||0),0);
+  const dimBtn='width:100%;opacity:.6;border-color:var(--line);color:var(--dim)';
+  let html=`<div class="card"><div class="kv"><span class="k">Nights stored</span><span class="v">${days.length}</span></div>`
+    +`<div class="kv"><span class="k">Total records</span><span class="v">${totalRecords.toLocaleString()}</span></div>`
+    +`<div class="kv"><span class="k">Storage used</span><span class="v">${mb(use.usedBytes)}</span></div></div>`;
+  for(const d of days){
+    html+=`<div class="card">`
+      +`<div class="hd"><div class="t">${fmtDay(d.day)}</div><span class="preview">${d.spanH||0}h · ${(d.n||0).toLocaleString()} rec</span></div>`
+      +`<div class="kv"><span class="k">Day Strain</span><span class="v" style="color:var(--strain)">${d.strain??'—'}</span></div>`
+      +`<div class="kv"><span class="k">Avg / resting HR</span><span class="v">${d.avgHr??'—'} / ${d.restHr??'—'} bpm</span></div>`
+      +`<div class="kv"><span class="k">HRV (RMSSD)</span><span class="v">${d.hrvMs??'—'} ms</span></div>`
+      +`<div class="kv"><span class="k">Skin temp / SpO₂</span><span class="v">${d.skinTempC!=null?d.skinTempC+'°C':'—'} / ${d.spo2!=null?d.spo2+'%':'—'}</span></div>`
+      +`<div class="kv"><span class="k">Movement index</span><span class="v">${d.activity??'—'}${d.activeMin!=null?` · ~${d.activeMin}m active`:''}</span></div>`
+      +`<button class="act" data-del="${d.day}" style="${dimBtn};margin-top:8px">Delete this night</button>`
+      +`</div>`;
+  }
+  html+=`<button class="act" id="storage-clear" style="${dimBtn};margin-top:6px">Clear all stored data</button>`;
+  body.innerHTML=html;
+  body.querySelectorAll('[data-del]').forEach(b=> b.onclick=async()=>{ if(window.confirm(`Delete stored data for ${b.dataset.del}?`)){ await store.removeDay(b.dataset.del); renderStorage(); } });
+  const cl=$('storage-clear'); if(cl) cl.onclick=async()=>{ if(window.confirm('Delete ALL stored data on this phone? This cannot be undone.')){ await store.clearAll(); renderStorage(); } };
+}
 function dumpCapture(){
   const text=captureText();
   const ta=$('dump'); ta.value=text||'(nothing captured)'; ta.style.display='block'; ta.focus(); ta.select();
@@ -927,19 +984,27 @@ let pulling=false; let autoExport=false; let skipDrainConfirm=false; const pullR
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
-  let idx, ts, hr, key, skinTempC=null, spo2=null;
+  let idx, ts, hr, key, skinTempC=null, spo2=null, accMag=null, rr=null, respRate=null;
   if(p[0]===48){                                   // 5.0 EVENT(48) record: ts@4, counter@8, HR offset TBD
     ts=u32at(p,4);
     if(ts<1500000000||ts>4000000000) return;       // skip untimestamped boot/info events
     idx=u32at(p,8); hr=0; key='e'+ts+':'+p[2];      // dedup by timestamp+subcode (counter isn't a clean idx)
   }else{                                            // 4.0 HISTORICAL_DATA(47): idx@3, ts@7, HR@14
     idx=u32at(p,3); ts=u32at(p,7); hr=p.length>14?p[14]:0; key='h'+idx;
-    if(p.length>=75){                               // rich record also carries skin temp @65 (int16/100) & SpO2 @74
-      const t=(p[65]|(p[66]<<8))<<16>>16; if(t>2000&&t<4500) skinTempC=t/100;
-      const s=p[74]; if(s>=80&&s<=100) spo2=s;
+    if(p.length>=75){                               // rich (47) R10 record — see decodeHistorical for the map
+      const t=(p[65]|(p[66]<<8))<<16>>16; if(t>2000&&t<4500) skinTempC=t/100;  // skin temp @65 int16/100
+      const s=p[74]; if(s>=80&&s<=100) spo2=s;                                  // SpO2 @74
+      const r=p[72]; if(r>=5&&r<=30) respRate=r;                               // resp rate @72 (tentative)
     }
+    if(p.length>=49){                               // RAW accel triplet f32 LE @37/41/45 (the actigraphy/step signal)
+      const f32=(o)=> new DataView(new Uint8Array([p[o],p[o+1],p[o+2],p[o+3]]).buffer).getFloat32(0,true);
+      const x=f32(37), y=f32(41), z=f32(45), m=Math.sqrt(x*x+y*y+z*z);
+      if(m>0.1&&m<6&&[x,y,z].every(Number.isFinite)) accMag=+m.toFixed(3);
+    }
+    const nrr=p[15];                                // RR (tentative): count@15 then u16 LE ms @16…
+    if(nrr>0&&nrr<=4&&p.length>=16+2*nrr){ const v=p[16]|(p[17]<<8); if(v>250&&v<2500) rr=v; }
   }
-  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0],skinTempC,spo2}); }
+  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0],skinTempC,spo2,accMag,rr,respRate}); }
 }
 const median = (a)=>{ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); return s[s.length>>1]; };
 const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0});
@@ -1060,6 +1125,7 @@ async function drainHistory(){
     const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
     updateBandVitals(dump);                                       // pull skin temp + SpO2 out of the (47) records
     showPullPreview({ nd, minTs, maxTs, hrs, hv });               // on-device readout so a bad night shows immediately
+    await persistPull(dump);                                      // ⭐ keep a copy ON THE PHONE (Phase 2 store)
     log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
     log(`oldest BEFORE ${tsStr(before)} · AFTER ${tsStr(after)}`,'cmd');
     // Verdict: did the oldest-buffered pointer move? If it advanced, the ack FREED records (destructive).
@@ -1425,6 +1491,8 @@ function saveProfileForm(){
   localStorage.setItem(PKEY, JSON.stringify(profile));
   state.strainAcc=newStrainAcc();                       // note: resets live strain accumulation
   setField('p-note', `saved · max HR ${effMaxHr()} bpm`);
+  // Day Strain for every stored night depends on resting/max HR + sex — recompute them with the new profile.
+  store.recomputeAll(profile).then(n=>{ if(n) log(`recomputed Day Strain for ${n} stored night(s) with the new profile.`,'dim'); if(curScreen==='storage') renderStorage(); }).catch(()=>{});
   renderAll();
 }
 

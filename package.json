@@ -1,12 +1,12 @@
 {
   "name": "whoop-core-ios",
-  "version": "2.1.2",
+  "version": "2.2.0",
   "private": true,
   "type": "module",
   "description": "Standalone iOS app that reads a WHOOP 5.0 directly over Bluetooth (CoreBluetooth via Capacitor). Independent of ARC Home.",
   "scripts": {
     "build:web": "esbuild src/app.js --bundle --format=iife --outfile=www/app.js",
-    "test": "node test/scores.test.mjs",
+    "test": "node test/scores.test.mjs && node test/store.test.mjs",
     "icon": "node tools/make-icon.mjs dist/icon.png",
     "altstore": "node tools/make-altstore-source.mjs --ipa dist/WHOOP-Core.ipa --out dist/apps.json",
     "whoop:api": "node tools/whoop-api.mjs",
