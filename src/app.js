@@ -1046,7 +1046,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','showoldest','trimoldest','imurt','imuraw','imuprobe','hifreq','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','showoldest','imurt','imuraw','imuprobe','hifreq','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -1273,11 +1273,9 @@ let dataRangeRaw=null;   // last raw get_data_range response (for read-pointer a
 async function readOldest(){ dataRangeOldestTs=null; dataRangeRaw=null; await send(34,[],'get_data_range'); await delay(1500); return dataRangeOldestTs; }
 const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
 
-// Show the oldest record still on the band's flash (read-only get_data_range) so you can tell, before
-// seeking, whether a target night is still pullable. Updates the on-screen readout + the log.
-// Show the oldest record on the band from its get_data_range marker — READ-ONLY (doesn't move the read head
-// or free anything). The marker carries the true oldest ts (a real frame showed May-11, ~44 days back). To
-// actually pull from there, use “Trim to oldest” which positions the dump.
+// Show the band's data range from its get_data_range marker — READ-ONLY (sends no FORCE_TRIM, moves nothing,
+// frees nothing). Reports the oldest record still on flash so you know the earliest date you can pull, and drops
+// it into the date box for convenience. Picking any time at/after this is safe to seek to.
 async function showOldest(){
   if(!deviceId){ log('connect first','err'); return null; }
   const out=$('oldestout');
@@ -1290,27 +1288,9 @@ async function showOldest(){
   }
   const ageD=((Date.now()/1000)-ts)/86400;
   if(out) out.innerHTML=`Oldest on flash: <b style="color:#fff">${tsStr(ts)}</b> <span style="color:var(--dimmer)">(${ageD.toFixed(1)} d ago)</span>`;
-  $('seekdt').value = toLocalInput(new Date(ts*1000));               // drop into the Night box for convenience
-  log(`band's data-range marker: oldest ≈ ${tsStr(ts)} (${ageD.toFixed(1)} d ago). Use “Trim to oldest”, then “Sync full history”, to pull from there.`,'ok');
+  $('seekdt').value = toLocalInput(new Date(ts*1000));               // drop into the date box as a starting point
+  log(`oldest on flash ≈ ${tsStr(ts)} (${ageD.toFixed(1)} d ago). Pick any time at/after this, then “Trim to date & sync”.`,'ok');
   return ts;
-}
-
-// Position the dump near the oldest record, ready for Sync full history. ⚠️ FORCE_TRIM → 0 (raw buffer start)
-// CRASHES the band — a capture (2026-06-24) showed it hard-rebooting (reason 0x0007, error 0x05) ~3 s after a
-// trim→0, because 0 points into ERASED flash below the valid floor and the firmware faults reading it. So
-// instead we read the data-range marker (non-destructive) and SEEK to a margin INSIDE the oldest valid data,
-// staying clear of the erased boundary.
-async function trimToOldest(){
-  if(!deviceId){ log('connect first','err'); return; }
-  if(pulling){ log('a sync is already running — stop it first.','err'); return; }
-  log('→ reading the band’s oldest marker (get_data_range)…','cmd');
-  const ts=await readOldest();
-  if(!ts){ log('couldn’t read the oldest marker — tap “Show oldest on flash” first.','err'); return; }
-  const safe=ts+3600;                                // aim 1 h INSIDE the oldest valid data (clear of erased flash)
-  $('seekdt').value = toLocalInput(new Date(safe*1000));
-  log(`oldest ≈ ${tsStr(ts)} — seeking to ~1 h inside it (avoiding the erased edge that crashes the band)…`,'cmd');
-  const ok=await forceTrimSeek();
-  if(ok) log('✓ Positioned near the oldest. Tap “Sync full history” to pull everything on the band.','ok');
 }
 
 
@@ -1343,62 +1323,67 @@ async function probeReadPos(){
   if(!head.length) return null;
   return { ts:head[head.length>>1], trim:drain.endTrim };
 }
-// Send FORCE_TRIM (cmd 25) to a specific trim: abort any in-flight dump, then set the commit cursor.
+// Approx time↔trim rate. The band's trim grows ~1300–2200 units/hour while worn (≈1.6–4 s per trim unit) and
+// varies with activity, so this is only the SEED for the first jump — every probe refines it from real feedback.
+const SEED_S_PER_TRIM = 3.0;
+// NEVER FORCE_TRIM below this. Trims near 0 point into ERASED flash and HARD-REBOOT the band (reason 0x0007);
+// valid recent data sits at much higher trims. This is the backstop that makes the crash structurally impossible.
+const MIN_SAFE_TRIM = 2000;
+
+// Send FORCE_TRIM (cmd 25) to a specific trim: abort any in-flight dump, then set the commit cursor. Floors the
+// value at MIN_SAFE_TRIM so no caller can ever drive the band into the erased-flash crash zone.
 async function forceTrimTo(trim){
-  trim=Math.max(0,Math.round(trim));
+  trim=Math.max(MIN_SAFE_TRIM,Math.round(trim));
   await send(20,[],'abort'); await delay(300);
   await send(25,[trim&0xFF,(trim>>>8)&0xFF,(trim>>>16)&0xFF,(trim>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
 }
 
-// FORCE_TRIM (cmd 25) seek — moves the dump's commit cursor (TRIM) to a chosen time. REWRITTEN AGAIN
-// 2026-06-24 after the band's own console explained the failures: a FORCE_TRIM beyond the band's WRITE
-// POINTER lands in erased flash, so the firmware clamps it to the writeptr (= "now", the newest) — which has
-// no history to stream (console: "Trim request @ 257431 is beyond writeptr in erased data. Setting trim to
-// writeptr @ 104534" → "Hist pull too short for valid stats"). So: trim ↑ = newer, the writeptr (~now's
-// trim) is the HARD CEILING, and probing an unproven "oldest" endpoint (FORCE_TRIM→0) up front was the step
-// that "failed". This version does a BOUNDED BINARY SEARCH downward from "now": hi starts at now's trim
-// (never exceed the writeptr) and lo starts at 0; we bisect/interpolate on trim using the monotonic ts
-// feedback, and treat an EMPTY probe as "fell into erased/too-old flash → raise the floor". No upfront
-// oldest probe, nothing ever sent above the writeptr.
+// FORCE_TRIM seek — REBUILT 2026-06-24 from the ground up on everything the captures taught us. The dump
+// streams from the "trim" (commit cursor); FORCE_TRIM (cmd 25) moves it. Hard facts the rebuild respects:
+//   • trim ↑ = newer; the WRITE POINTER (≈ now's trim) is the CEILING — above it the band clamps to "now".
+//   • trims near 0 are ERASED flash and HARD-REBOOT the band — never go there (MIN_SAFE_TRIM + range gate).
+//   • time↔trim is monotonic but variable-rate, so ANCHOR at now and jump by a MEASURED rate, refined each probe.
+// Method: gate the target to the valid range (get_data_range), anchor at the current head (a plain probe — no
+// FORCE_TRIM, so safe — which also gives the ceiling), then jump trim = anchorTrim + (target−anchorTs)/rate,
+// CLAMPED to [floor, ceiling], probe where it landed, refine the rate from the (ts,trim) feedback, repeat.
+// Lands at/just before the target so the drain reads forward through the window. Never sends an out-of-range or
+// near-zero trim → no clamp-to-now, no crash. (This is the anchor+rate method that worked originally; the later
+// binary-search rewrite discarded the rate and groped upward from trim 0 = the crash zone.)
 async function forceTrimSeek(){
   if(!deviceId){ log('connect first','err'); return false; }
   const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
-  if(!Number.isFinite(target)){ log('pick a date & time (the “Night to pull” box) first','err'); return false; }
-  log(`🎯 FORCE_TRIM seek to ${new Date(target*1000).toLocaleString()} …`,'cmd');
-  // Anchor = the current read position (most recent). Its trim ≈ the writeptr = the hard ceiling.
-  const now=await probeReadPos();
-  if(!now || now.trim==null){ log('probe failed — no records / no trim.','err'); return false; }
-  log(`now: head at ${tsStr(now.ts)} (trim ${now.trim})`,'dim');
-  if(target >= now.ts-60){ log('target is at/newer than the current read head — nothing to rewind.','cmd'); return true; }
-  // Bounds in TRIM space: (loTrim, loTs) older side — unknown ts until probed; (hiTrim, hiTs) newer side = now.
-  let loTrim=0, loTs=null, hiTrim=now.trim, hiTs=now.ts, best=null;
-  const probe=async(t)=>{ await forceTrimTo(t); let m=await probeReadPos(); if(!m) { await delay(400); m=await probeReadPos(); } return m; };  // one retry
-  let reboots=0;
-  for(let iter=1; iter<=11; iter++){
-    let mid;
-    if(loTs!=null && hiTs>loTs){ let f=(target-loTs)/(hiTs-loTs); f=Math.min(0.9,Math.max(0.1,f)); mid=Math.round(loTrim+f*(hiTrim-loTrim)); }
-    else mid=Math.round((loTrim+hiTrim)/2);                       // no older ts yet → plain bisection
-    mid=Math.min(hiTrim,Math.max(loTrim,mid));
-    if(mid===loTrim||mid===hiTrim){ break; }
-    log(`→ FORCE_TRIM = ${mid} [iter ${iter}, trim ${loTrim}…${hiTrim}]`,'cmd');
-    const m=await probe(mid);
-    // The band hard-reboots (reason 0x0007) when a FORCE_TRIM lands in erased flash near the floor — the link
-    // drops. Don't hammer it: raise the floor past this trim and bail after 2 reboots so it can recover.
-    if(linkDown){ reboots++; log(`⚠️ band reset/link dropped at trim ${mid} — that region faults the firmware. Raising the floor.`, 'err');
-      loTrim=mid; if(reboots>=2){ log('stopping — too many resets. Pick a more recent night (the very oldest data sits on an erased edge that crashes the band).','err'); return false; }
-      if(!await reconnect()){ return false; } continue; }
-    if(!m || m.trim==null){ log('empty there — erased/too-old flash, raising the floor.','dim'); loTrim=mid; continue; }
+  if(!Number.isFinite(target)){ log('pick a date & time first','err'); return false; }
+  log(`🎯 Seeking to ${new Date(target*1000).toLocaleString()} …`,'cmd');
+  const oldestTs=await readOldest();                              // valid-range floor (read-only, never crashes)
+  const now=await probeReadPos();                                 // anchor at the head; its trim = the ceiling
+  if(!now || now.trim==null){ log('probe failed — connect and keep the app in the foreground.','err'); return false; }
+  const ceil=now.trim;
+  log(`now: ${tsStr(now.ts)} @ trim ${ceil}${oldestTs?` · oldest ≈ ${tsStr(oldestTs)}`:''}`,'dim');
+  if(target >= now.ts-60){ log('that time is at/after the newest data — nothing to rewind. Pulling from here.','cmd'); return true; }
+  if(oldestTs && target < oldestTs-60){ log(`that time has rolled off the band (oldest ≈ ${tsStr(oldestTs)}). Pick a later time.`,'err'); return false; }
+  let sPerTrim=SEED_S_PER_TRIM, floor=Math.max(MIN_SAFE_TRIM, Math.round(ceil*0.04));
+  let aTs=now.ts, aTrim=ceil, best=null, reboots=0;
+  const clampTrim=(t)=> Math.min(ceil-1, Math.max(floor, Math.round(t)));
+  for(let iter=1; iter<=6; iter++){
+    let est=clampTrim(aTrim + (target-aTs)/sPerTrim);             // trim↑=newer ⇒ older target ⇒ lower trim
+    if(est===aTrim) est=clampTrim(aTrim-1000);                    // guarantee movement
+    log(`→ FORCE_TRIM ${est} [iter ${iter}, ${sPerTrim.toFixed(1)} s/trim, range ${floor}…${ceil}]`,'cmd');
+    await forceTrimTo(est);
+    let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }
+    if(linkDown){ reboots++; floor=Math.max(floor,est+2500);
+      log(`⚠️ band reset at trim ${est} — raising the floor and reconnecting.`,'err');
+      if(reboots>=2){ log('too many resets — pick a more recent time.','err'); return false; }
+      if(!await reconnect()) return false; continue; }
+    if(!m || m.ts==null){ floor=Math.max(floor,est+2500); log('empty here — near the erased edge; raising the floor.','dim'); continue; }
     const errMin=(m.ts-target)/60;
-    log(`landed ${tsStr(m.ts)} (trim ${m.trim}) — ${errMin>0?'+':''}${errMin.toFixed(0)} min vs target`, Math.abs(errMin)<15?'ok':'cmd');
-    if(m.ts<=target && (!best||m.ts>best.ts)) best=m;             // newest point still at/before target
-    if(errMin>=-30 && errMin<=5){ log('🎉 Landed at/just before the night — the whole window is ahead. Pulling from here.','ok'); await forceTrimTo(m.trim); return true; }
-    if(m.ts<target){ loTrim=m.trim; loTs=m.ts; }                  // too old → search newer (raise floor)
-    else           { hiTrim=m.trim; hiTs=m.ts; }                  // too new → search older (lower ceiling)
-    if(hiTrim-loTrim<=2){ log('bracket converged.','dim'); break; }
+    log(`landed ${tsStr(m.ts)} @ trim ${m.trim} — ${errMin>0?'+':''}${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
+    if(m.ts<=target && (!best||m.ts>best.ts)) best=m;             // best safe landing = newest at/before target
+    if(errMin>=-20 && errMin<=5){ await forceTrimTo(m.trim); log('🎉 Landed at/just before the target — pulling from here.','ok'); return true; }
+    if(m.trim!==aTrim){ const r=(aTs-m.ts)/(aTrim-m.trim); if(r>0.3 && r<20) sPerTrim=r; }   // refine local rate
+    aTs=m.ts; aTrim=m.trim;
   }
   if(best){ await forceTrimTo(best.trim); log(`landed at ${tsStr(best.ts)} — closest at/before the target. Pulling from here.`,'ok'); return true; }
-  log('⚠️ Could not land at/before the target — it may have rolled off, or the link is dropping. Try “Trim to oldest”, or set the night a bit later.','err');
-  return false;
+  log('couldn’t converge — try a slightly later time.','err'); return false;
 }
 
 // ── ONE-TAP daily calibration pull (Phase 1): FORCE_TRIM back to last night → drain → auto-export. ──
@@ -1412,10 +1397,11 @@ async function dailySync(){
   if(!deviceId){ log('connect first','err'); return; }
   if(pulling){ await drainHistory(); return; }                 // already running → let the button stop it
   if(!$('seekdt').value){ const d=new Date(); d.setDate(d.getDate()-1); d.setHours(20,0,0,0);
-    $('seekdt').value = toLocalInput(d); log(`night not set — defaulting to last night (${d.toLocaleString()})`,'dim'); }
+    $('seekdt').value = toLocalInput(d); log(`date not set — defaulting to last night (${d.toLocaleString()})`,'dim'); }
+  const when=new Date($('seekdt').value);
   // One confirm for the whole managed pull (then suppress drainHistory's per-pass confirm).
-  if(!window.confirm('⚠️ Pull last night off the band? This advances the band’s sync cursor and FREES the records it reads, so let the official WHOOP app sync FIRST. It keeps draining until it reaches this morning, so the whole sleep window is captured.\n\nProceed?')){
-    log('daily pull cancelled — let the WHOOP app sync first.','dim'); return; }
+  if(!window.confirm(`Trim the band to ${when.toLocaleString()} and sync everything from there into the app?\n\nIt keeps draining forward until it reaches now, then stores it on the phone (Health → Stored data).\n\n⚠️ Reading FREES those records on the band, so let the official WHOOP app sync FIRST if you still need them there.\n\nProceed?`)){
+    log('sync cancelled — let the WHOOP app sync first.','dim'); return; }
   { const db=$('dailysync'); if(db){ db.textContent='Syncing… (tap to stop)'; db.classList.add('live'); } }
   skipDrainConfirm = true; autoExport = false;                 // we confirm once here and export once at the end
   const agg = { n:0, minTs:Infinity, maxTs:0, hv:[] };          // aggregate across continuation passes
@@ -1426,7 +1412,7 @@ async function dailySync(){
       // If the link dropped mid-pull (the band's backstop-abort), reconnect and resume from where we got to
       // rather than losing the rest of the night. Bail only if the user stopped or we can't get back on.
       if(linkDown){ if(!await reconnect()){ break; } }
-      if(pass===1) log('① Rewinding to last night (FORCE_TRIM)…','cmd');
+      if(pass===1) log('① Trimming to the chosen date (FORCE_TRIM)…','cmd');
       else { $('seekdt').value = toLocalInput(new Date(lastMax)); log(`↻ Continuing from ${new Date(lastMax).toLocaleTimeString()} (pass ${pass})…`,'cmd'); }
       const ok = await forceTrimSeek();
       if(!ok){
@@ -1453,14 +1439,15 @@ async function dailySync(){
     }
   }
   catch(e){ log('daily pull error: '+e.message,'err'); }
-  finally{ skipDrainConfirm=false; const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } }
-  // One aggregate preview + one export for the whole multi-pass capture.
+  finally{ skipDrainConfirm=false; const db=$('dailysync'); if(db){ db.textContent='Trim to date & sync to app'; db.classList.remove('live'); } }
+  // One aggregate preview for the whole multi-pass capture. The data is already stored on the phone (each
+  // drain pass calls persistPull → store.ingest); the laptop send below is just an optional extra copy.
   const hrs = agg.n ? ((agg.maxTs-agg.minTs)/3600).toFixed(1)+'h' : '0h';
   showPullPreview({ nd:agg.n, minTs:agg.minTs, maxTs:agg.maxTs, hrs, hv:agg.hv });
   if(agg.n>60){
+    log(`✅ Synced ${agg.n} records (${hrs}) into the app — see Health → Stored data.`,'ok');
     const host=(($('laphost')&&$('laphost').value)||'').trim();
-    if(/^[\w.\-]+:\d{2,5}$/.test(host)){ log('③ Auto-sending the full night to laptop…','cmd'); await sendToLaptop(); }
-    else { log('③ No laptop address set — opening Save-to-Files…','dim'); await downloadCapture(); }
+    if(/^[\w.\-]+:\d{2,5}$/.test(host)){ log('③ Also sending a copy to the laptop…','cmd'); await sendToLaptop(); }
   }
 }
 
@@ -1708,7 +1695,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('bandcheck').onclick   = checkBandBuffer;
   $('forcetrim').onclick   = forceTrimSeek;
   { const a=$('showoldest'); if(a) a.onclick=showOldest; }
-  { const a=$('trimoldest'); if(a) a.onclick=trimToOldest; }
   { const a=$('imurt'); if(a) a.onclick=toggleImuRealtime; }
   { const a=$('imuraw'); if(a) a.onclick=toggleRawData; }
   { const a=$('imuprobe'); if(a) a.onclick=imuHistoricalProbe; }

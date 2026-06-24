@@ -378,23 +378,23 @@
       </div>
     </div>
 
-    <!-- 2 · THE ONE-TAP DAILY PULL -->
+    <!-- 2 · TRIM TO A DATE & SYNC INTO THE APP -->
     <div class="card">
-      <div class="hd" style="margin-bottom:10px"><div class="t">Daily pull</div><span class="muted">one tap</span></div>
-      <div class="step"><div class="n">1</div><div class="t">Open the <b>official WHOOP app</b> and let it finish syncing last night to WHOOP (this is the answer-key we match against), then <b>force-quit it</b> — the band talks to one app at a time.</div></div>
-      <div class="step"><div class="n">2</div><div class="t">Set your <b>laptop drop-box</b> address below (run <code>tools/whoop-dropbox.py</code> on the same WiFi — it prints the IP:port). Remembered after the first time.</div></div>
-      <div class="step"><div class="n">3</div><div class="t">Tap <b>Connect WHOOP</b> above, then the green button. It rewinds to last night, pulls it, and sends it to your laptop automatically.</div></div>
-      <div class="row" style="margin-top:12px">
-        <input class="in" id="laphost" placeholder="laptop IP:port (e.g. 192.168.0.196:8787)" style="flex:1">
-      </div>
-      <label class="fl" style="margin-top:10px">Night to pull <span style="color:var(--dimmer)">(defaults to last night)</span>
+      <div class="hd" style="margin-bottom:10px"><div class="t">Sync from band</div><span class="muted">pick a date</span></div>
+      <div class="step"><div class="n">1</div><div class="t">Let the <b>official WHOOP app</b> finish syncing the day(s) you want (that's the calibration answer-key), then <b>force-quit it</b> — the band talks to one app at a time.</div></div>
+      <div class="step"><div class="n">2</div><div class="t">Tap <b>Connect WHOOP</b> above. Pick the <b>date &amp; time</b> to start from (tap <b>Show oldest on flash</b> in Advanced to see the earliest date still on the band).</div></div>
+      <div class="step"><div class="n">3</div><div class="t">Tap the green button. It trims the band to that point, drains forward to now, and stores it on the phone (Health → Stored data).</div></div>
+      <label class="fl" style="margin-top:12px">Date &amp; time to pull from <span style="color:var(--dimmer)">(defaults to last night)</span>
         <input class="in" id="seekdt" type="datetime-local" style="min-width:200px"></label>
-      <button class="act" id="dailysync" disabled style="display:block;width:100%;margin-top:10px;font-size:15px;padding:14px">Pull last night → laptop</button>
+      <button class="act" id="dailysync" disabled style="display:block;width:100%;margin-top:10px;font-size:15px;padding:14px">Trim to date &amp; sync to app</button>
       <div class="row" style="margin-top:10px">
+        <input class="in" id="laphost" placeholder="laptop IP:port (optional copy)" style="flex:1">
+      </div>
+      <div class="row" style="margin-top:8px">
         <button class="act" id="savefile">Save file</button>
         <button class="act" id="sendlap">Send to laptop</button>
       </div>
-      <div class="muted" style="margin-top:8px;font-size:12px">It auto-sends to the laptop on a good pull; <b>Save file</b> exports the capture to <b>Files</b> (or AirDrop) any time. ⚠️ The pull <b>frees</b> the records it reads — only run it <b>after</b> the WHOOP app has synced that night.</div>
+      <div class="muted" style="margin-top:8px;font-size:12px">The pull is stored <b>in the app</b> automatically. Optionally set a <b>laptop drop-box</b> (<code>tools/whoop-dropbox.py</code>) for an extra copy. ⚠️ Reading <b>frees</b> the records on the band — only run it <b>after</b> the WHOOP app has synced those days.</div>
     </div>
 
     <!-- 2b · LAST-PULL PREVIEW (filled on-device after a sync, so you can spot a bad night immediately) -->
@@ -430,10 +430,9 @@
       </div>
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
-      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b style="color:#fff">② Flash data range</b> — WHOOP states <b>up to 14 days</b>, but a real read showed this band holding <b>~44 days</b>. <b>Show oldest on flash</b> reads the band's data-range marker (read-only — moves nothing) and reports the oldest record on the band. <b>Trim to oldest</b> positions the dump at that oldest record (FORCE_TRIM to the buffer start) — then <b>Sync full history</b> pulls everything still on the band.</p>
+      <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b style="color:#fff">② Flash data range</b> — WHOOP states <b>up to 14 days</b>, but a real read showed this band holding <b>~44 days</b>. <b>Show oldest on flash</b> reads the band's data-range marker (read-only — moves nothing) and reports the earliest date still on the band, so you know the oldest you can pick in the date box above.</p>
       <div class="row">
         <button class="act" id="showoldest" disabled>Show oldest on flash</button>
-        <button class="act" id="trimoldest" disabled>Trim to oldest</button>
       </div>
       <div class="muted" id="oldestout" style="margin-top:8px;font-size:12px">Oldest on flash: <b style="color:#fff">— tap “Show oldest on flash”</b></div>
 

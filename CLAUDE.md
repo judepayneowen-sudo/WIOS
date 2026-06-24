@@ -76,6 +76,15 @@ permanently lost from WHOOP. So:
     **May-11 00:42:53**, newest = **now (Jun-24 18:25)**. So actual retention ≫ WHOOP's "up to 14 days" spec
     when the buffer isn't full. (Pointer fields in the same frame — 2293/14745/20316 — are a DIFFERENT counter
     space from the FORCE_TRIM "trim" / writeptr ≈104534; not yet reconciled.)
+  - ✅ **FORCE_TRIM seek REBUILT clean (2026-06-24) — `dailySync` → `forceTrimSeek` → `drainHistory`(→`persistPull`→store).**
+    After the binary-search version groped upward from `trim 0` (the crash zone) and kept resetting the band, the
+    seek was rebuilt on the **original anchor+rate method** that worked, hardened with everything learned:
+    gate the target to the valid range (read-only `get_data_range`), **anchor at the head** (a plain probe — no
+    FORCE_TRIM, gives the ceiling), then jump `trim = anchorTrim + (target−anchorTs)/rate` **clamped to
+    [floor, ceiling]**, probe, **refine the rate from feedback**, repeat (≤6). `forceTrimTo` floors every send at
+    **`MIN_SAFE_TRIM=2000`** so a near-zero trim is structurally impossible → no `0x0007` crash, no clamp-to-now.
+    The user picks a date/time and the pull is stored **in the app** (not just the laptop). `trimToOldest` (the
+    FORCE_TRIM→0 crash path) and its button were REMOVED; `showOldest` stays read-only (range info only).
   - ⛔ **FORCE_TRIM → 0 CRASHES the band (2026-06-24).** A capture showed the strap hard-rebooting TWICE (full
     boot logs, `SUPERVISOR: Post reboot reason: 0x0007`, `error code 0x05`) ~3 s after a `FORCE_TRIM→0`, and
     the historical dump returned ZERO `(47)` records (only EVENT(48)/METADATA(49)/CONSOLE(50) frames). Trim 0
