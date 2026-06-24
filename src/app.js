@@ -71,8 +71,8 @@ function buildCommand(sequence, command, data=[]){
 const hex = (a)=>Array.from(a, b=>b.toString(16).padStart(2,'0')).join('');
 const dvBytes = (dv)=> new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength);
 
-function parseFrame(dv){
-  const f = dvBytes(dv);
+function parseFrame(dv){ return parseFrameBytes(dvBytes(dv)); }
+function parseFrameBytes(f){
   if(f.length<8 || f[0]!==0xAA) return {error:'no 0xAA / short', rawHex:hex(f)};
   const declared=f[2]|(f[3]<<8);
   const headOk=crc16_modbus(f.slice(0,6))===(f[6]|(f[7]<<8));
@@ -854,8 +854,32 @@ let _rtT=null;
 function renderRt(){ if(_rtT) return; _rtT=setTimeout(()=>{ _rtT=null; const el=$('rt'); if(!el) return;  // throttle DOM updates
   const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
   el.textContent = rows.length ? rows.join('   ') : 'none yet'; }, 250); }
+// ── BLE frame REASSEMBLY ───────────────────────────────────────────────────
+// Each notification carries raw bytes, NOT necessarily one whole frame: the band splits OVERSIZED frames
+// (e.g. the 1.2–2 kB end-of-dump blocks) across several notifications, and only the first fragment starts with
+// the 0xAA start-of-frame. Parsing each notification blindly made every continuation fragment fail the SOF
+// check → a block of red "no 0xAA / short" errors. So we buffer per channel and slice out COMPLETE frames by
+// SOF + declared length (full frame = 8-byte header + declared). Single-notification frames (the normal case)
+// pass straight through, one pass of the loop, unchanged.
+const rxBuf = new Map();                                  // label → leftover bytes awaiting completion
+const MAX_FRAME = 8192;                                   // real frames ≤ ~2.1 kB; a bigger "declared" = corrupt SOF
+const u8concat=(a,b)=>{ if(!a||!a.length) return b; const c=new Uint8Array(a.length+b.length); c.set(a); c.set(b,a.length); return c; };
 function onFrame(label, dv){
-  const info=parseFrame(dv);
+  const bytes = dvBytes(dv);
+  if(capturing){ capture.push({t:Date.now(), ch:label, hex:hex(bytes)}); // faithful raw wire log (fragments included) for RE
+    if(capture.length>CAP_MAX+CAP_TRIM) capture.splice(0, CAP_TRIM); }   // trim in chunks, not shift-per-frame (O(n²))
+  let buf = u8concat(rxBuf.get(label), bytes);
+  while(buf.length>=8){
+    if(buf[0]!==0xAA){ const i=buf.indexOf(0xAA,1); if(i<0){ buf=buf.subarray(0,0); break; } buf=buf.subarray(i); continue; }
+    const frameLen = 8 + (buf[2]|(buf[3]<<8));
+    if(frameLen>MAX_FRAME){ buf=buf.subarray(1); continue; }             // implausible length → this 0xAA is noise, resync
+    if(buf.length<frameLen) break;                                       // rest of the frame hasn't arrived yet
+    processFrame(label, parseFrameBytes(buf.subarray(0,frameLen)));
+    buf = buf.subarray(frameLen);
+  }
+  rxBuf.set(label, buf.length ? buf.slice() : null);     // own the remainder (subarray is a view into the merged buffer)
+}
+function processFrame(label, info){
   if(!pulling || info.error) logFrame('RX['+label+']', info);   // per-frame logging floods the DOM during a bulk pull — suppress it then
   if(!info.error){ const k=info.name; rt.counts[k]=(rt.counts[k]||0)+1; renderRt(); }
   // REALTIME_DATA(40) decoded from real captures: [8]=HR bpm, [9]=RR-present flag,
@@ -875,8 +899,6 @@ function onFrame(label, dv){
     const r=parseDataRange(info.payloadBytes);
     if(r.oldest) dataRangeOldestTs=r.oldest; if(r.newest) dataRangeNewestTs=r.newest;
   }
-  if(capturing){ capture.push({t:Date.now(), ch:label, hex:info.rawHex});
-    if(capture.length>CAP_MAX+CAP_TRIM) capture.splice(0, CAP_TRIM); }   // trim in chunks, not shift-per-frame (O(n²))
 }
 const captureText = ()=> capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
 
@@ -1614,6 +1636,7 @@ async function connect(){
 // a dropped link can be restored with the same notifications wired back up (otherwise a resumed drain would
 // reconnect but never receive any records).
 async function subscribeAll(){
+  rxBuf.clear();                                          // drop any stale partial frame from a previous link
   try{ await BleClient.startNotifications(deviceId,HR_SVC,HR_MEAS, onHR); log('subscribed: live Heart Rate ✓','ok'); }
   catch(e){ log('HR subscribe failed: '+e.message,'err'); }
   for(const [ch,label] of [[RX_CMD,'command_from_strap'],[RX_EVT,'events_from_strap'],[RX_DAT,'data_from_strap'],[RX_HF,'hifreq_from_strap']]){
