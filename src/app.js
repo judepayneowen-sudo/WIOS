@@ -1259,9 +1259,10 @@ async function drainHistory(){
 
 let dataRangeOldestTs=null;
 // Scan a get_data_range payload for the oldest plausible record timestamp (u32 within now±window).
-// Flash holds ~4–5 days, so look back 6 to be safe (the old 3-day cap could miss the true oldest).
+// WHOOP states the band stores up to 14 days, so look back 15 to be safe (our earlier 6-day cap — based on
+// an empirical "~4–5 days" guess — would under-report the oldest on a band actually holding ~2 weeks).
 function parseDataRangeOldest(p){
-  const nowS=Math.floor(Date.now()/1000), lo=nowS-6*86400, hi=nowS+3600; let oldest=null;
+  const nowS=Math.floor(Date.now()/1000), lo=nowS-15*86400, hi=nowS+3600; let oldest=null;
   for(let o=3;o+4<=p.length;o++){ const v=(p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
     if(v>=lo && v<=hi && (oldest===null||v<oldest)) oldest=v; }
   return oldest;
@@ -1371,7 +1372,7 @@ async function forceTrimSeek(){
 // ── ONE-TAP daily calibration pull (Phase 1): FORCE_TRIM back to last night → drain → auto-export. ──
 // In calibration mode the WHOOP app syncs first (creating the cloud answer-key) and ITS sync advances the
 // band's commit cursor PAST that night — so a plain Sync would start at "now" and pull nothing. We rewind
-// with FORCE_TRIM (cmd 25) to the chosen evening (data persists ~4–5 days in flash), then drain that night
+// with FORCE_TRIM (cmd 25) to the chosen evening (WHOOP states the band stores up to 14 days), then drain that night
 // and ship it straight to the laptop drop-box. Defaults the target to ~20:00 yesterday if the box is empty.
 function toLocalInput(d){ const p=n=>String(n).padStart(2,'0');
   return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }

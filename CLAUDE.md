@@ -66,13 +66,17 @@ permanently lost from WHOOP. So:
   `forceTrimSeek()` in `src/app.js` (target time → trim → cmd 25 → probe → iterate).
 - ✅ **The comparable-data problem is solved:** let the WHOOP app sync a night to its cloud (the Phase-1
   answer-key), then **FORCE_TRIM (cmd 25) back to that night → Sync full history** re-reads the raw `(47)`
-  data from flash (persists ~4–5 days). Pair the two → a calibration pair for any night. Repeatable, in-app.
+  data from flash. Pair the two → a calibration pair for any night. Repeatable, in-app.
+  - 📏 **Flash retention — WHOOP's spec is "up to 14 days" (per their website, 2026-06-24), NOT the "~4–5 days"
+    earlier guessed here.** That earlier figure was an under-observation, now retracted. The **"Show oldest on
+    flash"** button (cmd 34 `get_data_range`, `parseDataRangeOldest`, 15-day scan window) reads the band's
+    ACTUAL oldest record — use it to settle the real retention empirically rather than assuming.
 - ⚠️ **Phase-1 vs Phase-2 — the "no seek needed" rule only holds in Phase 2.** In **Phase 2** (subscription
   cancelled, WHOOP app gone) nobody else acks the band, so the dump's oldest-un-acked frontier *is* last
   night → a plain **daily `Sync full history`** pulls it incrementally, no seek. **But in Phase 1
   (calibrating)** we must let the WHOOP app sync first — and **WHOOP's own sync advances the band's commit
   cursor PAST that night**, so a plain Sync would start at "now" and pull nothing. Therefore the **daily
-  calibration pull MUST FORCE_TRIM-first**: rewind (cmd 25) to last night's evening (data persists ~4–5 days
+  calibration pull MUST FORCE_TRIM-first**: rewind (cmd 25) to last night's evening (WHOOP stores up to 14 days
   in flash), then drain. Implemented as the one-tap **`dailySync()`** in `src/app.js` (v1.0.15): FORCE_TRIM →
   drainHistory → auto-send to the laptop drop-box (Save-to-Files fallback).
 - ✅ **The comparable-data routine (use this daily):** WHOOP app syncs the night → cloud answer-key, then
