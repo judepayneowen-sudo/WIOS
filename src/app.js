@@ -965,9 +965,12 @@ function onHR(dv){
    to pull data off the band for decoding. To retire: delete this block, the Setup
    <section> + tab button in index.html, and the profile bit graduates to Settings.   */
 function logEl(){ return $('log'); }
-function log(msg, cls='dim'){ const el=logEl(); if(!el) return; const d=document.createElement('div');
+function log(msg, cls='dim'){ const el=logEl(); if(!el) return;
+  const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;   // only auto-snap if already at the bottom
+  const d=document.createElement('div');
   d.className='ln '+cls; d.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
-  el.appendChild(d); while(el.childElementCount>400) el.removeChild(el.firstChild); el.scrollTop=el.scrollHeight; }
+  el.appendChild(d); while(el.childElementCount>400) el.removeChild(el.firstChild);
+  if(atBottom) el.scrollTop=el.scrollHeight; }                              // scrolled up to read? leave it put
 function logFrame(dir, info){
   if(info.error){ log(`${dir} ${info.rawHex} ⟶ ${info.error}`,'err'); return; }
   const ok=(info.headOk && info.payOk!==false)?'✓':'⚠';
@@ -1392,6 +1395,7 @@ async function drainHistory(){
   let before=null;
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
+    await send(96,[0x01],'enter_high_freq_sync'); await delay(150);   // faster dump throughput; any frames it drops are caught + re-fetched by the idx-gap verification
     log('→ send_historical_data','cmd'); const e0=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(e0);
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
     let guard=0, stalls=0, reprimes=0;
@@ -1439,6 +1443,7 @@ async function drainHistory(){
       else { log(`stopped — no further batches after ${reprimes} re-primes (${drain.strategy?`end of buffer at idx ${pullMax().idx}`:'no trim format advanced the stream'}).`, drain.strategy?'ok':'err'); break; }
       if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }
     }
+    await send(97,[0x00],'exit_high_freq_sync');                 // leave high-freq sync (paired with the enter above)
     await send(20,[],'abort_historical_transmits'); await delay(400);
     const after=await readOldest();
     // Coverage must come from the dense dump records (HISTORICAL_DATA 47), NOT sparse EVENT(48) connection
