@@ -1577,22 +1577,29 @@ async function forceTrimSeek(){
   const range=await readDataRange();                             // TRUE span + trim pointers (read-only, never crashes)
   const newest=range.newestTs, oldest=range.oldestTs;
   if(newest && target>=newest-60){ log(`that time is at/after the newest data on the band (${tsStr(newest)}) — nothing to pull. Pick an earlier time.`,'err'); return false; }
-  if(oldest && target<oldest-60){ log(`that time has rolled off the band (oldest ≈ ${tsStr(oldest)}). Pick a later time.`,'err'); return false; }
+  // NOTE: get_data_range's `oldest` is the COMMIT CURSOR (advances as we ack), NOT the physical oldest on flash.
+  // The band retains records for weeks BELOW the cursor, and FORCE_TRIM can re-read them, so we gate on physical
+  // retention (~60 days), not on `oldest` — otherwise, once we've acked up to now, every past date looks "rolled
+  // off" and the seek refuses to trim.
+  const nowS=Math.floor(Date.now()/1000);
+  if(target < nowS - 60*86400){ log('that time is more than ~60 days old — beyond the band’s flash retention. Pick a more recent time.','err'); return false; }
   // Build a trim bracket whose timestamps straddle the target, then binary-search inside it.
   let loTrim, loTs, hiTrim, hiTs;
   if(range.writeTrim && range.writeTrim > MIN_SAFE_TRIM+1000){
-    // EXACT bounds straight from get_data_range: B = write-pointer (ceiling), A = commit cursor (floor). No probe
-    // needed to bound — the search itself probes real points. Removes the ceiling estimate AND the forward/rewind
-    // branching (the bracket [floor, writeptr] already contains every readable record).
-    hiTrim=range.writeTrim;                       hiTs=(newest!=null?newest:target+86400);
-    loTrim=Math.max(MIN_SAFE_TRIM, Math.min(range.floorTrim||MIN_SAFE_TRIM, hiTrim-2)); loTs=(oldest!=null?oldest:target-86400);
-    log(`bounds (exact, from get_data_range): floor ${loTrim} → writeptr ${hiTrim} · ${tsStr(oldest)} → ${tsStr(newest)}`,'dim');
+    // Ceiling = the write-pointer (B) from get_data_range — exact and verified. FLOOR = the PHYSICAL safe floor
+    // (MIN_SAFE_TRIM), NOT the commit cursor: the band retains records for weeks below the cursor, and bounding
+    // the floor at the cursor (a 2.9.3 mistake) made "trim to a past date" impossible once we'd acked up to now.
+    // loTs must seed ≤ target for the search; the cursor's `oldest` can be NEWER than target after acking, so
+    // fall back to just-before-target when it is. The search probes real points and self-corrects from here.
+    hiTrim=range.writeTrim;     hiTs=(newest!=null?newest:target+86400);
+    loTrim=MIN_SAFE_TRIM;       loTs=(oldest!=null && oldest<target) ? oldest : (target-3600);
+    log(`bounds: floor ${loTrim} → writeptr ${hiTrim} · seeking ${tsStr(target)} (band cursor ≈ ${tsStr(oldest)})`,'dim');
   } else {
     // Fallback (writeptr not parsed): probe the cursor and climb, the pre-reconciliation way.
     const cur=await probeReadPos();
     if(!cur || cur.trim==null){ log('probe failed — connect and keep the app in the foreground.','err'); return false; }
     log(`band: cursor at ${tsStr(cur.ts)} @ trim ${cur.trim}`,'dim');
-    if(cur.ts >= target){ loTrim=MIN_SAFE_TRIM; loTs=(oldest!=null?oldest:target-86400); hiTrim=cur.trim; hiTs=cur.ts; }
+    if(cur.ts >= target){ loTrim=MIN_SAFE_TRIM; loTs=(oldest!=null && oldest<target)?oldest:(target-3600); hiTrim=cur.trim; hiTs=cur.ts; }
     else { const ceilGuess=Math.round(cur.trim + (Math.max(60,(newest||target)-cur.ts))/SEED_S_PER_TRIM)+5000;
       const br=await bracketUp(cur, target, ceilGuess);
       if(!br){ log('cursor is older than the target and the buffer is at its newest — draining forward from here.','dim'); return true; }
