@@ -15,6 +15,7 @@ import { BleClient, numbersToDataView } from '@capacitor-community/bluetooth-le'
 import { SplashScreen } from '@capacitor/splash-screen';
 import { makeStrainAccumulator, maxHeartRate, sleepNeedMinutes, rollingStats, recoveryScore } from './scores.js';
 import * as store from './store.js';
+import { bisectSeek } from './seek.js';
 
 /* ----------------------------- GATT map ----------------------------------- */
 const SVC    = 'fd4b0001-cce1-4033-93ce-002d5875f58a';   // custom command service
@@ -1481,20 +1482,24 @@ async function forceTrimTo(trim){
   await send(25,[trim&0xFF,(trim>>>8)&0xFF,(trim>>>16)&0xFF,(trim>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
 }
 
-// FORCE_TRIM seek — REBUILT 2026-06-24, then CORRECTED 2026-06-24 (eve) after a capture proved the first
-// rebuild never sent a single FORCE_TRIM. The dump streams from the "trim" (commit cursor); FORCE_TRIM (cmd 25)
-// moves it. Hard facts the seek respects:
-//   • trim ↑ = newer; the WRITE POINTER (≈ the newest record's trim) is the CEILING — above it the band clamps.
-//   • trims near 0 are ERASED flash and HARD-REBOOT the band — never go there (MIN_SAFE_TRIM + range gate).
-//   • time↔trim is monotonic but variable-rate → ANCHOR on a measured (ts,trim) point and jump by a rate, refined.
-//   • ⚠️ THE CURSOR IS NOT "NOW". The first rebuild probed the current cursor and treated it as the newest data,
-//     so when WHOOP had only synced part-way (a real capture: cursor parked at Jun-18 while get_data_range knew
-//     the newest was Jun-24) the seek concluded "target ≥ now, nothing to rewind" and returned WITHOUT trimming.
-// So: take the TRUE range from get_data_range (oldest+newest, read-only), use the cursor probe ONLY as a measured
-// anchor (not as "now"), gate the target to [oldest, newest], then jump trim = anchorTrim + (target−anchorTs)/rate
-// in EITHER direction (the target can be older OR newer than the parked cursor), clamped to [floor, ceiling],
-// probe, refine the rate, repeat. Ceiling = the estimated writeptr (anchorTrim + (newest−anchorTs)/rate) so a
-// forward seek isn't capped at the cursor. Lands at/just before the target so the drain reads forward through it.
+// FORCE_TRIM seek — EXACT bounded search (2026-06-25). The dump streams from the "trim" (a monotonic record
+// index); FORCE_TRIM (cmd 25) moves it. Time is monotonic in trim but NOT linear (off-wrist gaps stretch it), so
+// there is no formula time→trim — but monotonic ⇒ binary-searchable EXACTLY. We bound the search to
+// [MIN_SAFE_TRIM, write-pointer]: it can never probe the erased zone (which crashes the band) or overshoot "now",
+// and the Illinois false-position (src/seek.js, unit-tested) converges to the record at/just-before target within
+// ~2 min in ≤~16 read-only probes — no rate guess. Each probe streams the first batch at a candidate trim and
+// aborts without committing (non-destructive). Lands at/before target so the drain reads forward through it.
+async function bracketUp(cur, target, ceilGuess){     // forward case: climb from a parked-OLD cursor to find an upper bound newer than target
+  let lo=cur, step=8000;
+  for(let i=0;i<6;i++){
+    const t=Math.min(ceilGuess, lo.trim+step);
+    await forceTrimTo(t);
+    let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }
+    if(m && m.ts!=null){ if(m.ts>=target) return {lo, hi:{trim:t,ts:m.ts}}; lo={trim:t,ts:m.ts}; }
+    if(t>=ceilGuess) break; step*=2;
+  }
+  return null;
+}
 async function forceTrimSeek(){
   if(!deviceId){ log('connect first','err'); return false; }
   const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
@@ -1507,32 +1512,26 @@ async function forceTrimSeek(){
   log(`band: cursor at ${tsStr(cur.ts)} @ trim ${cur.trim}${oldest?` · range ${tsStr(oldest)} → ${tsStr(newest)}`:''}`,'dim');
   if(newest && target>=newest-60){ log(`that time is at/after the newest data on the band (${tsStr(newest)}) — nothing to pull. Pick an earlier time.`,'err'); return false; }
   if(oldest && target<oldest-60){ log(`that time has rolled off the band (oldest ≈ ${tsStr(oldest)}). Pick a later time.`,'err'); return false; }
-  let sPerTrim=SEED_S_PER_TRIM, floor=MIN_SAFE_TRIM;
-  // Ceiling = the estimated writeptr (the newest record's trim), so a forward seek (target newer than the parked
-  // cursor) isn't capped at the cursor. If we don't know the newest ts, fall back to the cursor's own trim.
-  let ceil = (newest && newest>cur.ts) ? Math.round(cur.trim + (newest-cur.ts)/sPerTrim) : cur.trim;
-  let aTs=cur.ts, aTrim=cur.trim, best=null, reboots=0;
-  const clampTrim=(t)=> Math.min(ceil-1, Math.max(floor, Math.round(t)));
-  for(let iter=1; iter<=6; iter++){
-    let est=clampTrim(aTrim + (target-aTs)/sPerTrim);            // trim↑=newer ⇒ older target ⇒ lower trim, & vice-versa
-    if(est===aTrim) est=clampTrim(aTrim + (target<aTs?-1000:1000)); // guarantee movement, in the right direction
-    log(`→ FORCE_TRIM ${est} [iter ${iter}, ${sPerTrim.toFixed(1)} s/trim, range ${floor}…${ceil}]`,'cmd');
-    await forceTrimTo(est);
-    let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }
-    if(linkDown){ reboots++; floor=Math.max(floor,est+2500);
-      log(`⚠️ band reset at trim ${est} — raising the floor and reconnecting.`,'err');
-      if(reboots>=2){ log('too many resets — pick a more recent time.','err'); return false; }
-      if(!await reconnect()) return false; continue; }
-    if(!m || m.ts==null){ floor=Math.max(floor,est+2500); log('empty here — near the erased edge; raising the floor.','dim'); continue; }
-    const errMin=(m.ts-target)/60;
-    log(`landed ${tsStr(m.ts)} @ trim ${m.trim} — ${errMin>0?'+':''}${errMin.toFixed(0)} min`, Math.abs(errMin)<15?'ok':'cmd');
-    if(m.ts<=target && (!best||m.ts>best.ts)) best=m;            // best safe landing = newest at/before target
-    if(errMin>=-20 && errMin<=5){ await forceTrimTo(m.trim); log('🎉 Landed at/just before the target — pulling from here.','ok'); return true; }
-    if(m.trim!==aTrim){ const r=(aTs-m.ts)/(aTrim-m.trim); if(r>0.3 && r<20) sPerTrim=r; }   // refine local rate
-    aTs=m.ts; aTrim=m.trim;
+  // Build a trim bracket whose timestamps straddle the target, then binary-search inside it.
+  let loTrim, loTs, hiTrim, hiTs;
+  if(cur.ts >= target){                                          // REWIND (common): target older than the cursor
+    loTrim=MIN_SAFE_TRIM; loTs=(oldest!=null?oldest:target-86400); hiTrim=cur.trim; hiTs=cur.ts;
+  } else {                                                       // FORWARD: cursor parked older than target → climb to an upper bound
+    const ceilGuess=Math.round(cur.trim + (Math.max(60,(newest||target)-cur.ts))/SEED_S_PER_TRIM)+5000;
+    const br=await bracketUp(cur, target, ceilGuess);
+    if(!br){ log('cursor is older than the target and the buffer is at its newest — draining forward from here.','dim'); return true; }
+    loTrim=br.lo.trim; loTs=br.lo.ts; hiTrim=br.hi.trim; hiTs=br.hi.ts;
   }
-  if(best){ await forceTrimTo(best.trim); log(`landed at ${tsStr(best.ts)} — closest at/before the target. Pulling from here.`,'ok'); return true; }
-  log('couldn’t converge — try a slightly later time.','err'); return false;
+  // The probe the search drives: FORCE_TRIM there, stream the first batch, read its (ts,trim), abort uncommitted.
+  let crashed=false;
+  const probe=async(trim)=>{ await forceTrimTo(trim); let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }
+    if(linkDown){ crashed=true; await reconnect(); return null; } return m; };
+  const res=await bisectSeek({ loTrim, loTs, hiTrim, hiTs, target, probe, tol:120, maxIter:16 });
+  if(crashed && (!res || res.ts==null)){ log('the seek hit a band reset — try a more recent time.','err'); return false; }
+  await forceTrimTo(res.trim);
+  const offMin=res.ts!=null?Math.round((res.ts-target)/60):null;
+  log(`🎯 landed ${tsStr(res.ts)} @ trim ${res.trim} (${res.probes.length} probes${offMin!=null?`, ${offMin} min vs target`:''}). Pulling from here.`,'ok');
+  return true;
 }
 
 // ── ONE-TAP daily calibration pull (Phase 1): FORCE_TRIM back to last night → drain → auto-export. ──

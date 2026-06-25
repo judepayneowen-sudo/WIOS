@@ -76,6 +76,16 @@ permanently lost from WHOOP. So:
     **May-11 00:42:53**, newest = **now (Jun-24 18:25)**. So actual retention ≫ WHOOP's "up to 14 days" spec
     when the buffer isn't full. (Pointer fields in the same frame — 2293/14745/20316 — are a DIFFERENT counter
     space from the FORCE_TRIM "trim" / writeptr ≈104534; not yet reconciled.)
+  - ✅✅ **FORCE_TRIM seek is now an EXACT bounded binary search (2026-06-25, `src/seek.js`, unit-tested).** Why it
+    was ever a "search": the band has no read-at-time-T command; the only read is "stream forward from the trim"
+    (a monotonic RECORD INDEX, not a clock), and time is monotonic but NOT linear in trim (off-wrist gaps stretch
+    it ~1.6 s/trim worn → ∞ across a gap), so there is no formula time→trim. But monotonic ⇒ binary-searchable
+    EXACTLY. `bisectSeek` runs Illinois false-position bounded to **[MIN_SAFE_TRIM, write-pointer]**: each probe
+    FORCE_TRIMs to a candidate, streams the first batch, reads its ts, aborts uncommitted (non-destructive),
+    halves the bracket — converging to the record at/just-before target within ~2 min in ≤~16 probes, no rate
+    guess. Bounded ⇒ it can never probe the erased crash zone or overshoot now, and can never extrapolate out of
+    range (kills the old trim-257431 blowup). `test/seek.test.mjs` proves convergence + safety on a synthetic band
+    with an off-wrist gap (40 assertions). Replaced the anchor+rate extrapolation in `forceTrimSeek`.
   - ✅ **FORCE_TRIM seek REBUILT clean (2026-06-24) — `dailySync` → `forceTrimSeek` → `drainHistory`(→`persistPull`→store).**
     After the binary-search version groped upward from `trim 0` (the crash zone) and kept resetting the band, the
     seek was rebuilt on the **original anchor+rate method** that worked, hardened with everything learned:
