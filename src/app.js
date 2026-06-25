@@ -1277,7 +1277,7 @@ async function syncHistory(){
 const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
 const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END before giving up on it
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
-let pulling=false; let autoExport=false; let skipDrainConfirm=false; let stopRequested=false; const pullRecords=[]; const pullSeen=new Set();
+let pulling=false; let autoExport=false; let skipDrainConfirm=false; let stopRequested=false; const pullRecords=[]; const pullSeen=new Set(); let pullMaxIdx=-1;
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
@@ -1301,7 +1301,8 @@ function onPullRecord(p){
     const nrr=p[15];                                // RR (tentative): count@15 then u16 LE ms @16…
     if(nrr>0&&nrr<=4&&p.length>=16+2*nrr){ const v=p[16]|(p[17]<<8); if(v>250&&v<2500) rr=v; }
   }
-  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0],skinTempC,spo2,acc,rr,respRate}); }
+  if(!pullSeen.has(key)){ pullSeen.add(key); pullRecords.push({idx,ts,hr,src:p[0],skinTempC,spo2,acc,rr,respRate});
+    if(p[0]!==48 && idx>pullMaxIdx) pullMaxIdx=idx; }   // track the highest (47) record idx O(1) for gap detection
 }
 const median = (a)=>{ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); return s[s.length>>1]; };
 const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0});
@@ -1313,7 +1314,18 @@ const pullMaxTs47 = ()=>{ let m=0, any=false; for(const r of pullRecords){ if(r.
 
 // --- METADATA(49) tracking during a full drain: HISTORY_END trim + completion flag. ---
 let drain=null;
-const newDrain = ()=> ({ endTrim:null, endRaw:null, endSeen:false, endCount:0, complete:false, strategy:null });
+const newDrain = ()=> ({ endTrim:null, endRaw:null, endSeen:false, endCount:0, complete:false, strategy:null,
+  minIdx:null, contigIdx:-1, gapRefetch:0, gaps:[] });   // gap-detection: contiguous (47) idx frontier + recorded holes
+// Advance the contiguous-idx frontier over the (47) records received so far (incremental → cheap across calls).
+// A hole below pullMaxIdx means a frame was dropped; the drain re-fetches before acking so it isn't freed.
+function advanceContig(){
+  if(!drain) return;
+  if(drain.minIdx==null){
+    let mn=Infinity; for(const r of pullRecords) if(r.src===47 && r.idx<mn) mn=r.idx;
+    if(mn===Infinity) return; drain.minIdx=mn; drain.contigIdx=mn-1;
+  }
+  while(pullSeen.has('h'+(drain.contigIdx+1))) drain.contigIdx++;
+}
 function onHistMeta(p){
   if(!drain) return;
   const code=p[2];
@@ -1370,7 +1382,7 @@ async function drainHistory(){
     ? '⚠️ Sync full history advances the band’s sync cursor and FREES the records it pulls. Any data the official WHOOP app has NOT already synced will be PERMANENTLY LOST from WHOOP.\n\nMake sure the WHOOP app has fully synced FIRST, then continue.\n\nProceed with the full (destructive) drain?'
     : `🧪 EXPERIMENT mode “${ackMode}” — testing whether the band will hand over history WITHOUT freeing it.\n\nRun this only on THROWAWAY data you don’t mind losing (e.g. an hour of daytime wear with the WHOOP app force-closed) — if the experiment fails it still frees that data. Afterwards, read the “oldest BEFORE / AFTER” line: if the oldest did NOT move, the read was non-destructive.\n\nContinue the experiment?`;
   if(!skipDrainConfirm && !window.confirm(msg)) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
-  pulling=true; stopRequested=false; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
+  pulling=true; stopRequested=false; drain=newDrain(); pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1;
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
   log(ackMode==='normal'
@@ -1384,6 +1396,19 @@ async function drainHistory(){
     let guard=0, stalls=0, reprimes=0;
     while(pulling && guard++<100000){
       if(drain.complete){ log('HISTORY_COMPLETE — whole buffer delivered ✓','ok'); break; }
+      // VERIFY before acking: a hole in the (47) idx sequence = a dropped frame. Acking would FREE it, so
+      // re-fetch (re-stream the current un-acked window) to refill it first. Only ack once contiguous; after a
+      // few failed re-fetches, record the gap, skip it, and carry on (so a truly-unreadable hole can't stall us).
+      advanceContig();
+      if(drain.minIdx!=null && pullMaxIdx>drain.contigIdx){
+        if(drain.gapRefetch++ < 3){
+          log(`⚠️ dropped frame(s) before idx ${drain.contigIdx+1} (have up to ${pullMaxIdx}) — re-fetching so they aren’t freed [${drain.gapRefetch}/3]`,'err');
+          const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR);
+          continue;
+        }
+        drain.gaps.push([drain.contigIdx+1, pullMaxIdx-1]); drain.contigIdx=pullMaxIdx; drain.gapRefetch=0;
+        log(`⚠️ couldn’t refill the gap after 3 tries — recorded idx ${drain.gaps[drain.gaps.length-1][0]}…; re-pull that window later.`,'err');
+      } else drain.gapRefetch=0;
       const prev=pullRecords.length;
       const strategies = drain.strategy ? TRIM_STRATEGIES.filter(s=>s.id===drain.strategy) : TRIM_STRATEGIES;
       let advanced=false;
@@ -1405,7 +1430,7 @@ async function drainHistory(){
       // acked records the stream can need re-priming with another send_historical_data(22). Be patient and
       // re-prime a few times before concluding we've truly hit the end of the buffer (HISTORY_COMPLETE).
       if(advanced){ stalls=0; reprimes=0; }
-      else if(++stalls < 2){ await delay(800); }                                  // band may just be slow between batches
+      else if(++stalls < 2){ await delay(500); }                                  // band may just be slow between batches
       else if(reprimes++ < 4){ stalls=0;
         log(`stream idle at ${drain.strategy?`idx ${pullMax().idx}`:'start'} — re-priming send_historical_data [${reprimes}/4]`,'dim');
         const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR);
@@ -1428,6 +1453,9 @@ async function drainHistory(){
     showPullPreview({ nd, minTs, maxTs, hrs, hv });               // on-device readout so a bad night shows immediately
     await persistPull(dump);                                      // ⭐ keep a copy ON THE PHONE (Phase 2 store)
     log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
+    if(drain.gaps && drain.gaps.length){ const miss=drain.gaps.reduce((a,g)=>a+(g[1]-g[0]+1),0);
+      log(`⚠️ ${drain.gaps.length} unfilled gap(s), ~${miss} records — these frames dropped and couldn’t be re-fetched. Re-pull this window to recover (data still on flash).`,'err'); }
+    else log('✓ no idx gaps — the dump is contiguous (nothing dropped/freed).','ok');
     log(`oldest BEFORE ${tsStr(before)} · AFTER ${tsStr(after)}`,'cmd');
     // Verdict: did the oldest-buffered pointer move? If it advanced, the ack FREED records (destructive).
     if(before && after){
