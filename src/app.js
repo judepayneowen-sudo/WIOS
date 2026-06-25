@@ -1009,6 +1009,7 @@ function processFrame(label, info){
     dataRangeRaw = info.payloadBytes;                                    // keep raw for pointer analysis
     const r=parseDataRange(info.payloadBytes);
     if(r.oldest) dataRangeOldestTs=r.oldest; if(r.newest) dataRangeNewestTs=r.newest;
+    if(r.writeTrim) dataRangeWriteTrim=r.writeTrim; if(r.cursorTrim!=null) dataRangeFloorTrim=r.cursorTrim;
   }
 }
 const captureText = ()=> capture.map(c=>`${new Date(c.t).toISOString()}\t${c.ch}\t${c.hex}`).join('\n');
@@ -1391,7 +1392,7 @@ async function drainHistory(){
     const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } }
 }
 
-let dataRangeOldestTs=null, dataRangeNewestTs=null;
+let dataRangeOldestTs=null, dataRangeNewestTs=null, dataRangeWriteTrim=null, dataRangeFloorTrim=null;
 // Scan a get_data_range payload for the oldest AND newest plausible record timestamps (u32 within now±window).
 // A real response (2026-06-24) carried the structured fields oldest=May-11 (44 days back) and newest=now —
 // proving the band can hold far more than WHOOP's "up to 14 days" spec, AND that the newest field is the TRUE
@@ -1402,7 +1403,14 @@ function parseDataRange(p){
   const nowS=Math.floor(Date.now()/1000), lo=nowS-120*86400, hi=nowS+3600; let oldest=null, newest=null;
   for(let o=3;o+4<=p.length;o++){ const v=(p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
     if(v>=lo && v<=hi){ if(oldest===null||v<oldest) oldest=v; if(newest===null||v>newest) newest=v; } }
-  return {oldest, newest};
+  // Header trim-space pointers — RECONCILED + console-verified 2026-06-25 across ~50 frames: payload[10..13] =
+  // commit/read CURSOR (oldest readable trim, advances as we ack), [14..17] = WRITE POINTER (the trim CEILING;
+  // matched the firmware's own "writeptr @ 104534" log exactly and rises monotonically through each day),
+  // [18..21] = read pointer (≈ cursor). These are the SAME units we FORCE_TRIM/ack, so the seek can bound itself
+  // EXACTLY from one read-only get_data_range — no probing to find the ceiling. (The non-monotonic per-marker
+  // pair-values elsewhere in the frame are a separate physical/page counter; not the trim.)
+  const u=(o)=> p.length>=o+4 ? ((p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0) : null;
+  return {oldest, newest, cursorTrim:u(10), writeTrim:u(14), readTrim:u(18)};
 }
 function parseDataRangeOldest(p){ return parseDataRange(p).oldest; }
 let dataRangeRaw=null;   // last raw get_data_range response (for read-pointer analysis)
@@ -1410,9 +1418,9 @@ let dataRangeRaw=null;   // last raw get_data_range response (for read-pointer a
 // the true span of records still on flash. newestTs is the real "now" end of data, which is NOT necessarily
 // where the read cursor sits (WHOOP's sync can leave the cursor parked mid-buffer).
 async function readDataRange(){
-  dataRangeOldestTs=null; dataRangeNewestTs=null; dataRangeRaw=null;
+  dataRangeOldestTs=null; dataRangeNewestTs=null; dataRangeWriteTrim=null; dataRangeFloorTrim=null; dataRangeRaw=null;
   await send(34,[],'get_data_range'); await delay(1500);
-  return {oldestTs:dataRangeOldestTs, newestTs:dataRangeNewestTs};
+  return {oldestTs:dataRangeOldestTs, newestTs:dataRangeNewestTs, writeTrim:dataRangeWriteTrim, floorTrim:dataRangeFloorTrim};
 }
 async function readOldest(){ return (await readDataRange()).oldestTs; }
 const tsStr=(t)=> t ? new Date(t*1000).toLocaleString() : '(not parsed)';
@@ -1505,22 +1513,29 @@ async function forceTrimSeek(){
   const v=$('seekdt').value; const target=v ? Math.floor(Date.parse(v)/1000) : NaN;
   if(!Number.isFinite(target)){ log('pick a date & time first','err'); return false; }
   log(`🎯 Seeking to ${new Date(target*1000).toLocaleString()} …`,'cmd');
-  const range=await readDataRange();                             // TRUE span on flash (read-only, never crashes)
-  const cur=await probeReadPos();                                // measured anchor = where the cursor sits NOW
-  if(!cur || cur.trim==null){ log('probe failed — connect and keep the app in the foreground.','err'); return false; }
+  const range=await readDataRange();                             // TRUE span + trim pointers (read-only, never crashes)
   const newest=range.newestTs, oldest=range.oldestTs;
-  log(`band: cursor at ${tsStr(cur.ts)} @ trim ${cur.trim}${oldest?` · range ${tsStr(oldest)} → ${tsStr(newest)}`:''}`,'dim');
   if(newest && target>=newest-60){ log(`that time is at/after the newest data on the band (${tsStr(newest)}) — nothing to pull. Pick an earlier time.`,'err'); return false; }
   if(oldest && target<oldest-60){ log(`that time has rolled off the band (oldest ≈ ${tsStr(oldest)}). Pick a later time.`,'err'); return false; }
   // Build a trim bracket whose timestamps straddle the target, then binary-search inside it.
   let loTrim, loTs, hiTrim, hiTs;
-  if(cur.ts >= target){                                          // REWIND (common): target older than the cursor
-    loTrim=MIN_SAFE_TRIM; loTs=(oldest!=null?oldest:target-86400); hiTrim=cur.trim; hiTs=cur.ts;
-  } else {                                                       // FORWARD: cursor parked older than target → climb to an upper bound
-    const ceilGuess=Math.round(cur.trim + (Math.max(60,(newest||target)-cur.ts))/SEED_S_PER_TRIM)+5000;
-    const br=await bracketUp(cur, target, ceilGuess);
-    if(!br){ log('cursor is older than the target and the buffer is at its newest — draining forward from here.','dim'); return true; }
-    loTrim=br.lo.trim; loTs=br.lo.ts; hiTrim=br.hi.trim; hiTs=br.hi.ts;
+  if(range.writeTrim && range.writeTrim > MIN_SAFE_TRIM+1000){
+    // EXACT bounds straight from get_data_range: B = write-pointer (ceiling), A = commit cursor (floor). No probe
+    // needed to bound — the search itself probes real points. Removes the ceiling estimate AND the forward/rewind
+    // branching (the bracket [floor, writeptr] already contains every readable record).
+    hiTrim=range.writeTrim;                       hiTs=(newest!=null?newest:target+86400);
+    loTrim=Math.max(MIN_SAFE_TRIM, Math.min(range.floorTrim||MIN_SAFE_TRIM, hiTrim-2)); loTs=(oldest!=null?oldest:target-86400);
+    log(`bounds (exact, from get_data_range): floor ${loTrim} → writeptr ${hiTrim} · ${tsStr(oldest)} → ${tsStr(newest)}`,'dim');
+  } else {
+    // Fallback (writeptr not parsed): probe the cursor and climb, the pre-reconciliation way.
+    const cur=await probeReadPos();
+    if(!cur || cur.trim==null){ log('probe failed — connect and keep the app in the foreground.','err'); return false; }
+    log(`band: cursor at ${tsStr(cur.ts)} @ trim ${cur.trim}`,'dim');
+    if(cur.ts >= target){ loTrim=MIN_SAFE_TRIM; loTs=(oldest!=null?oldest:target-86400); hiTrim=cur.trim; hiTs=cur.ts; }
+    else { const ceilGuess=Math.round(cur.trim + (Math.max(60,(newest||target)-cur.ts))/SEED_S_PER_TRIM)+5000;
+      const br=await bracketUp(cur, target, ceilGuess);
+      if(!br){ log('cursor is older than the target and the buffer is at its newest — draining forward from here.','dim'); return true; }
+      loTrim=br.lo.trim; loTs=br.lo.ts; hiTrim=br.hi.trim; hiTs=br.hi.ts; }
   }
   // The probe the search drives: FORCE_TRIM there, stream the first batch, read its (ts,trim), abort uncommitted.
   let crashed=false;

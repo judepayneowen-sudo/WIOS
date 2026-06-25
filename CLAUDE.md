@@ -74,8 +74,17 @@ permanently lost from WHOOP. So:
   - 📅 **DECODED a real `get_data_range` (cmd 34) response (2026-06-24): the band held ~44 DAYS.** Structured
     fields (u32 LE unix ts; the "newest" field matched wall-clock exactly, confirming the epoch): oldest =
     **May-11 00:42:53**, newest = **now (Jun-24 18:25)**. So actual retention ≫ WHOOP's "up to 14 days" spec
-    when the buffer isn't full. (Pointer fields in the same frame — 2293/14745/20316 — are a DIFFERENT counter
-    space from the FORCE_TRIM "trim" / writeptr ≈104534; not yet reconciled.)
+    when the buffer isn't full.
+  - ✅✅ **`get_data_range` TRIM POINTERS RECONCILED (2026-06-25, console-verified across ~50 frames).** The
+    response's header carries THREE u32 trim-space pointers (payload offsets — `payloadBytes[10/14/18]`):
+    **`[10]` = commit/read CURSOR** (oldest readable trim, advances as we ack), **`[14]` = WRITE POINTER** (the
+    trim CEILING), **`[18]` = read pointer ≈ cursor. PROOF for `[14]`: it matched the firmware's own console
+    `writeptr @ 104534` exactly (B=104523 same day) and rises monotonically through each day (Jun-24:
+    102525→104523→105516→105724). These are the SAME units we FORCE_TRIM/ack — so `forceTrimSeek` now bounds its
+    binary search EXACTLY from one read-only `get_data_range` (`hiTrim`=writeptr, `loTrim`=cursor), no probe to
+    find the ceiling, no forward/rewind branching. `parseDataRange` returns `{oldest,newest,cursorTrim,writeTrim,
+    readTrim}`. (The OTHER per-marker pair-values — 2293/14745/20316 etc. — are a separate physical/page counter,
+    non-monotonic/wrapping; NOT the trim. That earlier "not reconciled" note is resolved.)
   - ✅✅ **FORCE_TRIM seek is now an EXACT bounded binary search (2026-06-25, `src/seek.js`, unit-tested).** Why it
     was ever a "search": the band has no read-at-time-T command; the only read is "stream forward from the trim"
     (a monotonic RECORD INDEX, not a clock), and time is monotonic but NOT linear in trim (off-wrist gaps stretch
