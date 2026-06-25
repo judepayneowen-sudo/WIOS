@@ -65,6 +65,10 @@ jobs:
           # Allow cleartext HTTP to LAN / .local hosts (the drop-box) without disabling ATS globally.
           $PB -c "Add :NSAppTransportSecurity dict" Info.plist 2>/dev/null || true
           $PB -c "Add :NSAppTransportSecurity:NSAllowsLocalNetworking bool true" Info.plist || $PB -c "Set :NSAppTransportSecurity:NSAllowsLocalNetworking true" Info.plist
+          # Background BLE: keep a user-started sync running when the app isn't in the foreground (screen locked /
+          # switched away). bluetooth-central lets Core Bluetooth maintain the connection + deliver notifications.
+          $PB -c "Add :UIBackgroundModes array" Info.plist 2>/dev/null || true
+          $PB -c "Add :UIBackgroundModes:0 string bluetooth-central" Info.plist 2>/dev/null || true
 
       - name: Build unsigned archive
         working-directory: ios/App

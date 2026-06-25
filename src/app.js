@@ -1965,4 +1965,14 @@ document.addEventListener('DOMContentLoaded', ()=>{
   refreshHist();                                     // load stored nights → real-data screens (async)
   refreshSyncState();                                // pill → "Not connected" until auto-connect resolves
   autoConnect();                                     // reconnect to the remembered band (no chooser); pill drives the rest
+  // Background sync: with the bluetooth-central background mode (Info.plist), a user-started sync keeps running
+  // when the app leaves the foreground (screen locked / app switched). Don't abort on background; refresh on return.
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden){
+      if(pulling) log('📲 App backgrounded — sync keeps running in the background (keep Bluetooth on and the band in range).','dim');
+    } else {
+      refreshSyncState();
+      if(curScreen==='overview') renderOverview();
+    }
+  });
 });
