@@ -1277,7 +1277,7 @@ async function syncHistory(){
 const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
 const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END before giving up on it
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
-let pulling=false; let autoExport=false; let skipDrainConfirm=false; const pullRecords=[]; const pullSeen=new Set();
+let pulling=false; let autoExport=false; let skipDrainConfirm=false; let stopRequested=false; const pullRecords=[]; const pullSeen=new Set();
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
@@ -1361,7 +1361,7 @@ const ackPayload = (trim)=> (ACK_BUILDERS[ackMode]||ACK_BUILDERS.normal)(trim>>>
 // Sync full history: the ACK-loop drain. DESTRUCTIVE in 'normal' ack mode (frees the records it pulls).
 async function drainHistory(){
   if(!deviceId){ log('connect first','err'); return; }
-  if(pulling){ pulling=false; const b=$('fullsync'); if(b){ b.textContent='Sync full history'; b.classList.remove('live'); } log('sync: stop requested — halting after this batch','dim'); return; }
+  if(pulling){ pulling=false; stopRequested=true; const b=$('fullsync'); if(b){ b.textContent='Sync full history'; b.classList.remove('live'); } log('sync: stop requested — halting (no more passes)','dim'); return; }
   // ⚠️ DESTRUCTIVE: the ack-loop advances the band's commit cursor and frees the acked records. If the
   // official WHOOP app has NOT already synced this data, it is permanently lost from WHOOP (observed
   // 2026-06-21: a full night was pulled here, then WHOOP only had post-pull data). Guard it. The
@@ -1370,7 +1370,7 @@ async function drainHistory(){
     ? '⚠️ Sync full history advances the band’s sync cursor and FREES the records it pulls. Any data the official WHOOP app has NOT already synced will be PERMANENTLY LOST from WHOOP.\n\nMake sure the WHOOP app has fully synced FIRST, then continue.\n\nProceed with the full (destructive) drain?'
     : `🧪 EXPERIMENT mode “${ackMode}” — testing whether the band will hand over history WITHOUT freeing it.\n\nRun this only on THROWAWAY data you don’t mind losing (e.g. an hour of daytime wear with the WHOOP app force-closed) — if the experiment fails it still frees that data. Afterwards, read the “oldest BEFORE / AFTER” line: if the oldest did NOT move, the read was non-destructive.\n\nContinue the experiment?`;
   if(!skipDrainConfirm && !window.confirm(msg)) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
-  pulling=true; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
+  pulling=true; stopRequested=false; drain=newDrain(); pullRecords.length=0; pullSeen.clear();
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
   log(ackMode==='normal'
@@ -1379,7 +1379,6 @@ async function drainHistory(){
   let before=null;
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
-    await send(96,[0x01],'enter_high_freq_sync'); await delay(150);   // ask the band to raise the BLE throughput for the dump ([0x01]=on, matching the hi-freq probe; best-effort)
     log('→ send_historical_data','cmd'); const e0=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(e0);
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
     let guard=0, stalls=0, reprimes=0;
@@ -1414,7 +1413,6 @@ async function drainHistory(){
       else { log(`stopped — no further batches after ${reprimes} re-primes (${drain.strategy?`end of buffer at idx ${pullMax().idx}`:'no trim format advanced the stream'}).`, drain.strategy?'ok':'err'); break; }
       if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }
     }
-    await send(97,[0x00],'exit_high_freq_sync');                 // leave high-freq sync ([0x00]=off, paired with the enter above)
     await send(20,[],'abort_historical_transmits'); await delay(400);
     const after=await readOldest();
     // Coverage must come from the dense dump records (HISTORICAL_DATA 47), NOT sparse EVENT(48) connection
@@ -1630,7 +1628,7 @@ async function dailySync(){
     log('sync cancelled — let the WHOOP app sync first.','dim'); return; }
   { const db=$('dailysync'); if(db){ db.textContent='Syncing… (tap to stop)'; db.classList.add('live'); } }
   setSync('syncing');
-  skipDrainConfirm = true; autoExport = false;                 // we confirm once here and export once at the end
+  skipDrainConfirm = true; autoExport = false; stopRequested = false;   // confirm once here, export once at the end; clear any stale stop
   const agg = { n:0, minTs:Infinity, maxTs:0, hv:[] };          // aggregate across continuation passes
   let lastMax = 0; let userStopped = false;
   const MAX_PASSES = 24;                                        // a full night across slow batches + reconnects
@@ -1651,14 +1649,15 @@ async function dailySync(){
       await drainHistory();
       for(const r of pullRecords) if(r.src===47){ agg.n++; if(r.ts<agg.minTs)agg.minTs=r.ts; if(r.ts>agg.maxTs)agg.maxTs=r.ts; if(r.hr>0)agg.hv.push(r.hr); }
       const passMaxMs = pullMaxTs47()*1000;                       // dense (47) only — ignore stray EVENT(48) blips at "now"
-      // Distinguish a user-stop from a link-drop: linkDown means the band/BLE cut out, so resume; pulling
-      // false WITHOUT linkDown means the user tapped stop.
+      // The user pressing Stop sets stopRequested — honour it FIRST so a stopped pass that happened to gain
+      // ground does NOT launch another pass (the old !pulling check missed that because drainHistory always
+      // ends with pulling=false). linkDown is a link drop (resume); stopRequested is an explicit stop (halt).
+      if(stopRequested){ if(passMaxMs>lastMax) lastMax=passMaxMs; userStopped=true; log('⏹ stopped — no further passes.','dim'); break; }
       if(linkDown){
         if(passMaxMs>lastMax) lastMax = passMaxMs;             // bank whatever ground this partial pass gained
         log('link dropped mid-pull — will reconnect and resume from the last record received.','dim');
         continue;
       }
-      if(!pulling && passMaxMs<=lastMax){ userStopped=true; break; }   // user stopped, no new ground → done
       if(passMaxMs <= lastMax + 60000){ log('no further records — reached the end of the buffer.','dim'); break; }
       lastMax = passMaxMs;
       if(Date.now() - lastMax < 20*60000){ log('✓ Caught up to now — whole night captured.','ok'); break; }
@@ -1884,16 +1883,25 @@ async function connect(){
 async function autoConnect(){
   const id=lget('bandId'); if(!id){ setSync('off'); return; }
   const name=lget('bandName')||'WHOOP';
-  try{
-    resetSession();
-    setSync('connecting'); setStatus('auto-connecting…');
-    await BleClient.initialize();
-    await BleClient.connect(id, onDisconnect);
-    deviceId=id;
-    log(`auto-connected to ${name}.`,'ok');
-    await finishConnect(name);
-  }catch(e){ setSync('off'); setStatus('not connected');
-    log(`auto-connect skipped (${e.message}) — tap the sync pill or Connect WHOOP.`,'dim'); }
+  resetSession();
+  setSync('connecting'); setStatus('auto-connecting…');
+  try{ await BleClient.initialize(); }catch(e){ setSync('off'); setStatus('not connected'); return; }
+  // The band doesn't advertise continuously — it may not be reachable the instant the app opens, so retry a few
+  // times with backoff (same connect call reconnect() uses) before giving up to the tap-to-connect fallback.
+  for(let i=0;i<4;i++){
+    try{
+      await BleClient.connect(id, onDisconnect);
+      deviceId=id;
+      log(`auto-connected to ${name}${i?` (attempt ${i+1})`:''}.`,'ok');
+      await finishConnect(name);
+      return;
+    }catch(e){
+      log(`auto-connect attempt ${i+1} failed (${e.message})${i<3?' — retrying…':''}`,'dim');
+      if(i<3) await delay(1500*(i+1));
+    }
+  }
+  setSync('off'); setStatus('not connected');
+  log('auto-connect gave up — make sure the band is awake/in range, then tap the strap icon or Connect WHOOP.','dim');
 }
 
 // Subscribe to HR + the four WHOOP custom-service notify channels. Shared by connect() and reconnect() so
