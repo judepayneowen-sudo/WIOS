@@ -152,7 +152,8 @@ function computeRecoveryTrend(){
       const hrvBase=rollingStats(prior.map(x=>x.hrvMs)), rhrBase=rollingStats(prior.map(x=>x.restHr));
       d.rec=recoveryScore({ hrv:d.hrvMs, hrvBase, rhr:d.restHr, rhrBase,
         skinTempC:d.skinTempC, skinTempBase:prior.length?prior.reduce((a,x)=>a+(x.skinTempC||0),0)/prior.length:null,
-        spo2:d.spo2, sleepPerformance:d.sleep&&d.sleep.performance!=null?d.sleep.performance/100:null });
+        spo2:d.spo2, priorStrain:i>0?asc[i-1].strain:null,   // recent-strain input (patent): yesterday's load suppresses today's recovery
+        sleepPerformance:d.sleep&&d.sleep.performance!=null?d.sleep.performance/100:null });
     } else d.rec=null;
   }
 }

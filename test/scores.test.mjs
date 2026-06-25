@@ -5,7 +5,7 @@ import {
   maxHeartRate, hrReserveFraction, hrZone, hrZoneReserve, trimpIncrement, strainWeight, strainFromLoad,
   makeStrainAccumulator, rollingStats, zScore, recoveryScore,
   sleepNeedMinutes, strainNeedMinutes, sleepPerformance, summarizeStages,
-  percentile, nightBaselines, classifySleepStage, classifySleepStages, STAGE,
+  percentile, nightBaselines, classifySleepStage, classifySleepStages, hrvFromLastSWS, STAGE,
   detectSleepWindow,
   sleepConsistency, vo2maxFromRun, vo2maxFromHrRatio, leanBodyMass, whoopAge,
 } from '../src/scores.js';
@@ -54,6 +54,21 @@ const recBaseB = recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase });
 ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, skinTempC: 36.5, skinTempBase: 33.5 }) < recBaseB, 'skin-temp deviation lowers recovery');
 ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, spo2: 90 }) < recBaseB, 'low SpO2 lowers recovery');
 ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, spo2: 98 }) === recBaseB, 'normal SpO2 is neutral');
+// recent-strain input (patent US 11,574,722): a hard prior day lowers recovery, an easy one nudges it up
+ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, priorStrain: 19 }) < recBaseB, 'high prior strain lowers recovery');
+ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, priorStrain: 2 }) > recBaseB, 'low prior strain raises recovery');
+
+/* HRV from last SWS window (patent US 9,750,415) */
+{
+  const S = STAGE;
+  const ep = (rmssd) => ({ rmssd });
+  // night: light, sws(40,42,41), light, sws(70,72,71)  → last SWS run is the 70/72/71 block
+  const epochs = [ep(50), ep(40), ep(42), ep(41), ep(55), ep(70), ep(72), ep(71)];
+  const stages = [S.LIGHT, S.SWS, S.SWS, S.SWS, S.LIGHT, S.SWS, S.SWS, S.SWS];
+  ok(hrvFromLastSWS(epochs, stages) === 71, 'HRV = median of LAST SWS run (71), not whole-night');
+  ok(hrvFromLastSWS([ep(60), ep(62)], [S.LIGHT, S.REM]) === 61, 'no SWS → whole-night median fallback');
+  ok(hrvFromLastSWS(null, null) === null && hrvFromLastSWS([], []) === null, 'empty → null');
+}
 
 /* sleep */
 const need = sleepNeedMinutes({ baselineMin: 480, debtMin: 120, dayStrain: 14, napMin: 0 });

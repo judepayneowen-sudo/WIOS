@@ -123,11 +123,16 @@ export function makeStrainAccumulator({ restingHr, maxHr, sex = 'm', scale = STR
 // HRV is the dominant driver, then resting HR (inverted), then respiratory rate
 // (inverted), with a small sleep-performance nudge. Each term is a z-score vs the
 // person's own baseline, combined and squashed to 0–100%.
-export const RECOVERY_WEIGHTS = { hrv: 1.1, rhr: 0.6, resp: 0.3, sleep: 0.5, skinTemp: 0.4, spo2: 0.15, bias: 0 }; // CALIBRATE
+// WHOOP's recovery patents (US 11,574,722 / US20140073486A1) state recovery is a weighted combination of
+// HRV + resting HR + sleep score + RECENT STRAIN (the prior day's intensity). priorStrain is that last term:
+// a hard prior day leaves you less recovered. STRAIN_NEUTRAL is the strain level treated as "neither helped nor
+// hurt"; above it lowers recovery, below it nudges up. All weights/constants CALIBRATE against the cloud.
+export const RECOVERY_WEIGHTS = { hrv: 1.1, rhr: 0.6, resp: 0.3, sleep: 0.5, skinTemp: 0.4, spo2: 0.15, priorStrain: 0.10, bias: 0 }; // CALIBRATE
+export const STRAIN_NEUTRAL = 10; // a "moderate" day's strain (0–21) — the recovery-neutral point (CALIBRATE)
 export function recoveryScore({
   hrv, hrvBase, rhr, rhrBase, respRate = null, respBase = null,
-  skinTempC = null, skinTempBase = null, spo2 = null,
-  sleepPerformance = null, weights = RECOVERY_WEIGHTS,
+  skinTempC = null, skinTempBase = null, spo2 = null, priorStrain = null,
+  sleepPerformance = null, weights = RECOVERY_WEIGHTS, strainNeutral = STRAIN_NEUTRAL,
 } = {}) {
   let s = weights.bias || 0; // intercept: shifts the baseline-day recovery off 50% (CALIBRATE)
   if (hrv != null && hrvBase) s += weights.hrv * zScore(hrv, hrvBase);
@@ -137,6 +142,8 @@ export function recoveryScore({
   if (skinTempC != null && skinTempBase != null) s -= (weights.skinTemp || 0) * Math.abs(skinTempC - skinTempBase);
   if (spo2 != null && spo2 < 97) s -= (weights.spo2 || 0) * (97 - spo2);
   if (sleepPerformance != null) s += weights.sleep * (sleepPerformance - 0.9) * 5;  // ~0.9 perf = neutral
+  // Recent-strain term: a hard prior day suppresses recovery (patent-confirmed input). Scaled by HRR strain span.
+  if (priorStrain != null) s -= (weights.priorStrain || 0) * (priorStrain - strainNeutral) / 3;
   return Math.round(100 * logistic(s));
 }
 
@@ -249,6 +256,29 @@ export function classifySleepStages(epochs, params = SLEEP_STAGE_PARAMS) {
   if (!epochs || !epochs.length) return [];
   const base = nightBaselines(epochs, params);
   return smoothStages(epochs.map((e) => classifySleepStage(e, base, params)), params.smoothEpochs);
+}
+
+// HRV for RECOVERY, per WHOOP patent US 9,750,415 B2 ("Heart rate variability with sleep detection"): take
+// RMSSD from the LAST slow-wave-sleep period immediately before waking — the most consistent recovery signal —
+// NOT a whole-night average. Uses the per-epoch RMSSD already computed for each epoch; returns the median over
+// the last contiguous SWS run (robust to a single noisy epoch ≈ the patent's "highest-quality window"). Falls
+// back to all SWS epochs, then the whole night, when the last run is too short or staging found no SWS.
+export function hrvFromLastSWS(epochs, stages) {
+  if (!epochs || !stages || epochs.length !== stages.length || !epochs.length) return null;
+  const med = (idxs) => {
+    const v = idxs.map((i) => epochs[i] && epochs[i].rmssd > 0 ? epochs[i].rmssd : null).filter((x) => x != null);
+    return v.length ? percentile(v, 0.5) : null;
+  };
+  let end = -1;
+  for (let i = stages.length - 1; i >= 0; i--) if (stages[i] === STAGE.SWS) { end = i; break; }
+  if (end >= 0) {
+    let start = end; while (start > 0 && stages[start - 1] === STAGE.SWS) start--;
+    const run = []; for (let i = start; i <= end; i++) run.push(i);
+    if (run.length >= 2) { const v = med(run); if (v != null) return Math.round(v); }
+    const allSws = []; for (let i = 0; i < stages.length; i++) if (stages[i] === STAGE.SWS) allSws.push(i);
+    const vs = med(allSws); if (vs != null) return Math.round(vs);
+  }
+  const vn = med(epochs.map((_, i) => i)); return vn != null ? Math.round(vn) : null;
 }
 
 // summarizeStages tallies minutes per stage from a sequence of epochs.

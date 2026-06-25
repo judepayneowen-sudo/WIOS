@@ -15,7 +15,7 @@
 // Strain are recomputed from the full merged series.
 
 import { makeStrainAccumulator, maxHeartRate, percentile,
-         detectSleepWindow, classifySleepStages, summarizeStages,
+         detectSleepWindow, classifySleepStages, summarizeStages, hrvFromLastSWS,
          sleepNeedMinutes, sleepPerformance } from './scores.js';
 
 const DB_NAME = 'whoopcore', VERSION = 2;
@@ -82,7 +82,7 @@ export function computeDaySummary(rec, profile = {}) {
     if (rr[i] > 0) rrs.push(rr[i]);
     if (ax[i] || ay[i] || az[i]) mags.push(Math.hypot(ax[i], ay[i], az[i]) / 1000);
   }
-  // HRV proxy: RMSSD over successive representative RR intervals across the night.
+  // Whole-night RMSSD (fallback). Recovery prefers the last-SWS-window HRV from stageNight (patent US 9,750,415).
   let rmssd = null;
   if (rrs.length > 5) { let s = 0, c = 0; for (let i = 1; i < rrs.length; i++) { const d = rrs[i] - rrs[i - 1]; if (Math.abs(d) < 400) { s += d * d; c++; } } rmssd = c ? Math.round(Math.sqrt(s / c)) : null; }
   // Activity: mean |accel| deviation from 1 g, and a crude "active minutes" count.
@@ -101,7 +101,8 @@ export function computeDaySummary(rec, profile = {}) {
     minHr: hrs.length ? Math.min(...hrs) : null,
     maxHr: hrs.length ? Math.max(...hrs) : null,
     restHr: hrs.length ? Math.round(percentile(hrs, 0.05)) : null, // 5th-pct overnight floor ≈ resting HR
-    hrvMs: rmssd,
+    hrvMs: (sleep && sleep.hrvSwsMs != null) ? sleep.hrvSwsMs : rmssd,   // recovery HRV: last-SWS window (patent), else whole-night
+    hrvNightMs: rmssd,                                                   // keep whole-night RMSSD too (for reference/calibration)
     skinTempC: skins.length ? +med(skins).toFixed(1) : null,
     spo2: spo2s.length ? med(spo2s) : null,
     activity, activeMin: activity != null ? Math.round(activeSec / 60) : null,
@@ -159,6 +160,7 @@ function stageNight(rec, ctx) {
   const inBed = eps.slice(win.startIdx, win.endIdx + 1);
   const stages = classifySleepStages(inBed);
   const m = summarizeStages(stages);
+  const hrvSwsMs = hrvFromLastSWS(inBed, stages);        // recovery HRV = RMSSD in the last deep-sleep window (patent US 9,750,415)
   const asleepMin = Math.round(m.rem + m.sws + m.light);
   const needMin = Math.round(sleepNeedMinutes({ dayStrain: ctx.strain || 0 }));
   const perf = sleepPerformance(asleepMin, needMin);
@@ -173,7 +175,7 @@ function stageNight(rec, ctx) {
     start: win.start, end: win.end, inBedMin: win.durMin,
     remMin: Math.round(m.rem), swsMin: Math.round(m.sws), lightMin: Math.round(m.light), awakeMin: Math.round(m.awake),
     asleepMin, needMin, performance: perf != null ? Math.round(perf * 100) : null,
-    needBaselineMin: 480, disturbances: segs.filter((g) => g.s === 'awake').length, segs,
+    needBaselineMin: 480, disturbances: segs.filter((g) => g.s === 'awake').length, segs, hrvSwsMs,
   };
 }
 
