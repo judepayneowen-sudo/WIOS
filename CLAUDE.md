@@ -247,6 +247,40 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
     path* (it shows cloud-computed values) — the raw values are nonetheless IN the record the app uploads.
   - Still unmapped in the 112-B record: a second varying block `[97..101]`/`[105..108]` (likely another
     processed vector or PPG amplitude) and `[33..51]` beyond the accel triplet — decode next if useful.
+  - ✅✅ **CROSS-VALIDATED 2026-06-25 against 3 other 5.0 RE projects + a real 61,872-record night capture
+    (df8c7386).** Our offsets are RIGHT; the cross-source disagreements resolve in our favour:
+    - **HR@14, accel@37/41/45, skinTemp@65÷100** — independently confirmed by `Sophonbot0/whoop-vault`
+      (the closest 5.0 peer; same Maverick framing/ack-loop/record map). whoop-vault lands on the EXACT
+      same absolute offsets incl. the ÷100 skin-temp scale.
+    - **SpO2@74 — PROVEN here, not just claimed.** In the night capture byte[74] is 0 in 97.7% of records
+      with the non-zero values clustered at **95/96/97%** (textbook sleep-only SpO2). `openwhoop`'s claim of
+      SpO2 @data48 (abs ~51) is WRONG for the 5.0 — byte[51] holds 180/200/237 (an activity-score field, not
+      SpO2). So keep @74.
+    - **Ack `[01][trim][0]` — PROVEN correct.** Across all 1,206 `HISTORY_END(49,code2)` frames the word we
+      echo (payload `@13`, monotonic) drives the cursor and the SECOND u32 (`@17`) is **0 in 100% of frames**.
+      whoop-vault/openwhoop "echo metadata `[14:18]`" = our `@17` = 0 for this band, so identical bytes — not a
+      bug. (HISTORY_END layout: `@3` unix u32, `@9` per-batch count, `@13` TRIM, `@17` 0.) Optional robustness:
+      echo `@17` verbatim instead of hardcoding 0 (same output today, future-proof).
+    - **Framing confirmed:** CRC16-MODBUS over `[0..6]` + zlib CRC32 over the **4-byte-padded** inner. We
+      already pad (`padLen`) — whoop-vault warns the strap *silently drops un-padded commands*. (whoop-vault's
+      docstring mislabels the CRC16 as CCITT-FALSE; openwhoop+whoof+our band's self-test say MODBUS — MODBUS is
+      right.)
+    - **New fields available if useful:** 2nd skin-temp `@61` u16÷10 (coarser; we have @65÷100), activity-score
+      u8 `@51` (~91–255), sub-seconds u16 `@11` (1/32768), on-body status bit in flags `@13`.
+- 📚 **Other 5.0/4.0 projects + published WHOOP intel (researched 2026-06-25) — for calibration/Phase-2:**
+  - **Throughput:** whoop-vault sustains **~120 chunks/s (~50 KB/s)** via cmd-96 + **async ack pipelining**
+    (queue acks, fire on HISTORY_END) + **commit every ~200 records**. Our pipelined drain (v2.17.0) mirrors this.
+  - **Sleep-need (WHOOP patent US 11,627,946 B2):** `SleepNeed = Baseline + f(strain) + debt − naps`, strain term
+    **`f(i) = 1.7/(1 + e^((17−i)/3.5))`** (minutes-equiv, i=strain 0–21). The one published constant — use directly.
+  - **Strain zones use Heart-Rate Reserve:** `targetHR = (HRmax−RHR)·pct + RHR`, zones at **40/60/70/80/90 %HRR**;
+    Day Strain 0–21 logarithmic (Borg RPE). HRV = **RMSSD during last slow-wave sleep**. Calibrate z0–z5 to HRR.
+  - **Recovery weights (peer references, NOT WHOOP's):** whoof — HRV .35/RHR .20/resp .10/temp .10/sleep .15/
+    priorStrain .10; my-whoop — logistic `100/(1+e^(−1.6(Z+0.20)))`, HRV .60/RHR .20/resp .05/sleep .15. Cross-checks
+    for our calibrated `scores.js`. openwhoop has NO HRV→Recovery model (we're ahead there).
+  - **FORCE_TRIM-as-seek is novel to us** — openwhoop only uses cmd 25 to `erase()`; edge/my-whoop/whoop-vault
+    never rewind. Our `seek.js` bounded search is ahead of all of them.
+  - Repos: `Sophonbot0/whoop-vault` (5.0, closest), `madhursatija/whoof` (4.0+5.0, richest scoring),
+    `zhenglong-wu/OpenWhoop` (maintained openwhoop, 4.0+5.0), `johnmiddleton12/my-whoop`, `OpenStrap/edge` (4.0).
 - Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV).
 
 ### 📦 Decompiled-APK intel (2026-06-22 — WHOOP Android 5.456)
