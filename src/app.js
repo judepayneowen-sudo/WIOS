@@ -321,10 +321,12 @@ function setWRing(id, frac, color){ const el=$(id); if(!el) return; frac=Math.ma
 const fmtClock=(ts)=> ts? new Date(ts*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:false}) : '';
 const fmtHM=(min)=>{ if(min==null) return '—'; min=Math.round(min); return Math.floor(min/60)+':'+String(min%60).padStart(2,'0'); }
 const avgField=(get)=>{ const v=histDays.map(get).filter(x=>x!=null&&isFinite(x)&&x>0); return v.length? v.reduce((a,c)=>a+c,0)/v.length : null; };
-// One dashboard / summary metric row. trend: +1 up (green), -1 down (orange), 0 flat, null none.
-function mrow(icon,label,val,sub,trend){
-  const tr = trend==null?'<span class="mtr"></span>'
-    : `<span class="mtr ${trend>0?'up':trend<0?'dn':'fl'}">${trend>0?'▲':trend<0?'▼':'•'}</span>`;
+// One dashboard / summary metric row. delta = sign of (value − baseline); goodUp = is "up" the healthy
+// direction (HRV up = good, resting-HR up = bad). The arrow points by direction, coloured green=good / orange=bad.
+function mrow(icon,label,val,sub,delta,goodUp=true){
+  let tr='<span class="mtr"></span>';
+  if(delta!=null && delta!==0){ const good = goodUp ? delta>0 : delta<0;
+    tr=`<span class="mtr ${good?'up':'dn'}">${delta>0?'▲':'▼'}</span>`; }
   const sb = sub!=null && sub!=='' ? `<small>${sub}</small>` : '';
   return `<div class="wmrow"><span class="mi">${icon}</span><span class="ml">${label}</span><span class="mv">${val}${sb}</span>${tr}</div>`;
 }
@@ -336,7 +338,7 @@ function renderDash(d){
   const hrv = d? d.hrvMs : null, rhr = d? d.restHr : null;
   const rows=[
     mrow(ICN.hrv,'HEART RATE VARIABILITY', hrv!=null?hrv:'—', hrvA!=null?Math.round(hrvA):'', trendOf(hrv,hrvA)),
-    mrow(ICN.rhr,'RESTING HEART RATE', rhr!=null?rhr:'—', rhrA!=null?Math.round(rhrA):'', trendOf(rhr,rhrA)),
+    mrow(ICN.rhr,'RESTING HEART RATE', rhr!=null?rhr:'—', rhrA!=null?Math.round(rhrA):'', trendOf(rhr,rhrA), false),
     mrow(ICN.steps,'STEPS', '—', '', null),
     mrow(ICN.zones,'HR ZONES 1-3 (WEEKLY)', '—', '', null),
     mrow(ICN.zones,'HR ZONES 4-5 (WEEKLY)', '—', '', null),
@@ -398,9 +400,11 @@ function renderWeek(){
 }
 function renderOverview(){
   const key=curDayKey(), today=todayKey(), d=dayData(key);
-  // day-picker label + next-arrow gating (can't go past today)
-  setField('dp-label', key===today ? 'TODAY'
-    : new Date(key+'T12:00:00').toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'}).toUpperCase());
+  // day-picker label ("MON, JUN 22" — built manually so locale ordering doesn't flip it) + next-arrow gating
+  { const wd=new Date(key+'T12:00:00');
+    const lab = key===today ? 'TODAY'
+      : `${wd.toLocaleDateString([], {weekday:'short'})}, ${wd.toLocaleDateString([], {month:'short'})} ${wd.getDate()}`.toUpperCase();
+    setField('dp-label', lab); }
   { const np=$('dp-next'); if(np) np.style.opacity = key>=today ? .3 : 1; }
   // rings
   const recPct=d&&d.rec!=null?d.rec:null, slpPct=d&&d.sleep?d.sleep.performance:null, strain=d?d.strain:null;
@@ -1713,17 +1717,13 @@ async function checkBandBuffer(){
 /* ----------------------------- BLE flow ----------------------------------- */
 let deviceId=null, seq=1; let linkDown=false;
 
-// ── Sync status pill (top-right, WHOOP-style) ───────────────────────────────
-// States: off (no band) · connecting · idle ("Up to date") · behind ("Xd behind · tap") · syncing · error.
-function setSync(state, detail){
-  const pill=$('syncpill'); if(!pill) return;
-  pill.dataset.state=state;
-  const COL={off:'#777',connecting:'#3b82f6',idle:'#22c55e',behind:'#f59e0b',syncing:'#3b82f6',error:'#ef4444'};
-  const LBL={off:'Not connected',connecting:'Connecting…',idle:'Up to date',behind:'Tap to sync',syncing:'Syncing…',error:'Error'};
-  const dot=pill.querySelector('.sd'), txt=pill.querySelector('.stx');
-  if(dot) dot.style.background=COL[state]||COL.off;
-  if(txt) txt.textContent=detail!=null?detail:(LBL[state]||LBL.off);
-  pill.classList.toggle('spin', state==='syncing'||state==='connecting');
+// ── Sync status — folded into the strap battery icon (top-right), WHOOP-style ──
+// States: off (no band) · connecting · idle (up to date) · behind (orange ↑ on the strap) · syncing · error.
+// The strap shows battery% + glyph; a small arrow badge signals "tap to sync", exactly like WHOOP's strap icon.
+let syncState='off';
+function setSync(state){
+  syncState=state;
+  const strap=$('wstrap'); if(strap) strap.dataset.state=state;
 }
 function humanBehind(sec){
   if(sec<3600)  return Math.max(1,Math.round(sec/60))+'m behind';
@@ -1761,11 +1761,10 @@ async function resumeSync(){
   }
   await dailySync();                                           // drives the pill (syncing → refresh) itself
 }
-// Pill tap: off → connect (chooser) · syncing → stop · otherwise → resume sync.
+// Strap tap: off → connect (chooser) · syncing → stop · otherwise → resume sync.
 async function onSyncPillTap(){
-  const st=($('syncpill')||{}).dataset?.state;
-  if(st==='off') return connect();
-  if(st==='syncing') return drainHistory();
+  if(syncState==='off') return connect();
+  if(syncState==='syncing') return drainHistory();
   return resumeSync();
 }
 function resetSession(){
@@ -1915,7 +1914,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('connect').onclick    = connect;
   { const a=$('dp-prev'); if(a) a.onclick=()=>shiftDay(-1); }
   { const a=$('dp-next'); if(a) a.onclick=()=>shiftDay(1); }
-  { const sp=$('syncpill'); if(sp) sp.onclick = onSyncPillTap; }
+  { const sp=$('wstrap'); if(sp) sp.onclick = onSyncPillTap; }
   $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} lset('bandId',null); deviceId=null; setSync('off'); } };
   $('hello').onclick      = ()=>send(145,[0x01],'get_hello');
   $('battery').onclick    = ()=>send(26,[],'get_battery_level');
