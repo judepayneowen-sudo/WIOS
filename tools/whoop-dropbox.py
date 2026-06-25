@@ -43,7 +43,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def _cors(self):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Filename")
 
     def do_OPTIONS(self):
         self.send_response(204)
@@ -61,15 +61,26 @@ class Handler(http.server.BaseHTTPRequestHandler):
         n = int(self.headers.get("Content-Length", 0) or 0)
         body = self.rfile.read(n) if n else b""
         ts = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-        path = OUT / f"whoop-capture-{ts}.txt"
+        # Honour an explicit X-Filename (the app's "Send range" uses this), else sniff: a JSON body is a
+        # store-export (decoded per-day data) and is saved as .json so the hex-capture reader skips it;
+        # anything else is a raw hex capture saved as .txt.
+        hint = self.headers.get("X-Filename")
+        if hint:
+            name = pathlib.PurePosixPath(hint).name or f"wios-store-{ts}.json"
+        elif body.lstrip()[:1] == b"{":
+            name = f"wios-store-{ts}.json"
+        else:
+            name = f"whoop-capture-{ts}.txt"
+        path = OUT / name
         path.write_bytes(body)
         frames = body.count(b"\n") + (1 if body and not body.endswith(b"\n") else 0)
-        print(f"[{datetime.datetime.now():%H:%M:%S}] saved {len(body)} bytes / ~{frames} frames -> {path}")
+        kind = "store-export" if name.endswith(".json") else f"~{frames} frames"
+        print(f"[{datetime.datetime.now():%H:%M:%S}] saved {len(body)} bytes / {kind} -> {path}")
         self.send_response(200)
         self._cors()
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
-        self.wfile.write(f"stored as {path.name} ({frames} frames)".encode())
+        self.wfile.write(f"stored as {path.name}".encode())
 
     def log_message(self, *args):  # silence default per-request noise
         pass

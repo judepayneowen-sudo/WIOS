@@ -94,11 +94,39 @@ function loadAnswers(){
 
 /* ----------------------------- captures ----------------------------------- */
 const MAX_DT = 4; // s — cap the gap between HR samples so connection drops don't inflate load
+// A store-export day (sent from the app's "Send range → laptop") → the same {hr,rrs,accel} streams decodeCapture
+// produces, so both calibration paths share one code path. Units: the store keeps ts in SECONDS, accel as g×1000,
+// skin as °C×100; here we convert to the calibrator's ms / g / °C. Needs a raw export (the range-send uses raw).
+function storeDayToStreams(day){
+  const r = day && day.raw;
+  if(!r || !r.ts || !r.ts.length) return null;
+  const hr=[], rrs=[], accel=[];
+  for(let i=0;i<r.ts.length;i++){
+    const tms = r.ts[i]*1000;
+    if(r.hr && r.hr[i]>0) hr.push({ t:tms, hr:r.hr[i] });
+    if(r.rr && r.rr[i]>0) rrs.push({ t:tms, rr:r.rr[i] });
+    if(r.ax && (r.ax[i]||r.ay[i]||r.az[i])) accel.push({ t:tms, x:r.ax[i]/1000, y:r.ay[i]/1000, z:r.az[i]/1000 });
+  }
+  return { hr, rrs, accel };
+}
 function loadCaptures(profile){
   if(!existsSync(CAP_DIR)) return {};
   const maxHr = profile.maxHr>0 ? profile.maxHr : maxHeartRate(profile.age||30);
   const byDay = {}; // date → { load, seconds, samples }
   for(const f of readdirSync(CAP_DIR)){
+    if(f.endsWith('.json')){                                  // store-export from the app (per-day decoded streams)
+      let exp; try{ exp=JSON.parse(readFileSync(path.join(CAP_DIR, f),'utf8')); }catch{ continue; }
+      for(const day of (exp&&exp.days)||[]){
+        const st=storeDayToStreams(day); if(!st || !st.hr.length){ continue; }
+        const acc=makeStrainAccumulator({ restingHr:profile.restingHr||50, maxHr, sex:profile.sex||'m' });
+        let prevT=null;
+        for(const s of st.hr){ const dt = prevT==null?1:Math.min(MAX_DT,(s.t-prevT)/1000);
+          if(dt>0){ acc.add(s.hr, dt); const d=(byDay[day.day] ||= {load:0,seconds:0,samples:0}); d.seconds+=dt; d.samples++; } prevT=s.t; }
+        const d=(byDay[day.day] ||= {load:0,seconds:0,samples:0}); d.load+=acc.load;
+        console.log(`  · ${f} [${day.day}]: ${st.hr.length} HR samples (store-export)`);
+      }
+      continue;
+    }
     if(!f.endsWith('.txt')) continue;
     const { hr, stats } = decodeCapture(readFileSync(path.join(CAP_DIR, f), 'utf8'));
     if(!hr.length){ console.log(`  · ${f}: ${stats.frames} frames, no HR decoded (realtime=${stats.realtime}, historical=${stats.historical})`); continue; }
@@ -125,6 +153,14 @@ function loadSleepEpochs(){
   if(!existsSync(CAP_DIR)) return {};
   const byNight = {};
   for(const f of readdirSync(CAP_DIR)){
+    if(f.endsWith('.json')){                                  // store-export: rebuild epochs from raw (correct units)
+      let exp; try{ exp=JSON.parse(readFileSync(path.join(CAP_DIR, f),'utf8')); }catch{ continue; }
+      for(const day of (exp&&exp.days)||[]){
+        const st=storeDayToStreams(day); if(!st || !st.hr.length) continue;
+        for(const e of buildSleepEpochs(st.hr, st.rrs, st.accel)) (byNight[dayKey(e.t)] ||= []).push(e);
+      }
+      continue;
+    }
     if(!f.endsWith('.txt')) continue;
     const { hr, rrs, accel, stats } = decodeCapture(readFileSync(path.join(CAP_DIR, f), 'utf8'));
     if(stats.historical===0 || !hr.length) continue;       // stages need the overnight historical stream

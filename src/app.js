@@ -1092,6 +1092,31 @@ async function exportStore(){
     log(`✓ exported ${data.days.length} day(s) · ${kb} KB (saved file)`,'ok'); }
   catch(e){ log('export failed: '+e.message,'err'); }
 }
+// Send a selected range of stored days to the laptop drop-box → captures/ (as a store-export JSON the
+// calibrator reads). Uses raw:true so the export carries full 1 Hz HR (for Strain) + 30-s epochs (for Sleep).
+async function sendRangeToLaptop(){
+  const host=(($('storage-laphost')&&$('storage-laphost').value)||loadLapHost()||'').trim();
+  if(!/^[\w.\-]+:\d{2,5}$/.test(host)){ log('enter the laptop address as IP:port, e.g. 192.168.0.196:8787','err'); return; }
+  try{ localStorage.setItem(LKEY, host); }catch(e){}
+  const a=($('storage-from')||{}).value, b=($('storage-to')||{}).value;
+  if(!a||!b){ log('pick a day range first','err'); return; }
+  const lo=a<b?a:b, hi=a<b?b:a;
+  let data; try{ data=await store.exportAll({raw:true}); }catch(e){ log('export failed: '+e.message,'err'); return; }
+  data.days=(data.days||[]).filter(d=> d.day>=lo && d.day<=hi);
+  if(!data.days.length){ log('no stored days in that range','err'); return; }
+  const json=JSON.stringify(data), kb=(json.length/1024).toFixed(0);
+  const fname=`wios-store-${lo}_to_${hi}.json`;
+  const url=`http://${host}/capture`;
+  log(`sending ${data.days.length} day(s) · ${kb} KB → ${url} …`,'cmd');
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), 20000);
+  try{
+    const res=await fetch(url,{ method:'POST', headers:{'Content-Type':'application/json','X-Filename':fname}, body:json, signal:ctrl.signal });
+    clearTimeout(to);
+    if(res.ok){ const t=await res.text().catch(()=>''); log(`✓ sent ${data.days.length} day(s) (${lo} → ${hi}) to the laptop captures folder. ${t}`.trim(),'ok'); }
+    else log(`laptop responded ${res.status} — is the drop-box running on ${host}?`,'err');
+  }catch(e){ clearTimeout(to);
+    log(`send failed: ${e.name==='AbortError'?'timed out':e.message}. Check the drop-box is running and IP:port matches (and tap Allow if iOS asks for local-network access).`,'err'); }
+}
 async function renderStorage(){
   const body=$('storage-body'); if(!body) return;
   let days, use;
@@ -1117,9 +1142,22 @@ async function renderStorage(){
       +`<button class="act" data-del="${d.day}" style="${dimBtn};margin-top:8px">Delete this night</button>`
       +`</div>`;
   }
+  // Send a day range straight to the laptop captures/ folder (for calibration). Days are newest-first, so the
+  // default range is oldest→newest (the full span). The host defaults to the saved/last laptop address.
+  const dayOpts=(sel)=> days.map(d=>`<option value="${d.day}"${d.day===sel?' selected':''}>${fmtDay(d.day)}</option>`).join('');
+  const oldest=days[days.length-1].day, newest=days[0].day;
+  html+=`<div class="card"><div class="hd" style="margin-bottom:8px"><div class="t">Send to laptop</div><span class="muted">→ captures/ for calibration</span></div>`
+    +`<input class="in" id="storage-laphost" placeholder="laptop IP:port (e.g. 192.168.0.196:8787)" style="width:100%">`
+    +`<div class="row" style="margin-top:8px;gap:10px">`
+    +`<label class="fl" style="flex:1">From<select class="in" id="storage-from">${dayOpts(oldest)}</select></label>`
+    +`<label class="fl" style="flex:1">To<select class="in" id="storage-to">${dayOpts(newest)}</select></label></div>`
+    +`<button class="act" id="storage-send" style="width:100%;margin-top:10px">Send range → laptop</button>`
+    +`<div class="muted" style="margin-top:8px;font-size:12px">Sends the decoded data for the chosen days (HR, HRV, skin-temp, SpO₂, movement) as a store-export the calibrator reads. Run <code>tools/whoop-dropbox.py</code> on the laptop first.</div></div>`;
   html+=`<button class="act" id="storage-export" style="width:100%;margin-top:6px">Export all → share for calibration</button>`;
   html+=`<button class="act" id="storage-clear" style="${dimBtn};margin-top:6px">Clear all stored data</button>`;
   body.innerHTML=html;
+  { const h=$('storage-laphost'); if(h) h.value=loadLapHost(); }
+  { const s=$('storage-send'); if(s) s.onclick=sendRangeToLaptop; }
   { const ex=$('storage-export'); if(ex) ex.onclick=exportStore; }
   body.querySelectorAll('[data-del]').forEach(b=> b.onclick=async()=>{ if(window.confirm(`Delete stored data for ${b.dataset.del}?`)){ await store.removeDay(b.dataset.del); renderStorage(); } });
   const cl=$('storage-clear'); if(cl) cl.onclick=async()=>{ if(window.confirm('Delete ALL stored data on this phone? This cannot be undone.')){ await store.clearAll(); renderStorage(); } };
