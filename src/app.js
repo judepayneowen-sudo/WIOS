@@ -1306,6 +1306,10 @@ function onPullRecord(p){
 const median = (a)=>{ if(!a.length) return null; const s=[...a].sort((x,y)=>x-y); return s[s.length>>1]; };
 const pullMax   = ()=> pullRecords.reduce((m,r)=> r.idx>m.idx?r:m, {idx:-1,ts:0});
 const pullMaxTs = ()=> pullRecords.reduce((m,r)=> r.ts>m?r.ts:m, 0);
+// Max ts of the DENSE dump records (HISTORICAL_DATA 47) only. A stray EVENT(48) connection blip sits at "now",
+// so using the all-records max made progress + "caught up to now" logic think the dump had reached now when it
+// hadn't (and stop early). Falls back to all records only if this firmware delivered the dump as EVENT(48).
+const pullMaxTs47 = ()=>{ let m=0, any=false; for(const r of pullRecords){ if(r.src===47){ any=true; if(r.ts>m) m=r.ts; } } return any?m:pullMaxTs(); };
 
 // --- METADATA(49) tracking during a full drain: HISTORY_END trim + completion flag. ---
 let drain=null;
@@ -1392,8 +1396,8 @@ async function drainHistory(){
         if(drain.complete || pullRecords.length>prev){
           advanced=true;
           if(!drain.strategy){ drain.strategy=st.id; log(`  ✓ ${st.id} advanced → ${pullRecords.length} records (idx ${pullMax().idx})`,'ok'); }
-          else if(guard%20===0){ const behindH=(Date.now()/1000 - pullMaxTs())/3600;
-            log(`  …${pullRecords.length} records · data covers up to ${new Date(pullMaxTs()*1000).toLocaleTimeString()} (${behindH<0.5?'≈ now — almost done':behindH.toFixed(1)+'h behind now, still going'})`,'dim'); }
+          else if(guard%20===0){ const mt=pullMaxTs47(); const behindH=(Date.now()/1000 - mt)/3600;
+            log(`  …${pullRecords.length} records · data covers up to ${new Date(mt*1000).toLocaleTimeString()} (${behindH<0.5?'≈ now — almost done':behindH.toFixed(1)+'h behind now, still going'})`,'dim'); }
           break;
         }
         if(!drain.strategy) log(`  ✗ ${st.id}: no advance`,'dim');
@@ -1646,7 +1650,7 @@ async function dailySync(){
       log(`② Draining the night${pass>1?` (pass ${pass})`:''}…`,'cmd');
       await drainHistory();
       for(const r of pullRecords) if(r.src===47){ agg.n++; if(r.ts<agg.minTs)agg.minTs=r.ts; if(r.ts>agg.maxTs)agg.maxTs=r.ts; if(r.hr>0)agg.hv.push(r.hr); }
-      const passMaxMs = pullMaxTs()*1000;
+      const passMaxMs = pullMaxTs47()*1000;                       // dense (47) only — ignore stray EVENT(48) blips at "now"
       // Distinguish a user-stop from a link-drop: linkDown means the band/BLE cut out, so resume; pulling
       // false WITHOUT linkDown means the user tapped stop.
       if(linkDown){
