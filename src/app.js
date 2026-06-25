@@ -1335,7 +1335,8 @@ const pullMaxTs47 = ()=>{ let m=0, any=false; for(const r of pullRecords){ if(r.
 // --- METADATA(49) tracking during a full drain: HISTORY_END trim + completion flag. ---
 let drain=null;
 const newDrain = ()=> ({ endTrim:null, endRaw:null, endSeen:false, endCount:0, complete:false, strategy:null,
-  minIdx:null, contigIdx:-1, gapRefetch:0, gaps:[] });   // gap-detection: contiguous (47) idx frontier + recorded holes
+  minIdx:null, contigIdx:-1, gapRefetch:0, gaps:[],       // gap-detection: contiguous (47) idx frontier + recorded holes
+  autoAck:false, gapHold:false, ackCount:0, lastBatchAt:0 });   // pipelined-ack state (ack fired straight from the frame handler)
 // Advance the contiguous-idx frontier over the (47) records received so far (incremental → cheap across calls).
 // A hole below pullMaxIdx means a frame was dropped; the drain re-fetches before acking so it isn't freed.
 function advanceContig(){
@@ -1349,7 +1350,22 @@ function advanceContig(){
 function onHistMeta(p){
   if(!drain) return;
   const code=p[2];
-  if(code===META_HISTORY_END){ drain.endRaw=p; drain.endTrim = p.length>=17 ? u32at(p,13) : null; drain.endSeen=true; drain.endCount++; }
+  if(code===META_HISTORY_END){
+    drain.endRaw=p; drain.endTrim = p.length>=17 ? u32at(p,13) : null; drain.endSeen=true; drain.endCount++; drain.lastBatchAt=Date.now();
+    // ⚡ PIPELINED ACK — once the trim strategy is locked (after batch 1), fire the ack the INSTANT the
+    // HISTORY_END marker lands, right here in the frame handler, instead of waiting for the supervisor loop to
+    // poll and send it. This collapses the band's idle wait-for-ack to ~0 — the async ack-pipelining that lets
+    // whoop-vault sustain ~120 rec/s. Safety preserved: only auto-ack when the (47) idx run is CONTIGUOUS up to
+    // the frontier (no dropped frame below it); a hole defers to the supervisor, which refills before acking so
+    // nothing is freed. gapHold pauses auto-ack entirely while the supervisor is mid-refill.
+    if(drain.autoAck && pulling && !drain.gapHold && ackMode==='normal'){
+      advanceContig();
+      if(pullMaxIdx<=drain.contigIdx){
+        const st=TRIM_STRATEGIES.find(s=>s.id===drain.strategy); const trim=st?st.get():null;
+        if(trim!=null){ drain.ackCount++; send(23, ackPayload(trim), 'historical_data_result'); }   // fire-and-forget (serialized in send)
+      }
+    }
+  }
   else if(code===META_HISTORY_COMPLETE){ drain.complete=true; }
 }
 // Wait until the band finishes the NEXT batch — i.e. a fresh HISTORY_END (endCount ticks up) or
@@ -1418,58 +1434,61 @@ async function drainHistory(){
     if(hiFreqSync){ await send(96,[0x01],'enter_high_freq_sync'); await delay(200); log('⚡ high-freq sync ON (cmd 96) — measuring throughput below','dim'); }
     log('→ send_historical_data','cmd'); const e0=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(e0);
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
-    let guard=0, stalls=0, reprimes=0;
-    while(pulling && guard++<100000){
+    // ── PHASE A — LOCK THE TRIM STRATEGY (batch 1): try each ack format until one advances the stream. Done
+    //    synchronously (ack → waitBatch) just once so we know which trim layout the band honours. ──
+    if(pulling && !drain.complete && drain.strategy==null && pullRecords.length){
+      const prev=pullRecords.length;
+      for(const st of TRIM_STRATEGIES){
+        if(!pulling) break;
+        const trim=st.get(); if(trim==null) continue;
+        log(`→ ack trim via ${st.id} = ${trim}`,'cmd');
+        const eN=drain.endCount; await send(23, ackPayload(trim), 'historical_data_result'); await waitBatch(eN);
+        if(drain.complete || pullRecords.length>prev){ drain.strategy=st.id; drain.ackCount++;
+          log(`  ✓ ${st.id} advanced → ${pullRecords.length} records (idx ${pullMax().idx}) — locking + pipelining acks`,'ok'); break; }
+        log(`  ✗ ${st.id}: no advance`,'dim');
+      }
+    }
+    // ── PHASE B — PIPELINED DRAIN: with the strategy locked, onHistMeta fires each ack the instant a
+    //    HISTORY_END lands (no main-loop poll between batches). This loop only SUPERVISES: report progress,
+    //    refill idx gaps before they're acked/freed, and re-prime a genuine stall. ──
+    drain.autoAck = !!drain.strategy;
+    let guard=0, reprimes=0, lastEnd=drain.endCount, lastN=pullRecords.length, lastProgress=Date.now(), lastLog=0;
+    while(pulling && drain.strategy && guard++<400000){
       if(drain.complete){ log('HISTORY_COMPLETE — whole buffer delivered ✓','ok'); break; }
-      // VERIFY before acking: a hole in the (47) idx sequence = a dropped frame. Acking would FREE it, so
-      // re-fetch (re-stream the current un-acked window) to refill it first. Only ack once contiguous; after a
-      // few failed re-fetches, record the gap, skip it, and carry on (so a truly-unreadable hole can't stall us).
+      if(drain.endCount!==lastEnd || pullRecords.length!==lastN){            // progress since last look
+        lastEnd=drain.endCount; lastN=pullRecords.length; lastProgress=Date.now(); reprimes=0;
+        if(Date.now()-lastLog>1500){ lastLog=Date.now(); const mt=pullMaxTs47(); const behindH=(Date.now()/1000-mt)/3600;
+          const rps=pullRecords.length/Math.max(0.1,(Date.now()-drainT0)/1000);
+          log(`  …${pullRecords.length} rec · up to ${new Date(mt*1000).toLocaleTimeString()} (${behindH<0.5?'≈ now — almost done':behindH.toFixed(1)+'h behind'}) · ${rps.toFixed(0)} rec/s`,'dim'); }
+      }
+      // GAP guard: a hole below the received frontier = a dropped frame. Pause auto-ack, settle, refill before it
+      // can be acked/freed; then resend the held ack so the parked stream resumes.
       advanceContig();
       if(drain.minIdx!=null && pullMaxIdx>drain.contigIdx){
-        // SETTLE first: under high-freq the band streams ~9× real-time, so records land fast and slightly out of
-        // order — a “gap” seen here is usually just in-flight frames that haven’t arrived yet, NOT a dropped one.
-        // Wait briefly and re-walk the frontier; if it closes, there was no real gap (this killed the false
-        // re-fetch storm that flooded the log). Only a gap that survives the settle is treated as a true drop.
-        await delay(250); advanceContig();
+        drain.gapHold=true; await delay(250); advanceContig();
         if(pullMaxIdx>drain.contigIdx){
           if(drain.gapRefetch++ < 3){
             log(`⚠️ dropped frame(s) before idx ${drain.contigIdx+1} (have up to ${pullMaxIdx}) — re-fetching so they aren’t freed [${drain.gapRefetch}/3]`,'err');
-            const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR);
-            continue;
+            const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR); drain.gapHold=false; continue;
           }
           drain.gaps.push([drain.contigIdx+1, pullMaxIdx-1]); drain.contigIdx=pullMaxIdx; drain.gapRefetch=0;
           log(`⚠️ couldn’t refill the gap after 3 tries — recorded idx ${drain.gaps[drain.gaps.length-1][0]}…; re-pull this window later.`,'err');
         } else drain.gapRefetch=0;
-      } else drain.gapRefetch=0;
-      const prev=pullRecords.length;
-      const strategies = drain.strategy ? TRIM_STRATEGIES.filter(s=>s.id===drain.strategy) : TRIM_STRATEGIES;
-      let advanced=false;
-      for(const st of strategies){
-        if(!pulling) break;
-        const trim=st.get(); if(trim==null) continue;
-        if(!drain.strategy) log(`→ ack trim via ${st.id} = ${trim}`,'cmd');
-        const eN=drain.endCount; await send(23, ackPayload(trim), 'historical_data_result'); await waitBatch(eN);
-        if(drain.complete || pullRecords.length>prev){
-          advanced=true;
-          if(!drain.strategy){ drain.strategy=st.id; log(`  ✓ ${st.id} advanced → ${pullRecords.length} records (idx ${pullMax().idx})`,'ok'); }
-          else if(guard%20===0){ const mt=pullMaxTs47(); const behindH=(Date.now()/1000 - mt)/3600;
-            log(`  …${pullRecords.length} records · data covers up to ${new Date(mt*1000).toLocaleTimeString()} (${behindH<0.5?'≈ now — almost done':behindH.toFixed(1)+'h behind now, still going'})`,'dim'); }
-          break;
-        }
-        if(!drain.strategy) log(`  ✗ ${st.id}: no advance`,'dim');
+        drain.gapHold=false;
+        const g=TRIM_STRATEGIES.find(s=>s.id===drain.strategy); const t=g?g.get():null; if(t!=null) await send(23, ackPayload(t), 'historical_data_result');
+        continue;
       }
-      // Don't bail on the first quiet gap: mid-buffer the band pauses between batches, and after it frees
-      // acked records the stream can need re-priming with another send_historical_data(22). Be patient and
-      // re-prime a few times before concluding we've truly hit the end of the buffer (HISTORY_COMPLETE).
-      if(advanced){ stalls=0; reprimes=0; }
-      else if(++stalls < 2){ await delay(500); }                                  // band may just be slow between batches
-      else if(reprimes++ < 4){ stalls=0;
-        log(`stream idle at ${drain.strategy?`idx ${pullMax().idx}`:'start'} — re-priming send_historical_data [${reprimes}/4]`,'dim');
+      // STALL: no fresh batch for a while. Mid-buffer the band pauses (and after freeing acked records the stream
+      // can need re-priming). Wait a beat, then re-prime a few times before concluding we hit end-of-buffer.
+      if(Date.now()-lastProgress < 700){ await delay(60); continue; }
+      if(reprimes++ < 5){ lastProgress=Date.now();
+        log(`stream idle at idx ${pullMax().idx} — re-priming send_historical_data [${reprimes}/5]`,'dim');
         const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR);
-      }
-      else { log(`stopped — no further batches after ${reprimes} re-primes (${drain.strategy?`end of buffer at idx ${pullMax().idx}`:'no trim format advanced the stream'}).`, drain.strategy?'ok':'err'); break; }
+      } else { log(`stopped — end of buffer at idx ${pullMax().idx} (no further batches after ${reprimes} re-primes).`,'ok'); break; }
       if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }
     }
+    drain.autoAck=false;
+    if(!drain.strategy) log('stopped — no trim format advanced the stream. Save/Send the capture so I can read the METADATA(49) offsets and lock the trim.','err');
     await send(97,[0x00],'exit_high_freq_sync');                 // DEFENSIVE: ensure high-freq is off (if a prior run left it on), then abort
     await send(20,[],'abort_historical_transmits'); await delay(400);
     const after=await readOldest();
@@ -2054,12 +2073,20 @@ async function reconnect(tries=6){
   return false;
 }
 
-async function send(command, data=[], label=''){
-  if(!deviceId){ log('not connected','err'); return; }
-  const frame=buildCommand(seq,command,data);
-  try{ await BleClient.write(deviceId,SVC,TX,numbersToDataView(frame));
-    log(`TX ${label||command} seq=${seq}  ${hex(frame)}`,'cmd'); seq=(seq+1)&0xFF; if(seq===0) seq=1;
-  }catch(e){ log('TX failed: '+e.message,'err'); }
+// All BLE writes are SERIALIZED through one chain. The pipelined drain fires acks from the frame handler
+// (onHistMeta) the instant a HISTORY_END lands, which can overlap a send the supervisor loop is also doing —
+// two BleClient.write() in flight at once can error or scramble the seq counter. Chaining guarantees one write
+// completes before the next starts, in call order, while still letting the handler "fire and forget" an ack.
+let _txChain=Promise.resolve();
+function send(command, data=[], label=''){
+  const run=async()=>{
+    if(!deviceId){ log('not connected','err'); return; }
+    const frame=buildCommand(seq,command,data);
+    try{ await BleClient.write(deviceId,SVC,TX,numbersToDataView(frame));
+      log(`TX ${label||command} seq=${seq}  ${hex(frame)}`,'cmd'); seq=(seq+1)&0xFF; if(seq===0) seq=1;
+    }catch(e){ log('TX failed: '+e.message,'err'); }
+  };
+  const p=_txChain.then(run, run); _txChain=p.catch(()=>{}); return p;
 }
 async function onDisconnect(){ setStatus('disconnected'); enableDev(false); linkDown=true;
   setSync(pulling?'syncing':'off');                             // keep "syncing" during a mid-drain reconnect
