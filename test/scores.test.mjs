@@ -2,7 +2,7 @@
    Pure-function checks — no band, no DOM. Asserts monotonicity and sane ranges,
    not exact WHOOP values (those calibrate constants once we have real data). */
 import {
-  maxHeartRate, hrReserveFraction, hrZone, hrZoneReserve, trimpIncrement, strainFromLoad,
+  maxHeartRate, hrReserveFraction, hrZone, hrZoneReserve, trimpIncrement, strainWeight, strainFromLoad,
   makeStrainAccumulator, rollingStats, zScore, recoveryScore,
   sleepNeedMinutes, strainNeedMinutes, sleepPerformance, summarizeStages,
   percentile, nightBaselines, classifySleepStage, classifySleepStages, STAGE,
@@ -27,6 +27,12 @@ ok(hrZoneReserve(120, 50, 190) >= hrZone(120, 200) - 5, 'HRR zone returns 0..5')
 
 /* strain */
 ok(trimpIncrement(0.8, 1) > trimpIncrement(0.4, 1), 'TRIMP rises with intensity');
+// WHOOP patent step weight w(v) = {0,1,18,42} at breakpoints {0, AT=0.70, CPT=0.88, 1}
+ok(strainWeight(0) === 0, 'w(0)=0');
+ok(strainWeight(0.3) === 1 && strainWeight(0.70) === 1, 'w=1 up to AT');
+ok(strainWeight(0.75) === 18 && strainWeight(0.88) === 18, 'w=18 in (AT,CPT]');
+ok(strainWeight(0.95) === 42 && strainWeight(1) === 42, 'w=42 above CPT');
+ok(strainWeight(0.95) > strainWeight(0.80) && strainWeight(0.80) > strainWeight(0.50), 'w strictly increasing across thresholds');
 ok(strainFromLoad(0) === 0, 'zero load → 0 strain');
 ok(strainFromLoad(50) < strainFromLoad(150) && strainFromLoad(1e6) <= 21, 'strain monotonic & capped ≤21');
 const acc = makeStrainAccumulator({ restingHr: 50, maxHr: 190, sex: 'm' });

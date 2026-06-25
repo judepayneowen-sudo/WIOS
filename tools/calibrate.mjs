@@ -251,7 +251,7 @@ if(!strainPairs.length){
   // strain = 21·(1 − e^(−load/scale)); fit scale to minimize MSE across pairs.
   const loss=(s)=> rmse(strainPairs, p=> strainFromLoad(p.load, s[0]));
   const before = rmse(strainPairs, p=> strainFromLoad(p.load, STRAIN_SCALE));
-  const s = goldenMin(v=> loss([v]), 1, 5000);
+  const s = goldenMin(v=> loss([v]), 1, 100000);   // patent weight·minute load units → scale is ~thousands
   fitted.strainScale = +s.toFixed(1);
   console.log(`  STRAIN_SCALE ${STRAIN_SCALE} → ${fix(s,1)}   ·  RMSE ${fix(before,2)} → ${fix(loss([s]),2)} strain`);
   if(strainPairs.some(p=> p.mins < 180)) console.log('  ⚠ some capture days cover <3h — load is partial, so the scale is biased low. Treat as provisional until a full-day (47) capture lands.');

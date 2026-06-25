@@ -63,18 +63,34 @@ export function hrZoneReserve(hr, restingHr, maxHr) {
 }
 
 /* ----------------------------- strain ------------------------------------- */
-// Banister TRIMP increment: weights time exponentially toward higher intensity,
-// which matches how WHOOP strain accrues far faster in high HR zones.
+// ⭐ WHOOP's OWN DISCLOSED strain model (patents US 11,185,241 / US 11,185,292 / US20140073486A1):
+// cardiovascular load is a weighted INTEGRAL of heart-rate reserve, I = ∫ w(v(t)) dt, where
+// v = (HR−RHR)/(MHR−RHR) is the instantaneous HRR and w is a STEP weight that jumps dramatically at the
+// anaerobic threshold (AT) and a higher cellular-respiration threshold (CPT):
+//     w = 0  at v=0  ·  w = 1 on (0, AT]  ·  w = 18 on (AT, CPT]  ·  w = 42 on (CPT, 1]
+// The 1→18→42 jumps are the patent's disclosed embodiment and are exactly why time in high zones accrues strain
+// so much faster (and why Day Strain "feels" logarithmic). AT/CPT (as HRR fractions) are CALIBRATE — defaults
+// sit near the zone-4 / zone-5 HRR edges. We integrate in weight·MINUTES, then compress to the 0–21 scale.
+export const WHOOP_STRAIN = { wAT: 1, wMid: 18, wHi: 42, atFrac: 0.70, cptFrac: 0.88 }; // CALIBRATE atFrac/cptFrac
+export function strainWeight(v, p = WHOOP_STRAIN) {
+  if (v <= 0) return 0;
+  if (v <= p.atFrac) return p.wAT;
+  if (v <= p.cptFrac) return p.wMid;
+  return p.wHi;
+}
+
+// Legacy Banister TRIMP increment — kept for reference/back-compat (the accumulator now uses the patent w(v)).
 export function trimpIncrement(hrFrac, dtMinutes, sex = 'm') {
   const b = sex === 'f' ? 1.67 : 1.92;
   const k = sex === 'f' ? 0.86 : 0.64;
   return dtMinutes * hrFrac * k * Math.exp(b * hrFrac);
 }
 
-// WHOOP strain is a 0–21 logarithmic (Borg-derived) scale that saturates. We map
-// accumulated TRIMP load through a saturating exponential. SCALE sets how much load
-// reaches a given strain — CALIBRATE against a few known (load, WHOOP-strain) pairs.
-export const STRAIN_SCALE = 120; // CALIBRATE (TRIMP units)
+// WHOOP strain is a 0–21 scale that saturates (the patent maps the normalized load through a sigmoid/arctan).
+// We compress the accumulated weight·minute load through a saturating exponential; SCALE sets how much load
+// reaches a given strain — CALIBRATE against known (load, WHOOP-strain) pairs. Units are weight·minutes from
+// the patent w(v) integral above (w up to 42), so SCALE is ~thousands, not the old TRIMP ~hundreds.
+export const STRAIN_SCALE = 4000; // CALIBRATE (patent weight·minute units)
 export function strainFromLoad(load, scale = STRAIN_SCALE) {
   if (load <= 0) return 0;
   return +(21 * (1 - Math.exp(-load / scale))).toFixed(1);
@@ -92,8 +108,9 @@ export function makeStrainAccumulator({ restingHr, maxHr, sex = 'm', scale = STR
   return {
     add(hr, dtSeconds) {
       if (!(hr > 0) || !(dtSeconds > 0)) return;
+      const v = hrReserveFraction(hr, restingHr, maxHr);
       zoneSeconds[hrZoneReserve(hr, restingHr, maxHr)] += dtSeconds;   // HRR zones (WHOOP's method) → calibrate to API zone_durations
-      load += trimpIncrement(hrReserveFraction(hr, restingHr, maxHr), dtSeconds / 60, sex);
+      load += strainWeight(v) * (dtSeconds / 60);                      // patent w(v) integral, in weight·minutes
     },
     get load() { return load; },
     get strain() { return strainFromLoad(load, scale); },

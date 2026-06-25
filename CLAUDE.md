@@ -281,6 +281,34 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
     never rewind. Our `seek.js` bounded search is ahead of all of them.
   - Repos: `Sophonbot0/whoop-vault` (5.0, closest), `madhursatija/whoof` (4.0+5.0, richest scoring),
     `zhenglong-wu/OpenWhoop` (maintained openwhoop, 4.0+5.0), `johnmiddleton12/my-whoop`, `OpenStrap/edge` (4.0).
+- ⚖️ **WHOOP PATENT PORTFOLIO — disclosed algorithms (researched 2026-06-25; ~87 patents, core inventors Ahmed,
+  J. Capodilupo, A. Nicolae). HARD = an equation/constant we can implement; SOFT = structure only, calibrate the rest.**
+  - ✅✅ **STRAIN — HARD, IMPLEMENTED (v2.20.0).** Patents `US 11,185,241` / `US 11,185,292` / `US20140073486A1`:
+    cardiovascular load `I = ∫ w(v(t)) dt`, `v = (HR−RHR)/(MHR−RHR)` (HRR), with a STEP weight
+    **`w = 0` at 0 · `1` on (0,AT] · `18` on (AT,CPT] · `42` on (CPT,1]** — the 1→18→42 jumps are why high zones
+    accrue strain so fast. Normalize by `42·24h`, compress to 0–21 (sigmoid/arctan). Implemented in `scores.js`
+    `strainWeight()` + `makeStrainAccumulator` (weight·minute load → `strainFromLoad`); AT/CPT (HRR fracs) CALIBRATE.
+  - ✅ **HRV SAMPLING — HARD rule.** `US 9,750,415 B2` / `US 9,743,848` ("HRV with sleep detection"): compute **RMSSD
+    in the LAST slow-wave-sleep period immediately before waking** (highest-quality HR window within it) → feed Recovery.
+    We currently take whole-night RMSSD (`store.js` line ~87) — TODO: switch to last-SWS window (we already stage the night).
+  - ✅ **SLEEP STAGING from respiration — HARD constants.** `WO2014047310` / `US 10,492,720` / `US 11,801,009` /
+    `US 12,178,600`: 30-s epochs; per-epoch respiration rate = freq of **max PSD**; **high RR-variability → REM, low →
+    deep(N3)**; signal-quality gate **>40 mV**; RR-variability stability threshold **0.5 bpm** (high-quality) / **1.5 bpm**
+    (low); breath-consistency bounds **±0.1 s or ±2.5%**; smoothing: **runs of ≤4 deep epochs → relabel light**. Our
+    classifier is HR/HRV/actigraphy — could add these respiration-variability features (resp is the @72 byte, tentative).
+  - ✅ **SLEEP NEED — HARD (already implemented).** `US 11,627,946 B2` + continuation `US 12,318,226`/`US20240252121A1`:
+    `SleepNeed = Baseline + f(strain) + f(debt) − naps`, `f(i)=1.7/(1+e^((17−i)/3.5))` h. Debt scaled+capped per person.
+  - ◐ **RECOVERY — SOFT (input set HARD, weights NOT disclosed).** `US 11,574,722` / `US20140073486A1`: recovery is a
+    **weighted combination of HRV + RHR + sleep score + RECENT STRAIN (intensity)** — note RECENT STRAIN is an input we
+    DON'T yet use (TODO: add a prior-day-strain term to `recoveryScore`). The 65/20/15-type weights are blog estimates,
+    NOT patent-disclosed; the 2024 systematic review confirms WHOOP's recovery/strain weights are unpublished → only our
+    cloud calibration can fix them.
+  - **SpO2** `US 10,799,162` (660 nm + 855 nm, `SpO2 = C1 − C2·R`) and **multi-estimator HR fusion** `US 9,538,923`,
+    **data-quality weighting** `US 11,185,292`/`US 11,986,323` (weight metrics by P(accurate); drop below-threshold or
+    below-adjacent segments) — relevant if we ever decode raw PPG; we read the band's computed SpO2@74 directly.
+  - **Validation reality check:** peer studies confirm the INPUTS are accurate (HR ~±0.4%, RHR MAPE ~3%, HRV RMSSD ICC
+    ~0.99, resp ±1 bpm) but NO study reverse-derived Recovery/Strain weights — calibration-vs-cloud is the only path.
+    Sleep staging is only "fair" even WHOOP-vs-PSG (κ≈0.37–0.49) → keep calibrating to the stage SUMMARY, not the hypnogram.
 - Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV).
 
 ### 📦 Decompiled-APK intel (2026-06-22 — WHOOP Android 5.456)
