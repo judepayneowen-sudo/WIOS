@@ -983,6 +983,7 @@ const rt = { counts:{} };
 let capturing=false; const capture=[]; const CAP_MAX=100000, CAP_TRIM=10000;  // ring buffer for file export
 let lastCaptureText='';   // last pull's raw capture, persisted to IndexedDB so it survives an app restart
 let lastStrayAbort=0, strayTries=0, lastIdleLog=0;   // stop-a-stuck-firehose state + idle-log rate limiter
+let probing=false;        // a deliberate read-only diagnostic (hi-freq / IMU probe) is streaming — don't auto-abort it
 let _rtT=null;
 function renderRt(){ if(_rtT) return; _rtT=setTimeout(()=>{ _rtT=null; const el=$('rt'); if(!el) return;  // throttle DOM updates
   const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
@@ -1018,7 +1019,7 @@ function processFrame(label, info){
   // responses) and tell the user to reconnect (a disconnect resets the band's BLE state). Dump frames are never
   // logged here. Everything else, when idle, is rate-limited so a chatty band can't flood the log either.
   const isDumpFrame = info.packetType===47 || info.packetType===49;
-  if(!pulling && isDumpFrame && !info.error){
+  if(!pulling && !probing && isDumpFrame && !info.error){       // !probing → don't cancel a deliberate hi-freq/IMU probe
     if(strayTries < 4 && Date.now()-lastStrayAbort > 1500){
       lastStrayAbort=Date.now(); strayTries++;
       send(20,[],'abort_historical_transmits'); send(97,[0x00],'exit_high_freq_sync');
@@ -1806,32 +1807,36 @@ async function toggleRawData(){
 }
 async function imuHistoricalProbe(){
   if(!deviceId){ log('connect first','err'); return; }
-  startCaptureIfNeeded();
-  log('Historical IMU probe (READ-ONLY): enabling IMU historical mode, then streaming the first window WITHOUT acking — nothing is freed.','ok');
-  await send(105,[0x01],'toggle_imu_mode_historical ON'); await delay(500);
-  await send(34,[],'get_data_range'); await delay(800);
-  await send(22,[0x00],'send_historical_data');
-  log('streaming ~20 s — looking for R21 IMU records in the dump (watch the fd4b counter for a new type)…','dim');
-  await delay(20000);
-  await send(20,[],'abort_historical_transmits'); await delay(300);
-  await send(105,[0x00],'toggle_imu_mode_historical OFF');
-  log('✓ Done (read-only — nothing acked, non-destructive). Save file / Send to laptop so I can find & decode the R21 record.','ok');
+  startCaptureIfNeeded(); probing=true;                          // deliberate probe → suppress the stray-firehose auto-abort
+  try{
+    log('Historical IMU probe (READ-ONLY): enabling IMU historical mode, then streaming the first window WITHOUT acking — nothing is freed.','ok');
+    await send(105,[0x01],'toggle_imu_mode_historical ON'); await delay(500);
+    await send(34,[],'get_data_range'); await delay(800);
+    await send(22,[0x00],'send_historical_data');
+    log('streaming ~20 s — looking for R21 IMU records in the dump (watch the fd4b counter for a new type)…','dim');
+    await delay(20000);
+    await send(20,[],'abort_historical_transmits'); await delay(300);
+    await send(105,[0x00],'toggle_imu_mode_historical OFF');
+    log('✓ Done (read-only — nothing acked, non-destructive). Save file / Send to laptop so I can find & decode the R21 record.','ok');
+  } finally { probing=false; }
 }
 // High-freq-sync probe (cmd 96): the WHOOP app enters HIGH_FREQ_SYNC before pulling — this is the most
 // likely path for the band to deliver RAW high-rate records (IMU for steps, raw PPG). Read-only: enter
 // high-freq, stream the first window WITHOUT acking, then exit. Scan the result for new record types/lengths.
 async function hiFreqProbe(){
   if(!deviceId){ log('connect first','err'); return; }
-  startCaptureIfNeeded();
-  log('High-freq-sync probe (cmd 96, READ-ONLY): entering high-frequency sync, then streaming the first window without acking — testing whether it unlocks raw/IMU records.','ok');
-  await send(96,[0x01],'enter_high_freq_sync'); await delay(700);
-  await send(34,[],'get_data_range'); await delay(700);
-  await send(22,[0x00],'send_historical_data');
-  log('streaming ~20 s — watch the fd4b counter for a NEW record type or longer records…','dim');
-  await delay(20000);
-  await send(20,[],'abort_historical_transmits'); await delay(300);
-  await send(97,[0x00],'exit_high_freq_sync');
-  log('✓ Done (read-only). Save / Send the capture — I’ll scan for raw/IMU records the high-freq mode may add.','ok');
+  startCaptureIfNeeded(); probing=true;                          // deliberate probe → suppress the stray-firehose auto-abort
+  try{
+    log('High-freq-sync probe (cmd 96, READ-ONLY): entering high-frequency sync, then streaming the first window without acking — testing whether it unlocks raw/IMU records.','ok');
+    await send(96,[0x01],'enter_high_freq_sync'); await delay(700);
+    await send(34,[],'get_data_range'); await delay(700);
+    await send(22,[0x00],'send_historical_data');
+    log('streaming ~20 s — watch the fd4b counter for a NEW record type or longer records…','dim');
+    await delay(20000);
+    await send(20,[],'abort_historical_transmits'); await delay(300);
+    await send(97,[0x00],'exit_high_freq_sync');
+    log('✓ Done (read-only). Save / Send the capture — I’ll scan for raw/IMU records the high-freq mode may add.','ok');
+  } finally { probing=false; }
 }
 
 async function checkBandBuffer(){
@@ -1918,7 +1923,7 @@ async function finishConnect(name){
   await subscribeAll();
   // Clear any band state left mid-stream (a stuck high-freq firehose, an unfinished dump) so the connection
   // starts clean instead of being flooded with historical data we never asked for.
-  strayTries=0;   // fresh connection → allow the auto-stop to try again
+  strayTries=0; probing=false;   // fresh connection → allow the auto-stop to try again; no probe in flight
   try{ await send(97,[0x00],'exit_high_freq_sync'); await send(20,[],'abort_historical_transmits'); }catch(e){}
   log('connected. Live HR is flowing — see the Strain/Overview tabs.','ok');
   renderAll();
