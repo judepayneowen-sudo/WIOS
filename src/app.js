@@ -978,6 +978,7 @@ function setStatus(t, on){ setField('status', t); const d=$('dot'); if(d) d.clas
 
 const rt = { counts:{} };
 let capturing=false; const capture=[]; const CAP_MAX=100000, CAP_TRIM=10000;  // ring buffer for file export
+let lastCaptureText='';   // last pull's raw capture, persisted to IndexedDB so it survives an app restart
 let _rtT=null;
 function renderRt(){ if(_rtT) return; _rtT=setTimeout(()=>{ _rtT=null; const el=$('rt'); if(!el) return;  // throttle DOM updates
   const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
@@ -1189,7 +1190,7 @@ function dumpCapture(){
 // Save the whole capture as a .txt file via the iOS share sheet ("Save to Files" / AirDrop),
 // so large overnight pulls bypass the clipboard's size limit. Falls back to a blob download.
 async function downloadCapture(){
-  const text=captureText();
+  const text=captureText()||lastCaptureText;                     // fall back to the persisted last pull after a restart
   if(!text){ log('nothing captured yet — connect and capture first','err'); return; }
   const fname=`whoop-capture-${new Date().toISOString().replace(/[:.]/g,'-').slice(0,19)}.txt`;
   try{
@@ -1217,7 +1218,7 @@ async function sendToLaptop(){
   const host=(($('laphost')&&$('laphost').value)||'').trim();
   if(!/^[\w.\-]+:\d{2,5}$/.test(host)){ log('enter laptop as IP:port, e.g. 192.168.0.196:8787','err'); return; }
   try{ localStorage.setItem(LKEY, host); }catch(e){}
-  const text=captureText();
+  const text=captureText()||lastCaptureText;                     // fall back to the persisted last pull after a restart
   if(!text){ log('nothing captured yet — connect and capture first','err'); return; }
   const url=`http://${host}/capture`;
   log(`sending ${capture.length} frames → ${url} …`,'cmd');
@@ -1452,6 +1453,7 @@ async function drainHistory(){
     updateBandVitals(dump);                                       // pull skin temp + SpO2 out of the (47) records
     showPullPreview({ nd, minTs, maxTs, hrs, hv });               // on-device readout so a bad night shows immediately
     await persistPull(dump);                                      // ⭐ keep a copy ON THE PHONE (Phase 2 store)
+    try{ const ct=captureText(); if(ct){ lastCaptureText=ct; await store.saveLastCapture(ct, {frames:capture.length, records:nd}); } }catch(e){}   // persist the raw pull so Save/Send works after a restart
     log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
     if(drain.gaps && drain.gaps.length){ const miss=drain.gaps.reduce((a,g)=>a+(g[1]-g[0]+1),0);
       log(`⚠️ ${drain.gaps.length} unfilled gap(s), ~${miss} records — these frames dropped and couldn’t be re-fetched. Re-pull this window to recover (data still on flash).`,'err'); }
@@ -1923,16 +1925,18 @@ async function autoConnect(){
   try{ await BleClient.initialize(); }catch(e){ setSync('off'); setStatus('not connected'); return; }
   // The band doesn't advertise continuously — it may not be reachable the instant the app opens, so retry a few
   // times with backoff (same connect call reconnect() uses) before giving up to the tap-to-connect fallback.
-  for(let i=0;i<4;i++){
+  for(let i=0;i<6;i++){
     try{
-      await BleClient.connect(id, onDisconnect);
+      // timeout so a connect that can't reach the band fails FAST and the loop retries (without it, connect hangs
+      // indefinitely waiting for the band to advertise and the retries never run).
+      await BleClient.connect(id, onDisconnect, { timeout: 6000 });
       deviceId=id;
       log(`auto-connected to ${name}${i?` (attempt ${i+1})`:''}.`,'ok');
       await finishConnect(name);
       return;
     }catch(e){
-      log(`auto-connect attempt ${i+1} failed (${e.message})${i<3?' — retrying…':''}`,'dim');
-      if(i<3) await delay(1500*(i+1));
+      log(`auto-connect attempt ${i+1} failed (${e.message})${i<5?' — retrying…':''}`,'dim');
+      if(i<5) await delay(1500+1000*i);
     }
   }
   setSync('off'); setStatus('not connected');
@@ -1963,7 +1967,7 @@ async function reconnect(tries=6){
     await delay(wait);
     try{
       try{ await BleClient.disconnect(deviceId); }catch(e){}   // clear any half-open handle first
-      await BleClient.connect(deviceId, onDisconnect);
+      await BleClient.connect(deviceId, onDisconnect, { timeout: 8000 });
       linkDown=false;
       setStatus('reconnected', true); enableDev(true);
       await subscribeAll();
@@ -2069,6 +2073,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   renderRt();
   renderAll();
   refreshHist();                                     // load stored nights → real-data screens (async)
+  store.loadLastCapture().then(r=>{ if(r&&r.text){ lastCaptureText=r.text; log(`last pull restored from storage (${r.records||'?'} records) — Save file / Send to laptop ready.`,'dim'); } }).catch(()=>{});
   refreshSyncState();                                // pill → "Not connected" until auto-connect resolves
   autoConnect();                                     // reconnect to the remembered band (no chooser); pill drives the rest
   // Background sync: with the bluetooth-central background mode (Info.plist), a user-started sync keeps running

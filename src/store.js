@@ -18,20 +18,33 @@ import { makeStrainAccumulator, maxHeartRate, percentile,
          detectSleepWindow, classifySleepStages, summarizeStages,
          sleepNeedMinutes, sleepPerformance } from './scores.js';
 
-const DB_NAME = 'whoopcore', VERSION = 1;
-const DAYS = 'days', META = 'meta';
+const DB_NAME = 'whoopcore', VERSION = 2;
+const DAYS = 'days', META = 'meta', MISC = 'misc';
 
 function open() {
   return new Promise((res, rej) => {
     const r = indexedDB.open(DB_NAME, VERSION);
-    r.onupgradeneeded = () => {
+    r.onupgradeneeded = () => {                          // additive migrations only — existing day data is preserved
       const db = r.result;
       if (!db.objectStoreNames.contains(DAYS)) db.createObjectStore(DAYS, { keyPath: 'day' });
       if (!db.objectStoreNames.contains(META)) db.createObjectStore(META, { keyPath: 'day' });
+      if (!db.objectStoreNames.contains(MISC)) db.createObjectStore(MISC, { keyPath: 'k' });   // kv: last raw capture, etc.
     };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
   });
+}
+// Persist the last raw capture so a pull survives an app restart (re-Save / re-Send to laptop without re-pulling).
+export async function saveLastCapture(text, meta = {}) {
+  const db = await open();
+  await wrap(db.transaction(MISC, 'readwrite').objectStore(MISC).put({ k: 'lastCapture', text, ...meta, at: Date.now() }));
+  db.close();
+}
+export async function loadLastCapture() {
+  const db = await open();
+  const row = await wrap(db.transaction(MISC).objectStore(MISC).get('lastCapture'));
+  db.close();
+  return row || null;
 }
 const wrap = (req) => new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); });
 
