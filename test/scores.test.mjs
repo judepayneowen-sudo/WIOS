@@ -2,9 +2,9 @@
    Pure-function checks — no band, no DOM. Asserts monotonicity and sane ranges,
    not exact WHOOP values (those calibrate constants once we have real data). */
 import {
-  maxHeartRate, hrReserveFraction, hrZone, trimpIncrement, strainFromLoad,
+  maxHeartRate, hrReserveFraction, hrZone, hrZoneReserve, trimpIncrement, strainFromLoad,
   makeStrainAccumulator, rollingStats, zScore, recoveryScore,
-  sleepNeedMinutes, sleepPerformance, summarizeStages,
+  sleepNeedMinutes, strainNeedMinutes, sleepPerformance, summarizeStages,
   percentile, nightBaselines, classifySleepStage, classifySleepStages, STAGE,
   detectSleepWindow,
   sleepConsistency, vo2maxFromRun, vo2maxFromHrRatio, leanBodyMass, whoopAge,
@@ -19,6 +19,11 @@ ok(maxHeartRate(30) === 187, 'maxHeartRate(30)=187');
 ok(approx(hrReserveFraction(120, 50, 190), (120 - 50) / (190 - 50), 1e-9), 'HRR fraction');
 ok(hrReserveFraction(40, 50, 190) === 0 && hrReserveFraction(999, 50, 190) === 1, 'HRR clamps');
 ok(hrZone(80, 200) === 0 && hrZone(120, 200) === 2 && hrZone(190, 200) === 5, 'zones map 0/2/5');
+// HRR zones (WHOOP's method): edges at 40/60/70/80/90 %HRR. rest=50,max=190 → HRR span 140.
+ok(hrZoneReserve(50, 50, 190) === 0, 'HRR zone at rest = z0');                    // 0 %HRR
+ok(hrZoneReserve(106, 50, 190) === 1, 'HRR 40% → z1');                            // 50+0.4*140=106
+ok(hrZoneReserve(190, 50, 190) === 5, 'HRR 100% → z5');
+ok(hrZoneReserve(120, 50, 190) >= hrZone(120, 200) - 5, 'HRR zone returns 0..5'); // sanity range
 
 /* strain */
 ok(trimpIncrement(0.8, 1) > trimpIncrement(0.4, 1), 'TRIMP rises with intensity');
@@ -48,6 +53,11 @@ ok(recoveryScore({ hrv: 70, hrvBase, rhr: 52, rhrBase, spo2: 98 }) === recBaseB,
 const need = sleepNeedMinutes({ baselineMin: 480, debtMin: 120, dayStrain: 14, napMin: 0 });
 ok(need > 480, 'need exceeds baseline with debt + strain');
 ok(sleepNeedMinutes({ dayStrain: 18 }) > sleepNeedMinutes({ dayStrain: 5 }), 'more strain → more need');
+// Patent sleep-need logistic f(i)=1.7/(1+e^((17−i)/3.5)) hours: saturating, monotonic, ~78min at strain 21.
+ok(strainNeedMinutes(0) < strainNeedMinutes(10) && strainNeedMinutes(10) < strainNeedMinutes(21), 'strain-need monotonic');
+ok(strainNeedMinutes(0) < 5, 'rest day adds ~0 strain-need');
+ok(approx(strainNeedMinutes(21), 78, 8), 'all-out day adds ~78 min (patent saturation)');
+ok(approx(strainNeedMinutes(17), 51, 6), 'strain 17 = logistic midpoint ≈ 51 min (half of 1.7h)');
 ok(approx(sleepPerformance(450, 500) * 100, 90), 'sleep performance 450/500 = 90%');
 ok(sleepPerformance(600, 500) === 1, 'performance caps at 1');
 const stages = summarizeStages(['light', 'light', 'sws', 'rem', 'awake'], 30);

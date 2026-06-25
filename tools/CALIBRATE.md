@@ -77,7 +77,7 @@ It prints before/after RMSE per score and writes `calibration/coeffs.json`, e.g.
   · 2026-06-17: load 88.0 over 240 min → WHOOP strain 11.3
   STRAIN_SCALE 120 → 96.4 · RMSE 2.10 → 0.04 strain
 — Sleep —
-  baseline need 478 min (8.0h) · minPerStrain 3.4 min/pt
+  baseline need 478 min (8.0h) · strainSat 1.7h (patent logistic, +77 min at strain 21)
   performance formula (asleep ÷ need) vs WHOOP: RMSE 0.6%
 — Sleep stages —
   fit on 6 night(s) · stage-minute RMSE 41.0 → 18.3 min

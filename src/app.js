@@ -1309,6 +1309,7 @@ async function acquireWake(){
 async function releaseWake(){ try{ if(_wakeLock){ const w=_wakeLock; _wakeLock=null; await w.release(); } }catch(e){} }
 document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && (pulling||probing)) acquireWake(); });
 const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END before giving up on it
+const LIVE_EDGE_S = 30;      // once the dump reaches within this many seconds of "now", stop (caught up — see drain loop)
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
 let pulling=false; let autoExport=false; let skipDrainConfirm=false; let stopRequested=false; const pullRecords=[]; const pullSeen=new Set(); let pullMaxIdx=-1;
 let hiFreqSync = (localStorage.getItem('hiFreqSync')??'1')==='1';   // cmd 96 during the drain — A/B togglable so we can MEASURE if it helps
@@ -1476,6 +1477,13 @@ async function drainHistory(){
           const rps=pullRecords.length/Math.max(0.1,(Date.now()-drainT0)/1000);
           log(`  …${pullRecords.length} rec · up to ${new Date(mt*1000).toLocaleTimeString()} (${behindH<0.5?'≈ now — almost done':behindH.toFixed(1)+'h behind'}) · ${rps.toFixed(0)} rec/s`,'dim'); }
       }
+      // LIVE-EDGE STOP: once the dump has caught up to within LIVE_EDGE_S of real time, STOP. Near "now" the band
+      // only has a few new records past the cursor, so it streams tiny batches whose minimum window OVERLAPS the
+      // last ones ~3× — scraping that trickle is slow and wasteful (and on Phase-2 the next sync grabs the last
+      // few seconds anyway). The `edge` project stops the same way. The check only fires when genuinely at the
+      // live edge (mid-buffer, pullMaxTs47 is hours behind, so it can't trip a real night/seek drain early).
+      if(pullRecords.length>120 && (Date.now()/1000 - pullMaxTs47()) < LIVE_EDGE_S){
+        log(`✅ caught up to now (within ${LIVE_EDGE_S}s) — stopping; no point scraping the overlapping live-edge trickle.`,'ok'); break; }
       // GAP guard: a hole below the received frontier = a dropped frame. Pause auto-ack, settle, refill before it
       // can be acked/freed; then resend the held ack so the parked stream resumes.
       advanceContig();

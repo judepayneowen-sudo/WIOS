@@ -42,12 +42,23 @@ export function hrReserveFraction(hr, restingHr, maxHr) {
   return clamp((hr - restingHr) / denom, 0, 1);
 }
 
-/** WHOOP-style zones as a fraction of MAX HR. Returns 0..5. */
+/** Legacy %-of-MAX-HR zones (kept for back-compat/tests). Returns 0..5. */
 export const ZONE_EDGES = [0.5, 0.6, 0.7, 0.8, 0.9]; // <50%=z0, then z1..z5
 export function hrZone(hr, maxHr) {
   const f = hr / maxHr;
   let z = 0;
   for (const e of ZONE_EDGES) if (f >= e) z++;
+  return z; // 0..5
+}
+
+// WHOOP's actual strain zones use HEART-RATE RESERVE (HRR / Karvonen), not raw %max — confirmed from WHOOP's
+// published material (2026-06-25): targetHR = (HRmax − RHR)·pct + RHR, with zone edges at 40/60/70/80/90 %HRR.
+// This matches the z0–z5 `zone_durations` WHOOP exposes via its API, so our zone tally calibrates 1:1 against it.
+export const ZONE_EDGES_HRR = [0.4, 0.6, 0.7, 0.8, 0.9]; // <40%HRR=z0, then z1..z5
+export function hrZoneReserve(hr, restingHr, maxHr) {
+  const f = hrReserveFraction(hr, restingHr, maxHr);
+  let z = 0;
+  for (const e of ZONE_EDGES_HRR) if (f >= e) z++;
   return z; // 0..5
 }
 
@@ -81,7 +92,7 @@ export function makeStrainAccumulator({ restingHr, maxHr, sex = 'm', scale = STR
   return {
     add(hr, dtSeconds) {
       if (!(hr > 0) || !(dtSeconds > 0)) return;
-      zoneSeconds[hrZone(hr, maxHr)] += dtSeconds;
+      zoneSeconds[hrZoneReserve(hr, restingHr, maxHr)] += dtSeconds;   // HRR zones (WHOOP's method) → calibrate to API zone_durations
       load += trimpIncrement(hrReserveFraction(hr, restingHr, maxHr), dtSeconds / 60, sex);
     },
     get load() { return load; },
@@ -117,12 +128,25 @@ export const STAGE = { AWAKE: 'awake', LIGHT: 'light', SWS: 'sws', REM: 'rem' };
 
 // Sleep need = baseline + a fraction of accumulated debt + extra demanded by the day's
 // strain − credit for naps. (WHOOP also adds a sickness term we don't model yet.)
-export const SLEEP_NEED = { baselineMin: 480, debtRepayFrac: 0.35, minPerStrain: 3 }; // CALIBRATE
+//
+// The strain term uses WHOOP's OWN published functional form (patent US 11,627,946 B2): the additional sleep
+// need from a day's strain `i` (0–21) is a logistic that saturates — f(i) = strainSat / (1 + e^((mid−i)/slope))
+// HOURS, with the patent's disclosed constants mid=17, slope=3.5 and saturation ≈1.7 h at max strain. So a
+// rest day (i≈3) adds ~minutes while an all-out day (i≈20) adds ~70–80 min — matching WHOOP's behaviour far
+// better than the old linear `minPerStrain·i`. Only strainSat is calibrated (regress against the API's
+// `need_from_recent_strain_milli`); the shape (mid/slope) is WHOOP's published constant.
+export const SLEEP_NEED = { baselineMin: 480, debtRepayFrac: 0.35, strainSat: 1.7, strainMid: 17, strainSlope: 3.5 }; // CALIBRATE strainSat
+/** Additional sleep-need MINUTES demanded by a day's strain (0–21), per the WHOOP patent logistic. */
+export function strainNeedMinutes(dayStrain = 0, p = SLEEP_NEED) {
+  return 60 * p.strainSat / (1 + Math.exp((p.strainMid - dayStrain) / p.strainSlope));
+}
 export function sleepNeedMinutes({
   baselineMin = SLEEP_NEED.baselineMin, debtMin = 0, dayStrain = 0, napMin = 0,
-  debtRepayFrac = SLEEP_NEED.debtRepayFrac, minPerStrain = SLEEP_NEED.minPerStrain,
+  debtRepayFrac = SLEEP_NEED.debtRepayFrac, strainSat = SLEEP_NEED.strainSat,
+  strainMid = SLEEP_NEED.strainMid, strainSlope = SLEEP_NEED.strainSlope,
 } = {}) {
-  return Math.max(0, baselineMin + debtRepayFrac * debtMin + minPerStrain * dayStrain - napMin);
+  const strainMin = strainNeedMinutes(dayStrain, { strainSat, strainMid, strainSlope });
+  return Math.max(0, baselineMin + debtRepayFrac * debtMin + strainMin - napMin);
 }
 /** Fraction 0..1 of need actually slept (WHOOP shows this as Sleep Performance %). */
 export function sleepPerformance(asleepMin, needMin) {

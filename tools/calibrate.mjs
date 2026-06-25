@@ -29,7 +29,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync, readdirSync } from 
 import {
   maxHeartRate, makeStrainAccumulator, strainFromLoad, STRAIN_SCALE,
   rollingStats, recoveryScore, RECOVERY_WEIGHTS,
-  sleepNeedMinutes, sleepPerformance, SLEEP_NEED,
+  sleepNeedMinutes, strainNeedMinutes, sleepPerformance, SLEEP_NEED,
   classifySleepStages, summarizeStages, SLEEP_STAGE_PARAMS,
   detectSleepWindow,
 } from '../src/scores.js';
@@ -258,11 +258,14 @@ if(!strainPairs.length){
 }
 
 /* ----------------------------- SLEEP -------------------------------------- */
-// WHOOP exposes its own need breakdown, so we read two constants straight off it:
-//   baselineMin  = its baseline need; minPerStrain = its strain-driven need per strain point.
-// We can't isolate raw sleep-debt (WHOOP only gives the already-transformed debt term), so
-// debtRepayFrac stays at its default. Then we VALIDATE our performance formula
-// (asleep ÷ need) against WHOOP's sleep_performance_percentage.
+// WHOOP exposes its own need breakdown, so we read its constants straight off it:
+//   baselineMin  = its baseline need; strainSat = the saturation of the patent strain-need logistic.
+// The strain term's SHAPE is WHOOP's published constant (patent US 11,627,946 B2):
+//   need_from_strain(min) = 60·strainSat / (1 + e^((17−strain)/3.5))
+// so we fit only the saturation `strainSat` by regressing the API's need_from_recent_strain_milli against
+// that fixed shape (strainSat = needStrainMin / (60/(1+e^((17−strain)/3.5))), averaged). We can't isolate raw
+// sleep-debt (WHOOP gives only the transformed debt term), so debtRepayFrac stays default. Then we VALIDATE
+// the performance formula (asleep ÷ need) against WHOOP's sleep_performance_percentage.
 console.log('\n— Sleep —');
 const sleepDays = answers.filter(d=> d.needBaselineMin!=null && d.asleepMin!=null && d.needMin!=null);
 if(!sleepDays.length){
@@ -272,15 +275,17 @@ if(!sleepDays.length){
   const strainDays = sleepDays.filter(d=> d.needStrainMin!=null && d.strain>0);
   const mean = (a)=> a.reduce((x,y)=>x+y,0)/a.length;
   const baselineMin = baseDays.length ? Math.round(mean(baseDays.map(d=>d.needBaselineMin))) : SLEEP_NEED.baselineMin;
-  const minPerStrain = strainDays.length ? +mean(strainDays.map(d=> d.needStrainMin/d.strain)).toFixed(2) : SLEEP_NEED.minPerStrain;
-  fitted.sleepNeed = { baselineMin, debtRepayFrac: SLEEP_NEED.debtRepayFrac, minPerStrain };
+  // shape factor of the patent logistic for that day's strain; strainSat = observed need ÷ shape
+  const shape = (i)=> 60 / (1 + Math.exp((SLEEP_NEED.strainMid - i) / SLEEP_NEED.strainSlope));
+  const strainSat = strainDays.length ? +mean(strainDays.map(d=> d.needStrainMin / shape(d.strain))).toFixed(2) : SLEEP_NEED.strainSat;
+  fitted.sleepNeed = { baselineMin, debtRepayFrac: SLEEP_NEED.debtRepayFrac, strainSat, strainMid: SLEEP_NEED.strainMid, strainSlope: SLEEP_NEED.strainSlope };
 
   // Validate the performance formula on WHOOP's own need + our asleep figure.
   const perfRows = sleepDays.filter(d=> d.sleepPerf!=null).map(d=> ({ y:d.sleepPerf }) ); // y only used for rmse shape
   const perfErr = (()=>{ let s=0,n=0; for(const d of sleepDays){ if(d.sleepPerf==null) continue;
     const p = sleepPerformance(d.asleepMin, d.needMin)*100; const e=p-d.sleepPerf; s+=e*e; n++; } return n? Math.sqrt(s/n):NaN; })();
 
-  console.log(`  baseline need ${baselineMin} min (${(baselineMin/60).toFixed(1)}h)  ·  minPerStrain ${minPerStrain} min/pt   (from ${baseDays.length}/${strainDays.length} days)`);
+  console.log(`  baseline need ${baselineMin} min (${(baselineMin/60).toFixed(1)}h)  ·  strainSat ${strainSat}h (patent logistic, +${(strainNeedMinutes?strainNeedMinutes(21,fitted.sleepNeed):60*strainSat).toFixed(0)} min at strain 21)   (from ${baseDays.length}/${strainDays.length} days)`);
   console.log(`  performance formula (asleep ÷ need) vs WHOOP: RMSE ${fix(perfErr,1)}%  over ${perfRows.length} days`);
   console.log('  debtRepayFrac kept at '+SLEEP_NEED.debtRepayFrac+' (WHOOP doesn’t expose raw debt to fit it).');
 }
