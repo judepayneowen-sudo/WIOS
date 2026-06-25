@@ -1410,7 +1410,11 @@ async function drainHistory(){
   let before=null;
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
-    await send(97,[0x00],'exit_high_freq_sync'); await delay(150);   // DEFENSIVE: clear any lingering high-freq firehose before the batched drain
+    await send(97,[0x00],'exit_high_freq_sync'); await delay(150);   // clear any lingering firehose, THEN turn it on cleanly below
+    // HIGH-FREQ ON: cmd 96 makes the band stream each batch ~9× real-time. It’s still the SAME ack-loop (one
+    // batch, then it waits for our ack), so it can’t flood — the earlier flood was the gap-check racing the fast
+    // stream, now fixed by the settle-delay above. ~9× fewer seconds of wall-time per batch over a full night.
+    await send(96,[0x01],'enter_high_freq_sync'); await delay(200); log('⚡ high-freq sync ON (≈9× faster batches)','dim');
     log('→ send_historical_data','cmd'); const e0=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(e0);
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
     let guard=0, stalls=0, reprimes=0;
@@ -1421,13 +1425,20 @@ async function drainHistory(){
       // few failed re-fetches, record the gap, skip it, and carry on (so a truly-unreadable hole can't stall us).
       advanceContig();
       if(drain.minIdx!=null && pullMaxIdx>drain.contigIdx){
-        if(drain.gapRefetch++ < 3){
-          log(`⚠️ dropped frame(s) before idx ${drain.contigIdx+1} (have up to ${pullMaxIdx}) — re-fetching so they aren’t freed [${drain.gapRefetch}/3]`,'err');
-          const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR);
-          continue;
-        }
-        drain.gaps.push([drain.contigIdx+1, pullMaxIdx-1]); drain.contigIdx=pullMaxIdx; drain.gapRefetch=0;
-        log(`⚠️ couldn’t refill the gap after 3 tries — recorded idx ${drain.gaps[drain.gaps.length-1][0]}…; re-pull that window later.`,'err');
+        // SETTLE first: under high-freq the band streams ~9× real-time, so records land fast and slightly out of
+        // order — a “gap” seen here is usually just in-flight frames that haven’t arrived yet, NOT a dropped one.
+        // Wait briefly and re-walk the frontier; if it closes, there was no real gap (this killed the false
+        // re-fetch storm that flooded the log). Only a gap that survives the settle is treated as a true drop.
+        await delay(250); advanceContig();
+        if(pullMaxIdx>drain.contigIdx){
+          if(drain.gapRefetch++ < 3){
+            log(`⚠️ dropped frame(s) before idx ${drain.contigIdx+1} (have up to ${pullMaxIdx}) — re-fetching so they aren’t freed [${drain.gapRefetch}/3]`,'err');
+            const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR);
+            continue;
+          }
+          drain.gaps.push([drain.contigIdx+1, pullMaxIdx-1]); drain.contigIdx=pullMaxIdx; drain.gapRefetch=0;
+          log(`⚠️ couldn’t refill the gap after 3 tries — recorded idx ${drain.gaps[drain.gaps.length-1][0]}…; re-pull this window later.`,'err');
+        } else drain.gapRefetch=0;
       } else drain.gapRefetch=0;
       const prev=pullRecords.length;
       const strategies = drain.strategy ? TRIM_STRATEGIES.filter(s=>s.id===drain.strategy) : TRIM_STRATEGIES;
