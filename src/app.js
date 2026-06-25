@@ -149,8 +149,11 @@ function computeRecoveryTrend(){
   for(let i=0;i<asc.length;i++){ const d=asc[i];
     const prior=asc.slice(Math.max(0,i-14),i).filter(x=>x.hrvMs&&x.restHr);
     if(d.hrvMs&&d.restHr&&prior.length>=3){
-      const hrvBase=rollingStats(prior.map(x=>x.hrvMs)), rhrBase=rollingStats(prior.map(x=>x.restHr));
-      d.rec=recoveryScore({ hrv:d.hrvMs, hrvBase, rhr:d.restHr, rhrBase,
+      // HRV z-score is computed on ln(RMSSD): RMSSD is right-skewed, so the log is more normally distributed →
+      // a stabler personal baseline (geniemax/my-whoop/Altini all log-transform). zScore is scale-invariant, so
+      // the calibrated weight is unaffected; only the distribution shape improves. RHR stays linear.
+      const hrvBase=rollingStats(prior.map(x=>Math.log(x.hrvMs))), rhrBase=rollingStats(prior.map(x=>x.restHr));
+      d.rec=recoveryScore({ hrv:Math.log(d.hrvMs), hrvBase, rhr:d.restHr, rhrBase,
         skinTempC:d.skinTempC, skinTempBase:prior.length?prior.reduce((a,x)=>a+(x.skinTempC||0),0)/prior.length:null,
         spo2:d.spo2, priorStrain:i>0?asc[i-1].strain:null,   // recent-strain input (patent): yesterday's load suppresses today's recovery
         sleepPerformance:d.sleep&&d.sleep.performance!=null?d.sleep.performance/100:null });

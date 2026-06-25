@@ -209,8 +209,8 @@ for(let i=0;i<answers.length;i++){
   if(prior.length < MIN_BASE) continue;
   const respPrior = prior.filter(x=>x.resp!=null).map(x=>x.resp);
   recRows.push({
-    hrv:d.hrv, rhr:d.rhr, resp:d.resp ?? null,
-    hrvBase: rollingStats(prior.map(x=>x.hrv)),
+    hrv:Math.log(d.hrv), rhr:d.rhr, resp:d.resp ?? null,   // HRV z-score on ln(RMSSD) — must match app.js computeRecoveryTrend
+    hrvBase: rollingStats(prior.map(x=>Math.log(x.hrv))),
     rhrBase: rollingStats(prior.map(x=>x.rhr)),
     respBase: respPrior.length>=MIN_BASE ? rollingStats(respPrior) : null,
     sleepPerformance: d.sleepPerf!=null ? d.sleepPerf/100 : null,

@@ -128,7 +128,9 @@ export function makeStrainAccumulator({ restingHr, maxHr, sex = 'm', scale = STR
 // HRV + resting HR + sleep score + RECENT STRAIN (the prior day's intensity). priorStrain is that last term:
 // a hard prior day leaves you less recovered. STRAIN_NEUTRAL is the strain level treated as "neither helped nor
 // hurt"; above it lowers recovery, below it nudges up. All weights/constants CALIBRATE against the cloud.
-export const RECOVERY_WEIGHTS = { hrv: 1.1, rhr: 0.6, resp: 0.3, sleep: 0.5, skinTemp: 0.4, spo2: 0.15, priorStrain: 0.10, bias: 0 }; // CALIBRATE
+// bias 0.32 → a neutral day (all z=0) lands at logistic(0.32) ≈ 58%, WHOOP's published population-mean recovery
+// (cross-checked: my-whoop centres at 58% via Z₀=−0.20; WHOOP staff say "most average in the 60s"). CALIBRATE.
+export const RECOVERY_WEIGHTS = { hrv: 1.1, rhr: 0.6, resp: 0.3, sleep: 0.5, skinTemp: 0.4, spo2: 0.15, priorStrain: 0.10, bias: 0.32 }; // CALIBRATE
 export const STRAIN_NEUTRAL = 10; // a "moderate" day's strain (0–21) — the recovery-neutral point (CALIBRATE)
 export function recoveryScore({
   hrv, hrvBase, rhr, rhrBase, respRate = null, respBase = null,

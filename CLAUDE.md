@@ -274,9 +274,17 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
     **`f(i) = 1.7/(1 + e^((17−i)/3.5))`** (minutes-equiv, i=strain 0–21). The one published constant — use directly.
   - **Strain zones use Heart-Rate Reserve:** `targetHR = (HRmax−RHR)·pct + RHR`, zones at **40/60/70/80/90 %HRR**;
     Day Strain 0–21 logarithmic (Borg RPE). HRV = **RMSSD during last slow-wave sleep**. Calibrate z0–z5 to HRR.
-  - **Recovery weights (peer references, NOT WHOOP's):** whoof — HRV .35/RHR .20/resp .10/temp .10/sleep .15/
-    priorStrain .10; my-whoop — logistic `100/(1+e^(−1.6(Z+0.20)))`, HRV .60/RHR .20/resp .05/sleep .15. Cross-checks
-    for our calibrated `scores.js`. openwhoop has NO HRV→Recovery model (we're ahead there).
+  - **Recovery weights (3 peer references, NOT WHOOP's — all guesses, cross-checks only):** whoof — linear, HRV .35/
+    RHR .20/resp .10/temp .10/sleep .15/priorStrain .10, neutral 70; my-whoop — logistic `100/(1+e^(−1.6(Z+0.20)))`
+    (Z=0→**58%**), HRV .60/RHR .20/resp .05/sleep .15; geniemax (closest 5.0 peer) — `100·Φ(.55·zHRV−.20·zRHR−.10·zRR+
+    .15·zSleep)`, **zHRV on ln(RMSSD)**. ⇒ we adopted **bias→58% population anchor** + **lnRMSSD HRV z-score** (v2.22.0).
+    openwhoop has NO HRV→Recovery model (we're ahead there).
+  - **Strain compression — peers differ; ours is the patent w(v) integral:** openwhoop/my-whoop `21·ln(TRIMP+1)/ln(7201)`
+    (Edwards zone-TRIMP, weights 1–5); geniemax `21·(1−e^(−TRIMP/τ))` (Banister). We use WHOOP's PATENT load (w={0,1,18,42}
+    HRR integral) → our `strainFromLoad` 21·(1−e^(−load/scale)) (same saturating shape as geniemax). Calibrate `scale`.
+  - **Other peer constants (cross-checks):** VO2max Uth `15.3·HRmax/HRrest` (we match); TRIMP ♀ `0.86·e^(1.67x)` / ♂
+    `0.64·e^(1.92x)` (we match); my-whoop HRV baseline EWMA half-life 14 nights, artifact filter = Kubios/Lipponen
+    (the "Malik" claim is marketing); geniemax baselines α: HRV ~7d, RHR/resp/sleep ~30d.
   - **FORCE_TRIM-as-seek is novel to us** — openwhoop only uses cmd 25 to `erase()`; edge/my-whoop/whoop-vault
     never rewind. Our `seek.js` bounded search is ahead of all of them.
   - Repos: `Sophonbot0/whoop-vault` (5.0, closest), `madhursatija/whoof` (4.0+5.0, richest scoring),
