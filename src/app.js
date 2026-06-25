@@ -1379,6 +1379,7 @@ async function drainHistory(){
   let before=null;
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
+    await send(96,[],'enter_high_freq_sync'); await delay(150);   // ask the band to raise the BLE throughput for the dump (best-effort; just ACKs if unsupported)
     log('→ send_historical_data','cmd'); const e0=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(e0);
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
     let guard=0, stalls=0, reprimes=0;
@@ -1413,6 +1414,7 @@ async function drainHistory(){
       else { log(`stopped — no further batches after ${reprimes} re-primes (${drain.strategy?`end of buffer at idx ${pullMax().idx}`:'no trim format advanced the stream'}).`, drain.strategy?'ok':'err'); break; }
       if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }
     }
+    await send(97,[],'exit_high_freq_sync');                     // leave high-freq sync (paired with the enter above)
     await send(20,[],'abort_historical_transmits'); await delay(400);
     const after=await readOldest();
     // Coverage must come from the dense dump records (HISTORICAL_DATA 47), NOT sparse EVENT(48) connection
