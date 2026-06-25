@@ -1294,6 +1294,20 @@ async function syncHistory(){
    HISTORICAL_DATA(47) layout (verified on 5.0): [3..6]=record idx u32 LE, [7..10]=unix ts u32 LE,
    [14]=HR. We collect records; the drain advances one batch per ack, keyed off HISTORY_END.        */
 const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
+// SCREEN WAKE-LOCK during sync. On iOS, when the screen dims/sleeps or the app loses foreground, the system
+// throttles BOTH the BLE connection interval (records trickle in ~5× slower) AND the WebView's JS timers
+// (our ack loop stalls). Holding a wake-lock keeps the screen on + app active, which keeps BLE at its fast
+// interval — the single biggest sync-speed lever we actually control on iOS (the interval itself isn't settable
+// by the app). Wake Lock API works in iOS 16.4+ WebViews; harmless no-op if unavailable. iOS auto-releases the
+// lock when the page is hidden, so we re-acquire on visibilitychange while a sync is in flight.
+let _wakeLock=null;
+async function acquireWake(){
+  try{ if('wakeLock' in navigator && !_wakeLock){ _wakeLock=await navigator.wakeLock.request('screen');
+    _wakeLock.addEventListener && _wakeLock.addEventListener('release',()=>{ _wakeLock=null; });
+    log('🔆 screen wake-lock ON — keeps BLE at full speed during sync','dim'); } }catch(e){}
+}
+async function releaseWake(){ try{ if(_wakeLock){ const w=_wakeLock; _wakeLock=null; await w.release(); } }catch(e){} }
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible' && (pulling||probing)) acquireWake(); });
 const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END before giving up on it
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
 let pulling=false; let autoExport=false; let skipDrainConfirm=false; let stopRequested=false; const pullRecords=[]; const pullSeen=new Set(); let pullMaxIdx=-1;
@@ -1419,6 +1433,7 @@ async function drainHistory(){
     : `🧪 EXPERIMENT mode “${ackMode}” — testing whether the band will hand over history WITHOUT freeing it.\n\nRun this only on THROWAWAY data you don’t mind losing (e.g. an hour of daytime wear with the WHOOP app force-closed) — if the experiment fails it still frees that data. Afterwards, read the “oldest BEFORE / AFTER” line: if the oldest did NOT move, the read was non-destructive.\n\nContinue the experiment?`;
   if(!skipDrainConfirm && !window.confirm(msg)) { log('full sync cancelled — let the WHOOP app sync first, or use Quick sync (read-only).','dim'); return; }
   pulling=true; stopRequested=false; drain=newDrain(); pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1;
+  await acquireWake();                                            // keep screen on → BLE stays at full speed
   if(!capturing){ capturing=true; const c=$('capture'); if(c){ c.textContent='Stop capture'; c.classList.add('live'); } log('capture auto-started','ok'); }
   const b=$('fullsync'); if(b){ b.textContent='Stop sync'; b.classList.add('live'); }
   log(ackMode==='normal'
@@ -1532,7 +1547,7 @@ async function drainHistory(){
       else { log('③ No laptop address set — opening Save-to-Files instead…','dim'); await downloadCapture(); }
     }
   }catch(e){ log('sync error: '+e.message,'err'); }
-  finally{ pulling=false; autoExport=false;
+  finally{ pulling=false; autoExport=false; await releaseWake();
     const bb=$('fullsync'); if(bb){ bb.textContent='Sync full history'; bb.classList.remove('live'); }
     const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } }
 }
@@ -1886,6 +1901,7 @@ async function speedTest(hiFreq){
   const WINDOW_MS=12000;
   log(`⏱ SPEED TEST — high-freq ${hiFreq?'ON':'OFF'} (READ-ONLY, nothing acked or freed). Streaming the first window for ${WINDOW_MS/1000}s and counting records…`,'ok');
   pulling=true; probing=false; drain=newDrain(); pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1;
+  await acquireWake();
   const t0=Date.now();
   try{
     await send(97,[0x00],'exit_high_freq_sync'); await delay(150);
@@ -1902,7 +1918,7 @@ async function speedTest(hiFreq){
     log(`⏱ RESULT [high-freq ${hiFreq?'ON':'OFF'}]: ${recs.length} records in ${sec.toFixed(1)}s = ${rate.toFixed(1)} rec/s · ${(span/Math.max(0.1,sec)).toFixed(0)}× realtime · ${drain.endCount} batch(es)`, recs.length>0?'ok':'err');
     log('   → now run the OTHER toggle and compare rec/s. (Non-destructive — nothing was acked.)','dim');
   }catch(e){ log('speed test error: '+e.message,'err'); }
-  finally{ pulling=false; await send(20,[],'abort_historical_transmits').catch(()=>{}); }
+  finally{ pulling=false; await releaseWake(); await send(20,[],'abort_historical_transmits').catch(()=>{}); }
 }
 
 async function checkBandBuffer(){
