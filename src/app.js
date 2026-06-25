@@ -112,11 +112,28 @@ function fmtDur(s){ s=Math.round(s); const m=Math.floor(s/60); return m+':'+Stri
 
 /* ----------------------------- profile ------------------------------------ */
 const PKEY='whoopcore.profile';
-const DEF_PROFILE={age:30,sex:'m',restingHr:50,maxHr:0};
+const DEF_PROFILE={birthday:'',sex:'m',maxHr:0};
 function loadProfile(){ try{ return {...DEF_PROFILE, ...JSON.parse(localStorage.getItem(PKEY)||'{}')}; }catch(e){ return {...DEF_PROFILE}; } }
 let profile=loadProfile();
-const effMaxHr = ()=> profile.maxHr>0 ? profile.maxHr : maxHeartRate(profile.age||30);
-const newStrainAcc = ()=> makeStrainAccumulator({ restingHr:profile.restingHr||50, maxHr:effMaxHr(), sex:profile.sex||'m' });
+// Age is derived from the birthday so it stays current every year (legacy stored `age` is a fallback).
+function profileAge(){
+  const b = profile.birthday && Date.parse(profile.birthday);
+  if(b){ const d=new Date(b), n=new Date(); let a=n.getFullYear()-d.getFullYear();
+    if(n.getMonth()<d.getMonth() || (n.getMonth()===d.getMonth() && n.getDate()<d.getDate())) a--;
+    if(a>0 && a<120) return a; }
+  return profile.age || 30;
+}
+// Resting HR is MEASURED off the band, not entered: the median of recent nights' overnight 5th-percentile HR
+// (the per-day `restHr` the store computes). Falls back to 50 until at least one night is stored.
+function computedRestHr(){
+  const v = histDays.map(d=>d.restHr).filter(x=>x>0).slice(0,30);
+  return v.length ? median(v) : 50;
+}
+const effMaxHr = ()=> profile.maxHr>0 ? profile.maxHr : maxHeartRate(profileAge());
+const newStrainAcc = ()=> makeStrainAccumulator({ restingHr:computedRestHr(), maxHr:effMaxHr(), sex:profile.sex||'m' });
+// The profile with derived/measured fields filled in (age from birthday, restingHr from the band), for the
+// store + score math which expect concrete numbers.
+const scoringProfile = ()=> ({ ...profile, age:profileAge(), restingHr:computedRestHr(), maxHr:profile.maxHr });
 
 /* ----------------------------- live state --------------------------------- */
 const state = { hr:null, hrvMs:null, restHr:null, hrCount:0, hrSum:0, strainAcc:null, recovery:null, sleep:null,
@@ -736,7 +753,7 @@ const SECTIONS = [
   { id:'profile', build:()=>{
     const p=profile||{};
     return hd('Profile')
-    + card(`<div style="display:flex;align-items:center;gap:14px"><div class="avatar">${(p.first||'W')[0]}</div><div><div style="font-size:18px;font-weight:700">${p.first||'WHOOP'} ${p.last||'Core'}</div><div class="muted">Age ${p.age||'—'} · ${p.sex==='f'?'Female':'Male'} · RHR ${p.restingHr||'—'}</div></div></div>`)
+    + card(`<div style="display:flex;align-items:center;gap:14px"><div class="avatar">${(p.first||'W')[0]}</div><div><div style="font-size:18px;font-weight:700">${p.first||'WHOOP'} ${p.last||'Core'}</div><div class="muted">Age ${profileAge()} · ${p.sex==='f'?'Female':'Male'} · RHR ${computedRestHr()}</div></div></div>`)
     + card(`<div class="navlist">`
         + navRow('healthspan','✦','Member Levels & WHOOP Age')
         + navRow('membership','◆','Membership & Billing')
@@ -1047,7 +1064,7 @@ function showPullPreview({ nd, minTs, maxTs, hrs, hv }){
 async function persistPull(dump){
   if(!dump || !dump.length) return;
   try{
-    const saved = await store.ingest(dump, profile);
+    const saved = await store.ingest(dump, scoringProfile());
     if(saved.length){
       const d = saved[0];
       log(`💾 Stored on phone: ${saved.map(s=>s.day).join(', ')} — ${d.n} records, Day Strain ${d.strain}${d.sleep?`, sleep ${d.sleep.asleepMin}m`:''}. View under Health → Stored data.`,'ok');
@@ -1358,6 +1375,7 @@ async function drainHistory(){
   let before=null;
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
+    await send(96,[],'enter_high_freq_sync'); await delay(150);   // ask the band to raise the BLE throughput for the dump (best-effort; just ACKs if unsupported)
     log('→ send_historical_data','cmd'); const e0=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(e0);
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
     let guard=0, stalls=0, reprimes=0;
@@ -1392,6 +1410,7 @@ async function drainHistory(){
       else { log(`stopped — no further batches after ${reprimes} re-primes (${drain.strategy?`end of buffer at idx ${pullMax().idx}`:'no trim format advanced the stream'}).`, drain.strategy?'ok':'err'); break; }
       if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }
     }
+    await send(97,[],'exit_high_freq_sync');                     // leave high-freq sync (paired with the enter above)
     await send(20,[],'abort_historical_transmits'); await delay(400);
     const after=await readOldest();
     // Coverage must come from the dense dump records (HISTORICAL_DATA 47), NOT sparse EVENT(48) connection
@@ -1457,7 +1476,9 @@ let dataRangeRaw=null;   // last raw get_data_range response (for read-pointer a
 // where the read cursor sits (WHOOP's sync can leave the cursor parked mid-buffer).
 async function readDataRange(){
   dataRangeOldestTs=null; dataRangeNewestTs=null; dataRangeWriteTrim=null; dataRangeFloorTrim=null; dataRangeRaw=null;
-  await send(34,[],'get_data_range'); await delay(1500);
+  await send(34,[],'get_data_range');
+  for(let i=0;i<40 && dataRangeWriteTrim==null && dataRangeNewestTs==null;i++) await delay(50);  // event-driven: return as soon as the response lands (was a flat 1.5s)
+  await delay(80);                                              // small grace so the full frame finishes parsing
   return {oldestTs:dataRangeOldestTs, newestTs:dataRangeNewestTs, writeTrim:dataRangeWriteTrim, floorTrim:dataRangeFloorTrim};
 }
 async function readOldest(){ return (await readDataRange()).oldestTs; }
@@ -1524,8 +1545,8 @@ const MIN_SAFE_TRIM = 2000;
 // value at MIN_SAFE_TRIM so no caller can ever drive the band into the erased-flash crash zone.
 async function forceTrimTo(trim){
   trim=Math.max(MIN_SAFE_TRIM,Math.round(trim));
-  await send(20,[],'abort'); await delay(300);
-  await send(25,[trim&0xFF,(trim>>>8)&0xFF,(trim>>>16)&0xFF,(trim>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(500);
+  await send(20,[],'abort'); await delay(200);
+  await send(25,[trim&0xFF,(trim>>>8)&0xFF,(trim>>>16)&0xFF,(trim>>>24)&0xFF, 0,0,0,0],'force_trim'); await delay(350);
 }
 
 // FORCE_TRIM seek — EXACT bounded search (2026-06-25). The dump streams from the "trim" (a monotonic record
@@ -1930,16 +1951,16 @@ function selfTest(){
 }
 
 /* ----------------------------- profile form ------------------------------- */
-function fillProfileForm(){ $('p-age').value=profile.age||''; $('p-sex').value=profile.sex||'m';
-  $('p-rhr').value=profile.restingHr||''; $('p-mhr').value=profile.maxHr||''; }
+function fillProfileForm(){ if($('p-birth')) $('p-birth').value=profile.birthday||''; $('p-sex').value=profile.sex||'m';
+  $('p-mhr').value=profile.maxHr||'';
+  setField('p-note', `age ${profileAge()} · resting HR ${computedRestHr()} bpm (measured from your nights) · max HR ${effMaxHr()}`); }
 function saveProfileForm(){
-  profile={ age:parseInt($('p-age').value,10)||30, sex:$('p-sex').value==='f'?'f':'m',
-            restingHr:parseInt($('p-rhr').value,10)||50, maxHr:parseInt($('p-mhr').value,10)||0 };
+  profile={ birthday:$('p-birth').value||'', sex:$('p-sex').value==='f'?'f':'m', maxHr:parseInt($('p-mhr').value,10)||0 };
   localStorage.setItem(PKEY, JSON.stringify(profile));
   state.strainAcc=newStrainAcc();                       // note: resets live strain accumulation
-  setField('p-note', `saved · max HR ${effMaxHr()} bpm`);
+  setField('p-note', `saved · age ${profileAge()} · resting HR ${computedRestHr()} (measured) · max HR ${effMaxHr()} bpm`);
   // Day Strain for every stored night depends on resting/max HR + sex — recompute them with the new profile.
-  store.recomputeAll(profile).then(n=>{ if(n) log(`recomputed Day Strain for ${n} stored night(s) with the new profile.`,'dim'); return refreshHist(); }).then(()=>{ if(curScreen==='storage') renderStorage(); }).catch(()=>{});
+  store.recomputeAll(scoringProfile()).then(n=>{ if(n) log(`recomputed Day Strain for ${n} stored night(s) with the new profile.`,'dim'); return refreshHist(); }).then(()=>{ if(curScreen==='storage') renderStorage(); }).catch(()=>{});
   renderAll();
 }
 

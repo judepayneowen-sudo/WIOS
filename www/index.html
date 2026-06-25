@@ -504,11 +504,11 @@
     <div class="card">
       <div class="muted" style="margin-bottom:10px">Your profile — used for strain &amp; recovery math</div>
       <div class="row">
-        <label class="fl">Age<input class="in" id="p-age" inputmode="numeric" placeholder="30"></label>
+        <label class="fl">Birthday<input class="in" id="p-birth" type="date"></label>
         <label class="fl">Sex<select class="in" id="p-sex"><option value="m">M</option><option value="f">F</option></select></label>
-        <label class="fl">Resting HR<input class="in" id="p-rhr" inputmode="numeric" placeholder="50"></label>
         <label class="fl">Max HR<input class="in" id="p-mhr" inputmode="numeric" placeholder="auto"></label>
       </div>
+      <div class="muted" id="p-note" style="margin:10px 0;font-size:12px">Resting HR is measured from your nights — no need to enter it. Age updates automatically from your birthday.</div>
       <button class="act" id="p-save">Save profile</button>
       <div class="await" id="p-note">Max HR auto-fills from age (Tanaka) if left blank.</div>
     </div>
