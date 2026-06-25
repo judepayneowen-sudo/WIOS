@@ -19,11 +19,11 @@ ok(maxHeartRate(30) === 187, 'maxHeartRate(30)=187');
 ok(approx(hrReserveFraction(120, 50, 190), (120 - 50) / (190 - 50), 1e-9), 'HRR fraction');
 ok(hrReserveFraction(40, 50, 190) === 0 && hrReserveFraction(999, 50, 190) === 1, 'HRR clamps');
 ok(hrZone(80, 200) === 0 && hrZone(120, 200) === 2 && hrZone(190, 200) === 5, 'zones map 0/2/5');
-// HRR zones (WHOOP's method): edges at 40/60/70/80/90 %HRR. rest=50,max=190 → HRR span 140.
+// HRR zones (API zone_duration edges): 50/60/70/80/90 %HRR. rest=50,max=190 → HRR span 140.
 ok(hrZoneReserve(50, 50, 190) === 0, 'HRR zone at rest = z0');                    // 0 %HRR
-ok(hrZoneReserve(106, 50, 190) === 1, 'HRR 40% → z1');                            // 50+0.4*140=106
+ok(hrZoneReserve(106, 50, 190) === 0, 'HRR 40% → z0 (below API z1 floor)');       // 50+0.4*140=106
+ok(hrZoneReserve(120, 50, 190) === 1, 'HRR 50% → z1 (API floor)');                // 50+0.5*140=120
 ok(hrZoneReserve(190, 50, 190) === 5, 'HRR 100% → z5');
-ok(hrZoneReserve(120, 50, 190) >= hrZone(120, 200) - 5, 'HRR zone returns 0..5'); // sanity range
 
 /* strain */
 ok(trimpIncrement(0.8, 1) > trimpIncrement(0.4, 1), 'TRIMP rises with intensity');

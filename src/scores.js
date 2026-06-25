@@ -51,10 +51,11 @@ export function hrZone(hr, maxHr) {
   return z; // 0..5
 }
 
-// WHOOP's actual strain zones use HEART-RATE RESERVE (HRR / Karvonen), not raw %max — confirmed from WHOOP's
-// published material (2026-06-25): targetHR = (HRmax − RHR)·pct + RHR, with zone edges at 40/60/70/80/90 %HRR.
-// This matches the z0–z5 `zone_durations` WHOOP exposes via its API, so our zone tally calibrates 1:1 against it.
-export const ZONE_EDGES_HRR = [0.4, 0.6, 0.7, 0.8, 0.9]; // <40%HRR=z0, then z1..z5
+// WHOOP's strain zones use HEART-RATE RESERVE (HRR / Karvonen): targetHR = (HRmax − RHR)·pct + RHR. NOTE the
+// app DISPLAY shows zone 1 starting at 40% HRR, but the developer-API `zone_duration` object (z0…z5 — our actual
+// calibration answer-key) buckets at 50/60/70/80/90% HRR with a z0 catch-all below 50%. We match the API edges so
+// our zone tally calibrates 1:1 against `zone_duration` (the 40% figure is display-only). [confirmed 2026-06-25]
+export const ZONE_EDGES_HRR = [0.5, 0.6, 0.7, 0.8, 0.9]; // <50%HRR=z0, then z1..z5 (API zone_duration buckets)
 export function hrZoneReserve(hr, restingHr, maxHr) {
   const f = hrReserveFraction(hr, restingHr, maxHr);
   let z = 0;

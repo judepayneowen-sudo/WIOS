@@ -309,6 +309,28 @@ The dump is a documented **ACK-loop**, not a pointer seek: `send_historical_data
   - **Validation reality check:** peer studies confirm the INPUTS are accurate (HR ~±0.4%, RHR MAPE ~3%, HRV RMSSD ICC
     ~0.99, resp ±1 bpm) but NO study reverse-derived Recovery/Strain weights — calibration-vs-cloud is the only path.
     Sleep staging is only "fair" even WHOOP-vs-PSG (κ≈0.37–0.49) → keep calibrating to the stage SUMMARY, not the hypnogram.
+- 🔎 **Official/community algorithm intel (2nd scan, 2026-06-25) — calibration-critical facts:**
+  - ⚠️ **ZONE CUTOFFS — app ≠ API (RECONCILED, code now matches API).** WHOOP's *app* shows zone 1 from **40 %HRR**,
+    but the developer-API **`zone_duration`** object (singular! z0…z5 — our answer-key) buckets at **50/60/70/80/90 %HRR**
+    with a z0 catch-all <50%. `ZONE_EDGES_HRR` is now `[0.5,0.6,0.7,0.8,0.9]` to calibrate 1:1 against `zone_duration`.
+  - **Recovery — staff-confirmed input set + baselines:** original = HRV + RHR (in deep sleep) + Sleep Performance;
+    **respiratory rate added later** as an INDEPENDENT term (info not already in HRV/RHR/sleep). RHR/sleep contribute
+    **far less** than HRV (collinear with it) → keep HRV-dominant, small non-HRV weights. **HRV baseline = 30 days;
+    Stress Monitor baseline = 14 days** (different windows). Calibration needs **4 nights** before WHOOP scores; ~30 d
+    to settle. Pop. anchor: **avg recovery ≈ 58–60 %** (output sanity check). Recovery colours **Red ≤33 / Yellow 34–66 /
+    Green ≥67** (our `recColor` already matches).
+  - **HRV metric:** WHOOP reports **RMSSD** (Altini: a *weighted* nightly RMSSD, weighted toward SWS/late night — supports
+    our last-SWS-window switch). whoof uses **lnRMSSD** for day-to-day stability — a candidate for our recovery z-score.
+  - **API v2 fields (answer-key):** Recovery `recovery_score/resting_heart_rate/hrv_rmssd_milli(float ms)/spo2_percentage/
+    skin_temp_celsius/user_calibrating`; Sleep `sleep_needed{baseline + need_from_sleep_debt + need_from_recent_strain −
+    need_from_recent_nap}` (matches our patent model exactly) + `stage_summary` + `sleep_performance_percentage`; Workout
+    `score{strain, zone_duration{zone_zero…five_milli}}`. `*_percentage` are **0–100 floats**. **Drop/down-weight rows where
+    `user_calibrating==true`.** Sleep/Workout ids are UUIDs in v2 (Cycle id stays int).
+  - **Strain:** HR sampled **every second**; Borg-RPE log 0–21; targets ~**10–14 recovery days / 14–18 training days**.
+    5.0/MG strain = cardio load + **muscular load** (volume×intensity from reps/sets) — band-only Phase-2 reproduces the
+    **cardio half** only.
+  - **Closest 5.0 peer found:** `satayutata/geniemax-core` (Swift, golden-vector-tested 5.0/MG recovery/sleep/HRV/strain) —
+    mine its test fixtures for exact expected outputs. API struct refs: `ferueda/go-whoop`, `hedgertronic/whoop`.
 - Validate decoded inputs by sanity/consistency (sane HR, matches live HR, RR→HRV).
 
 ### 📦 Decompiled-APK intel (2026-06-22 — WHOOP Android 5.456)
