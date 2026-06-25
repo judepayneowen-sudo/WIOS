@@ -1255,7 +1255,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','showoldest','imurt','imuraw','imuprobe','hifreq','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','showoldest','imurt','imuraw','imuprobe','hifreq','speedoff','speedon','hifreqtog','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -1297,6 +1297,7 @@ const delay = (ms)=> new Promise(r=>setTimeout(r,ms));
 const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END before giving up on it
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
 let pulling=false; let autoExport=false; let skipDrainConfirm=false; let stopRequested=false; const pullRecords=[]; const pullSeen=new Set(); let pullMaxIdx=-1;
+let hiFreqSync = (localStorage.getItem('hiFreqSync')??'1')==='1';   // cmd 96 during the drain — A/B togglable so we can MEASURE if it helps
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
@@ -1407,14 +1408,14 @@ async function drainHistory(){
   log(ackMode==='normal'
     ? 'SYNC FULL HISTORY — ACK-loop drain (ack each HISTORY_END trim until HISTORY_COMPLETE). ⚠️ DESTRUCTIVE to data the WHOOP app hasn’t already synced — the ack frees the records on the band.'
     : `SYNC FULL HISTORY — 🧪 EXPERIMENT ack mode “${ackMode}”. Watch the oldest BEFORE/AFTER line to see if it freed the records.`, 'ok');
-  let before=null;
+  let before=null; const drainT0=Date.now();
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
     await send(97,[0x00],'exit_high_freq_sync'); await delay(150);   // clear any lingering firehose, THEN turn it on cleanly below
-    // HIGH-FREQ ON: cmd 96 makes the band stream each batch ~9× real-time. It’s still the SAME ack-loop (one
-    // batch, then it waits for our ack), so it can’t flood — the earlier flood was the gap-check racing the fast
-    // stream, now fixed by the settle-delay above. ~9× fewer seconds of wall-time per batch over a full night.
-    await send(96,[0x01],'enter_high_freq_sync'); await delay(200); log('⚡ high-freq sync ON (≈9× faster batches)','dim');
+    // HIGH-FREQ ON (toggle): cmd 96 is MEANT to make the band stream faster. It's still the SAME ack-loop (one
+    // batch, then it waits for our ack). ⚠️ NOT YET PROVEN to actually speed up the sync — the end-of-sync
+    // “⏱ throughput” line below measures it, and the read-only Speed test A/B (high-freq ON vs OFF) settles it.
+    if(hiFreqSync){ await send(96,[0x01],'enter_high_freq_sync'); await delay(200); log('⚡ high-freq sync ON (cmd 96) — measuring throughput below','dim'); }
     log('→ send_historical_data','cmd'); const e0=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(e0);
     log(`batch 1: ${pullRecords.length} record(s)${pullRecords.length?` up to idx ${pullMax().idx}`:''}${drain.endTrim!=null?`, HISTORY_END trim=${drain.endTrim}`:' (no HISTORY_END parsed)'}`, pullRecords.length?'ok':'err');
     let guard=0, stalls=0, reprimes=0;
@@ -1486,6 +1487,11 @@ async function drainHistory(){
     await persistPull(dump);                                      // ⭐ keep a copy ON THE PHONE (Phase 2 store)
     try{ const ct=captureText(); if(ct){ lastCaptureText=ct; await store.saveLastCapture(ct, {frames:capture.length, records:nd}); } }catch(e){}   // persist the raw pull so Save/Send works after a restart
     log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
+    // ⏱ THROUGHPUT — the honest measure of sync speed. records/sec is the headline; “× realtime” = band-seconds
+    // of data delivered per wall-second (high = good). Compare runs with high-freq ON vs OFF to see if cmd 96
+    // actually helps. (Earlier “9×” was never measured against a controlled run — this line is the real number.)
+    { const wall=(Date.now()-drainT0)/1000, rps=nd/Math.max(0.1,wall), xrt=(maxTs-minTs)/Math.max(0.1,wall);
+      log(`⏱ throughput: ${nd} records in ${wall.toFixed(0)}s = ${rps.toFixed(1)} rec/s · ${xrt.toFixed(0)}× realtime · high-freq ${hiFreqSync?'ON':'OFF'} · ${drain.endCount} batch(es)`, 'cmd'); }
     if(drain.gaps && drain.gaps.length){ const miss=drain.gaps.reduce((a,g)=>a+(g[1]-g[0]+1),0);
       log(`⚠️ ${drain.gaps.length} unfilled gap(s), ~${miss} records — these frames dropped and couldn’t be re-fetched. Re-pull this window to recover (data still on flash).`,'err'); }
     else log('✓ no idx gaps — the dump is contiguous (nothing dropped/freed).','ok');
@@ -1850,6 +1856,36 @@ async function hiFreqProbe(){
   } finally { probing=false; }
 }
 
+// ⏱ READ-ONLY A/B SPEED TEST — the clean way to settle "does high-freq actually help?". Streams the FIRST
+// window for a fixed time WITHOUT acking (nothing freed — fully non-destructive, repeatable), and counts how
+// many unique (47) records land per second. Run it with high-freq OFF, then ON, and compare the rec/s. Because
+// it never acks, the band re-serves the same first window each time, so it's a fair apples-to-apples A/B.
+async function speedTest(hiFreq){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ log('a sync is already running — stop it first','err'); return; }
+  startCaptureIfNeeded();
+  const WINDOW_MS=12000;
+  log(`⏱ SPEED TEST — high-freq ${hiFreq?'ON':'OFF'} (READ-ONLY, nothing acked or freed). Streaming the first window for ${WINDOW_MS/1000}s and counting records…`,'ok');
+  pulling=true; probing=false; drain=newDrain(); pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1;
+  const t0=Date.now();
+  try{
+    await send(97,[0x00],'exit_high_freq_sync'); await delay(150);
+    if(hiFreq){ await send(96,[0x01],'enter_high_freq_sync'); await delay(200); }
+    const e0=drain.endCount; await send(22,[0x00],'send_historical_data');
+    await delay(WINDOW_MS);
+    await send(20,[],'abort_historical_transmits'); await delay(200);
+    if(hiFreq) await send(97,[0x00],'exit_high_freq_sync');
+    const sec=(Date.now()-t0)/1000;
+    const recs=pullRecords.filter(r=>r.src===47);
+    const tss=recs.map(r=>r.ts).filter(t=>t>1500000000);
+    const span=tss.length?(Math.max(...tss)-Math.min(...tss)):0;
+    const rate=recs.length/Math.max(0.1,sec);
+    log(`⏱ RESULT [high-freq ${hiFreq?'ON':'OFF'}]: ${recs.length} records in ${sec.toFixed(1)}s = ${rate.toFixed(1)} rec/s · ${(span/Math.max(0.1,sec)).toFixed(0)}× realtime · ${drain.endCount} batch(es)`, recs.length>0?'ok':'err');
+    log('   → now run the OTHER toggle and compare rec/s. (Non-destructive — nothing was acked.)','dim');
+  }catch(e){ log('speed test error: '+e.message,'err'); }
+  finally{ pulling=false; await send(20,[],'abort_historical_transmits').catch(()=>{}); }
+}
+
 async function checkBandBuffer(){
   if(!deviceId){ log('connect first','err'); return; }
   log('Reading the band’s sync cursor (read-only, changes nothing)…','cmd');
@@ -2093,6 +2129,11 @@ document.addEventListener('DOMContentLoaded', ()=>{
   { const a=$('imuraw'); if(a) a.onclick=toggleRawData; }
   { const a=$('imuprobe'); if(a) a.onclick=imuHistoricalProbe; }
   { const a=$('hifreq'); if(a) a.onclick=hiFreqProbe; }
+  { const a=$('speedoff'); if(a) a.onclick=()=>speedTest(false); }
+  { const a=$('speedon'); if(a) a.onclick=()=>speedTest(true); }
+  { const a=$('hifreqtog'); if(a){ const upd=()=>{ a.textContent='High-freq sync: '+(hiFreqSync?'on':'off'); a.classList.toggle('live',hiFreqSync); };
+    upd(); a.onclick=()=>{ hiFreqSync=!hiFreqSync; localStorage.setItem('hiFreqSync',hiFreqSync?'1':'0'); upd();
+      log('high-freq during full sync is now '+(hiFreqSync?'ON':'OFF'),'dim'); }; } }
   { const a=$('gattbtn'); if(a) a.onclick=listGatt; }
   $('p-save').onclick     = saveProfileForm;
   $('csend').onclick      = ()=>{ const code=parseInt($('ccode').value,10);

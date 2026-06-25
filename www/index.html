@@ -536,6 +536,12 @@
         <button class="act" id="synchist" disabled>Quick sync (read-only)</button>
         <button class="act" id="bandcheck" disabled>Check sync cursor</button>
       </div>
+      <div class="row">
+        <button class="act" id="speedoff" disabled>⏱ Speed test (high-freq OFF)</button>
+        <button class="act" id="speedon" disabled>⏱ Speed test (high-freq ON)</button>
+        <button class="act" id="hifreqtog" disabled>High-freq sync: on</button>
+      </div>
+      <div class="muted" style="font-size:11px;margin-top:4px">A/B the sync speed: tap both Speed tests (read-only, nothing freed) and compare the <b>rec/s</b> in the log. The toggle controls whether the real “Sync full history” uses high-freq.</div>
 
       <hr style="border:none;border-top:1px solid rgba(255,255,255,.12);margin:16px 0">
       <p style="font-size:12px;line-height:1.5;margin:0 0 8px;color:var(--dim)"><b style="color:#fff">Phase 2 · IMU / actigraphy</b> — capture the raw <b>int16 6-axis</b> accel+gyro (WHOOP's “R21”) to unlock true sleep movement, steps &amp; VO₂. Both are <b>non-destructive</b>. <b>Realtime IMU:</b> connect → tap on → hold flat &amp; still 5s, tilt onto each edge/end/face 3s, then shake → tap off → Send to laptop. <b>Historical probe:</b> read-only, streams the first window looking for R21.</p>
