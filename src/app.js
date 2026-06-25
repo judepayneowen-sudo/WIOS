@@ -310,16 +310,122 @@ function stressGauge(v){
 const sleepTotals=(segs)=>{ const t={awake:0,light:0,rem:0,sws:0}; for(const x of segs) t[x.s]+=x.m; return t; };
 function recState(p){ return p>=67?'Recovered':p>=34?'Adequate':'Low'; }
 
+// ── WHOOP-identical home ────────────────────────────────────────────────────
+let selDayKey=null;                                            // YYYY-MM-DD selected in the picker; null = today
+const todayKey   = ()=> store.dayKeyOf(Math.floor(Date.now()/1000));
+const curDayKey  = ()=> selDayKey || todayKey();
+const dayData    = (k)=> histDays.find(d=>d.day===k) || null;
+const WR_C = 2*Math.PI*52;                                     // ring circumference (r=52)
+function setWRing(id, frac, color){ const el=$(id); if(!el) return; frac=Math.max(0,Math.min(1,frac||0));
+  el.style.strokeDasharray=WR_C; el.style.strokeDashoffset=WR_C*(1-frac); if(color) el.style.stroke=color; }
+const fmtClock=(ts)=> ts? new Date(ts*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:false}) : '';
+const fmtHM=(min)=>{ if(min==null) return '—'; min=Math.round(min); return Math.floor(min/60)+':'+String(min%60).padStart(2,'0'); }
+const avgField=(get)=>{ const v=histDays.map(get).filter(x=>x!=null&&isFinite(x)&&x>0); return v.length? v.reduce((a,c)=>a+c,0)/v.length : null; };
+// One dashboard / summary metric row. trend: +1 up (green), -1 down (orange), 0 flat, null none.
+function mrow(icon,label,val,sub,trend){
+  const tr = trend==null?'<span class="mtr"></span>'
+    : `<span class="mtr ${trend>0?'up':trend<0?'dn':'fl'}">${trend>0?'▲':trend<0?'▼':'•'}</span>`;
+  const sb = sub!=null && sub!=='' ? `<small>${sub}</small>` : '';
+  return `<div class="wmrow"><span class="mi">${icon}</span><span class="ml">${label}</span><span class="mv">${val}${sb}</span>${tr}</div>`;
+}
+const ICN={ hrv:'〜', rhr:'♥', steps:'👣', zones:'❤', strength:'🏋', vo2:'🫁', cal:'🔥', hr:'♥', sleep:'☾', resp:'🫁' };
+function trendOf(v, base){ if(v==null||base==null) return null; const d=v-base; return Math.abs(d)<base*0.01?0:(d>0?1:-1); }
+function renderDash(d){
+  const host=$('wh-dash'); if(!host) return;
+  const hrvA=avgField(x=>x.hrvMs), rhrA=avgField(x=>x.restHr);
+  const hrv = d? d.hrvMs : null, rhr = d? d.restHr : null;
+  const rows=[
+    mrow(ICN.hrv,'HEART RATE VARIABILITY', hrv!=null?hrv:'—', hrvA!=null?Math.round(hrvA):'', trendOf(hrv,hrvA)),
+    mrow(ICN.rhr,'RESTING HEART RATE', rhr!=null?rhr:'—', rhrA!=null?Math.round(rhrA):'', trendOf(rhr,rhrA)),
+    mrow(ICN.steps,'STEPS', '—', '', null),
+    mrow(ICN.zones,'HR ZONES 1-3 (WEEKLY)', '—', '', null),
+    mrow(ICN.zones,'HR ZONES 4-5 (WEEKLY)', '—', '', null),
+    mrow(ICN.strength,'STRENGTH ACTIVITY TIME', '—', '', null),
+    `<div class="wmrow chev"><span class="mi">${ICN.vo2}</span><span class="ml">VO₂ MAX</span><span class="mv">›</span><span class="mtr"></span></div>`,
+    mrow(ICN.cal,'CALORIES', '—', '', null),
+  ];
+  host.innerHTML=rows.join('');
+}
+function renderSummary(d){
+  const host=$('wh-summary'); if(!host) return;
+  const hrA=avgField(x=>x.avgHr), strA=avgField(x=>x.strain), slpA=avgField(x=>x.sleep&&x.sleep.asleepMin);
+  const strain=d?d.strain:null, hr=d?d.avgHr:null, asleep=d&&d.sleep?d.sleep.asleepMin:null;
+  const rows=[
+    mrow(ICN.hr.replace('♥','🏋'),'DAY STRAIN', strain!=null?strain.toFixed(1):'—', strA!=null?strA.toFixed(1):'', trendOf(strain,strA)),
+    mrow(ICN.hr,'AVERAGE HEART RATE', hr!=null?hr:'—', hrA!=null?Math.round(hrA):'', trendOf(hr,hrA)),
+    mrow(ICN.sleep,'HOURS OF SLEEP', fmtHM(asleep), slpA!=null?fmtHM(slpA):'', trendOf(asleep,slpA)),
+    mrow(ICN.zones,'HR ZONES ALL (WEEKLY)', '—', '', null),
+    mrow(ICN.resp,'RESPIRATORY RATE', '—', '', null),
+  ];
+  host.innerHTML=rows.join('');
+}
+// Weekly Strain & Recovery chart: last 7 days, strain (blue, left axis 0–21) + recovery (colored, right axis 0–100%).
+function renderWeek(){
+  const host=$('wh-week'); if(!host) return;
+  const today=todayKey();
+  const days=[]; for(let i=6;i>=0;i--){ const ts=Math.floor(Date.now()/1000)-i*86400; const k=store.dayKeyOf(ts); days.push({k, d:dayData(k), dt:new Date(ts*1000)}); }
+  const W=350,H=235, padL=26,padR=30,padT=22,padB=34, iw=W-padL-padR, ih=H-padT-padB;
+  const x=i=> padL + (days.length===1?iw/2:iw*i/(days.length-1));
+  const yS=v=> padT + ih*(1-Math.max(0,Math.min(21,v))/21);          // strain axis 0..21
+  const yR=v=> padT + ih*(1-Math.max(0,Math.min(100,v))/100);        // recovery axis 0..100
+  let s=`<svg viewBox="0 0 ${W} ${H}">`;
+  // selected-day highlight band
+  const selI=days.findIndex(p=>p.k===curDayKey());
+  if(selI>=0){ const bw=iw/days.length*0.9, bx=x(selI)-bw/2; s+=`<rect x="${bx}" y="${padT-12}" width="${bw}" height="${ih+18}" rx="6" fill="rgba(255,255,255,.06)"/>`; }
+  // left strain axis labels
+  for(const v of [0,7,14,21]) s+=`<text class="wk-axl" x="2" y="${yS(v)+4}">${v}</text>`;
+  // right recovery axis labels
+  for(const v of [0,33,66,100]){ const c=v>=67?'var(--rec-green)':v>=34?'var(--rec-yellow)':'var(--rec-red)'; s+=`<text class="wk-axr" x="${W-2}" y="${yR(v)+4}" text-anchor="end" fill="${c}">${v}%</text>`; }
+  // strain line + points (blue)
+  const sp=days.map((p,i)=> p.d? `${x(i)},${yS(p.d.strain)}`:null).filter(Boolean);
+  if(sp.length>1) s+=`<polyline points="${sp.join(' ')}" fill="none" stroke="var(--strain)" stroke-width="2" opacity=".9"/>`;
+  // recovery connecting line (grey)
+  const rp=days.map((p,i)=> p.d&&p.d.rec!=null? `${x(i)},${yR(p.d.rec)}`:null).filter(Boolean);
+  if(rp.length>1) s+=`<polyline points="${rp.join(' ')}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>`;
+  days.forEach((p,i)=>{
+    if(p.d){ s+=`<circle cx="${x(i)}" cy="${yS(p.d.strain)}" r="5.5" fill="var(--bg)" stroke="var(--strain)" stroke-width="2.5"/>`;
+      s+=`<text class="wk-val" x="${x(i)}" y="${yS(p.d.strain)+20}" text-anchor="middle" fill="var(--strain)">${p.d.strain.toFixed(1)}</text>`; }
+    if(p.d&&p.d.rec!=null){ const c=p.d.rec>=67?'var(--rec-green)':p.d.rec>=34?'var(--rec-yellow)':'var(--rec-red)';
+      s+=`<circle cx="${x(i)}" cy="${yR(p.d.rec)}" r="5.5" fill="var(--bg)" stroke="${c}" stroke-width="2.5"/>`;
+      s+=`<text class="wk-val" x="${x(i)}" y="${yR(p.d.rec)-9}" text-anchor="middle" fill="${c}">${p.d.rec}%</text>`; }
+    // x labels: weekday + day-of-month
+    const sel=p.k===curDayKey();
+    s+=`<text class="${sel?'wk-xd':'wk-x'}" x="${x(i)}" y="${H-14}" text-anchor="middle">${p.dt.toLocaleDateString([], {weekday:'short'})}</text>`;
+    s+=`<text class="${sel?'wk-xd':'wk-x'}" x="${x(i)}" y="${H-2}" text-anchor="middle">${p.dt.getDate()}</text>`;
+  });
+  s+=`</svg>`;
+  host.innerHTML=s;
+}
 function renderOverview(){
-  const S=SAMPLE; const t=sleepTotals(S.sleep.segs); const asleep=t.light+t.rem+t.sws;
-  setRing('ov-arc', S.recovery.pct, recColor(S.recovery.pct)); setField('ov-rec', S.recovery.pct);
-  setField('ov-rec-state', recState(S.recovery.pct));
-  setHTML('ov-sleep', S.sleep.perf+'<small>%</small>'); setField('ov-sleep-sub', fmtMs(asleep)+' asleep');
-  setField('ov-strain', S.strain.day.toFixed(1));
-  setHTML('ov-hr',  (state.hr!=null?state.hr:'—')+'<small>bpm</small>');
-  setHTML('ov-hrv', (state.hrvMs!=null?state.hrvMs:S.recovery.hrv)+'<small>ms</small>');
-  interactiveChart($('ov-hrcurve'), S.strain.hr, {color:'#3aa0ff',h:90,unit:' bpm'});
+  const key=curDayKey(), today=todayKey(), d=dayData(key);
+  // day-picker label + next-arrow gating (can't go past today)
+  setField('dp-label', key===today ? 'TODAY'
+    : new Date(key+'T12:00:00').toLocaleDateString([], {weekday:'short',month:'short',day:'numeric'}).toUpperCase());
+  { const np=$('dp-next'); if(np) np.style.opacity = key>=today ? .3 : 1; }
+  // rings
+  const recPct=d&&d.rec!=null?d.rec:null, slpPct=d&&d.sleep?d.sleep.performance:null, strain=d?d.strain:null;
+  setWRing('wr-rec',   recPct!=null?recPct/100:0, recPct!=null?recColor(recPct):'rgba(255,255,255,.18)');
+  setWRing('wr-sleep', slpPct!=null?slpPct/100:0, 'var(--sleep)');
+  setWRing('wr-strain',strain!=null?strain/21:0, 'var(--strain)');
+  setHTML('wr-rec-v',   recPct!=null?`${recPct}<i>%</i>`:'—');
+  setHTML('wr-sleep-v', slpPct!=null?`${slpPct}<i>%</i>`:'—');
+  setHTML('wr-strain-v',strain!=null?strain.toFixed(1):'—');
+  // health/stress monitor compact state
+  setField('wh-hm-state', histDays.length? 'Monitoring' : 'Calibrating');
+  // activities (the night's sleep)
+  if(d&&d.sleep&&d.sleep.asleepMin){ setField('wh-act-hrs', fmtHM(d.sleep.asleepMin));
+    setField('wh-act-t', `${fmtClock(d.sleep.start)}\n${fmtClock(d.sleep.end)}`); }
+  else { setField('wh-act-hrs','—'); setField('wh-act-t',''); }
+  renderDash(d); renderWeek(); renderSummary(d);
   renderHealth(); renderStress();
+}
+function shiftDay(delta){
+  const today=todayKey(); const base=curDayKey();
+  const ts=Date.parse(base+'T12:00:00')/1000 + delta*86400;
+  const k=store.dayKeyOf(ts);
+  if(k>today) return;                                          // never go into the future
+  selDayKey = (k===today)? null : k;
+  renderOverview();
 }
 function renderHealth(){
   const host=$('ov-health'); if(!host) return;
@@ -1674,7 +1780,7 @@ async function finishConnect(name){
   setStatus('connected — '+(name||'WHOOP'), true);
   enableDev(true);
   lset('bandId', deviceId); lset('bandName', name||'WHOOP');   // remember for next launch's auto-connect
-  try{ const b=await BleClient.read(deviceId,BATT_SVC,BATT_LVL); setField('batt', b.getUint8(0)+'%'); }catch(e){ log('battery read: '+e.message,'err'); }
+  try{ const b=await BleClient.read(deviceId,BATT_SVC,BATT_LVL); const pc=b.getUint8(0)+'%'; setField('batt', pc); setField('wh-batt', pc); }catch(e){ log('battery read: '+e.message,'err'); }
   for(const [ch,id] of [[DEV_MODEL,'model'],[DEV_FW,'fw'],[DEV_SERIAL,'serial'],[DEV_MFR,'mfr']]){
     try{ const v=await BleClient.read(deviceId,DEV_SVC,ch); setField(id, new TextDecoder().decode(v).replace(/\0/g,'').trim()); }catch(e){}
   }
@@ -1807,6 +1913,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if($('laphost')) $('laphost').value = loadLapHost();
   selfTest();
   $('connect').onclick    = connect;
+  { const a=$('dp-prev'); if(a) a.onclick=()=>shiftDay(-1); }
+  { const a=$('dp-next'); if(a) a.onclick=()=>shiftDay(1); }
   { const sp=$('syncpill'); if(sp) sp.onclick = onSyncPillTap; }
   $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} lset('bandId',null); deviceId=null; setSync('off'); } };
   $('hello').onclick      = ()=>send(145,[0x01],'get_hello');

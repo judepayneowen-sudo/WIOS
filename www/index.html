@@ -233,6 +233,57 @@
   .prog{height:8px;background:#1f2228;border-radius:5px;overflow:hidden;margin-top:8px}
   .prog > i{display:block;height:100%;border-radius:5px;background:var(--strain)}
   .avatar{width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#2a3550,#16181d);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff}
+  /* ===================== WHOOP-identical home ===================== */
+  #s-overview{padding-top:max(10px,env(safe-area-inset-top))}
+  .wtop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
+  .wprof{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);background:transparent;color:var(--text);display:flex;align-items:center;justify-content:center;flex:none}
+  .wdp{display:flex;align-items:center;gap:4px;background:rgba(255,255,255,.06);border-radius:999px;padding:4px 6px}
+  .wdpbtn{background:transparent;border:0;color:var(--text);font-size:20px;line-height:1;width:30px;height:30px;font-weight:400}
+  .wdplab{font-size:14px;font-weight:700;letter-spacing:.5px;min-width:118px;text-align:center}
+  .wstrap{display:flex;align-items:center;gap:6px;color:var(--dim);font-size:14px;font-weight:600}
+  .wmark{text-align:center;font-size:24px;font-weight:300;letter-spacing:5px;color:#fff;margin:2px 0 20px;font-family:-apple-system,system-ui,sans-serif}
+  .wrings{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:22px}
+  .wring{background:transparent;border:0;display:flex;flex-direction:column;align-items:center;gap:10px;padding:0;color:var(--text)}
+  .wr{position:relative;width:104px;height:104px;max-width:30vw;max-height:30vw}
+  .wr svg{width:100%;height:100%;transform:none}
+  .wr-bg{fill:none;stroke:rgba(255,255,255,.10);stroke-width:8}
+  .wr-fg{fill:none;stroke:#fff;stroke-width:8;stroke-linecap:round;transition:stroke-dashoffset .6s ease}
+  .wr-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:27px;font-weight:700;letter-spacing:-.5px}
+  .wr-txt i{font-style:normal;font-size:15px;font-weight:600;margin-left:1px}
+  .wr-lab{font-size:12.5px;font-weight:700;letter-spacing:.8px;color:#cfd9df}
+  .wr-lab span{color:var(--dimmer)}
+  .wmons{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .wmon{margin:0;padding:16px 15px}
+  .wmon-h{font-size:13px;font-weight:700;letter-spacing:.4px;display:flex;justify-content:space-between;color:#e6edf1}
+  .wmon-h span{color:var(--dimmer)}
+  .wmon-s{display:flex;align-items:center;gap:8px;margin-top:18px;color:#cfd9df;font-size:15px}
+  .wdotg{width:11px;height:11px;border-radius:50%;background:#7a8a93;flex:none}
+  .wpad{padding:16px 15px}
+  .wsec-h{font-size:13px;font-weight:700;letter-spacing:.5px;color:#e6edf1;margin-bottom:14px}
+  .wsec-h2{font-size:24px;font-weight:700;margin:24px 2px 12px}
+  .wact{display:flex;align-items:center;gap:14px;background:rgba(255,255,255,.04);border-radius:12px;padding:12px 14px}
+  .wact-ic{width:64px;height:44px;border-radius:9px;background:var(--sleep);display:flex;align-items:center;justify-content:center;font-size:20px;color:#10242f;flex:none}
+  .wact-hrs{font-size:17px;font-weight:700;color:#10242f;position:absolute}
+  .wact-d{font-size:15px;font-weight:700;letter-spacing:.5px;flex:1}
+  .wact-t{font-size:13px;color:var(--dim);text-align:right;white-space:pre-line;line-height:1.35}
+  .wact-btns{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+  .wbtn{background:rgba(255,255,255,.05);border:0;color:#e6edf1;border-radius:10px;padding:13px;font-size:13px;font-weight:700;letter-spacing:.3px;font-family:inherit}
+  /* metric rows */
+  .wmrow{display:flex;align-items:center;gap:13px;background:var(--card);border-radius:14px;padding:17px 16px;margin-bottom:10px}
+  .wmrow .mi{width:24px;height:24px;color:#9fb4bf;flex:none;display:flex;align-items:center;justify-content:center}
+  .wmrow .ml{flex:1;font-size:15px;font-weight:700;letter-spacing:.3px}
+  .wmrow .mv{text-align:right;font-size:23px;font-weight:700;line-height:1}
+  .wmrow .mv small{display:block;font-size:12px;font-weight:600;color:var(--dim);margin-top:4px}
+  .wmrow .mtr{width:16px;text-align:center;font-size:13px;flex:none}
+  .mtr.up{color:var(--rec-green)} .mtr.dn{color:#ff9f3a} .mtr.fl{color:var(--dimmer)}
+  .wmrow.chev .mv{font-size:18px;color:var(--dimmer)}
+  /* weekly strain & recovery chart */
+  #wh-week svg{width:100%;display:block}
+  .wk-x{fill:var(--dim);font-size:11px;font-weight:600}
+  .wk-xd{fill:#fff;font-size:13px;font-weight:700}
+  .wk-axl{fill:var(--strain);font-size:11px;font-weight:700}
+  .wk-axr{font-size:11px;font-weight:700}
+  .wk-val{font-size:13px;font-weight:700}
 </style>
 </head>
 <body>
@@ -243,38 +294,69 @@
 
   <!-- ===================== WHOOP-STYLE APP (permanent) ===================== -->
   <section class="screen on" id="s-overview">
-    <div class="hd"><div class="t">Today</div><span class="preview" id="ov-badge">preview · sample</span></div>
-    <div class="card go" data-go="recovery" style="display:flex;align-items:center;gap:16px">
-      <div class="ringwrap sm" style="width:92px;height:92px;margin:0;flex:none">
-        <svg class="ring" viewBox="0 0 200 200"><circle class="ring-bg" cx="100" cy="100" r="88"></circle>
-          <circle class="ring-fg" id="ov-arc" cx="100" cy="100" r="88"></circle></svg>
-        <div class="ringtxt"><div class="big" id="ov-rec" style="font-size:25px">—</div></div></div>
-      <div style="flex:1"><div class="muted" style="letter-spacing:1.5px;text-transform:uppercase">Recovery</div>
-        <div id="ov-rec-state" style="font-size:22px;font-weight:700;margin-top:2px">—</div>
-        <div class="await" id="ov-rec-sub">HRV · resting HR · respiratory</div></div>
+    <!-- top bar: profile · day picker · strap battery -->
+    <div class="wtop">
+      <button class="wprof" data-nav="setup" aria-label="Profile"><svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="3.6"/><path d="M4.5 20c0-3.6 3.6-5.6 7.5-5.6s7.5 2 7.5 5.6"/></svg></button>
+      <div class="wdp">
+        <button id="dp-prev" class="wdpbtn">‹</button>
+        <div class="wdplab" id="dp-label">TODAY</div>
+        <button id="dp-next" class="wdpbtn">›</button>
+      </div>
+      <div class="wstrap"><span id="wh-batt">—</span><svg viewBox="0 0 24 24" width="19" height="22" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="6.5" y="2.5" width="11" height="19" rx="4"/><path d="M12 7.5v5l2.2-2.2"/></svg></div>
     </div>
-    <div class="tiles">
-      <div class="tile go" data-go="sleep"><div class="k">Sleep</div><div class="v" id="ov-sleep" style="color:var(--sleep)">—<small>%</small></div><div class="await" id="ov-sleep-sub">—</div></div>
-      <div class="tile go" data-go="strain"><div class="k">Day Strain</div><div class="v" id="ov-strain" style="color:var(--strain)">—</div><div class="await">0–21 scale</div></div>
-      <div class="tile"><div class="k">Heart rate</div><div class="v" id="ov-hr">—<small>bpm</small></div><div class="await">live</div></div>
-      <div class="tile"><div class="k">HRV</div><div class="v" id="ov-hrv">—<small>ms</small></div><div class="await">rmssd</div></div>
+    <div class="wmark">WHOOP</div>
+
+    <!-- the three rings -->
+    <div class="wrings">
+      <button class="wring go" data-go="sleep">
+        <div class="wr"><svg viewBox="0 0 120 120"><circle class="wr-bg" cx="60" cy="60" r="52"/><circle class="wr-fg" id="wr-sleep" cx="60" cy="60" r="52" transform="rotate(-90 60 60)"/></svg><div class="wr-txt" id="wr-sleep-v">—<i>%</i></div></div>
+        <div class="wr-lab">SLEEP <span>›</span></div>
+      </button>
+      <button class="wring go" data-go="recovery">
+        <div class="wr"><svg viewBox="0 0 120 120"><circle class="wr-bg" cx="60" cy="60" r="52"/><circle class="wr-fg" id="wr-rec" cx="60" cy="60" r="52" transform="rotate(-90 60 60)"/></svg><div class="wr-txt" id="wr-rec-v">—<i>%</i></div></div>
+        <div class="wr-lab">RECOVERY <span>›</span></div>
+      </button>
+      <button class="wring go" data-go="strain">
+        <div class="wr"><svg viewBox="0 0 120 120"><circle class="wr-bg" cx="60" cy="60" r="52"/><circle class="wr-fg" id="wr-strain" cx="60" cy="60" r="52" transform="rotate(-90 60 60)"/></svg><div class="wr-txt" id="wr-strain-v">—</div></div>
+        <div class="wr-lab">STRAIN <span>›</span></div>
+      </button>
     </div>
 
-    <div class="card">
-      <div class="hd" style="margin-bottom:6px"><div class="t">Heart rate · today</div></div>
-      <div id="ov-hrcurve"></div>
-      <div class="chart-hint">drag across the graph to read any point</div>
+    <!-- health / stress monitor compact cards -->
+    <div class="wmons">
+      <div class="card wmon" data-nav="health">
+        <div class="wmon-h">HEALTH MONITOR <span>›</span></div>
+        <div class="wmon-s"><span class="wdotg" id="wh-hm-dot"></span><span id="wh-hm-state">Calibrating</span></div>
+      </div>
+      <div class="card wmon" data-nav="stress">
+        <div class="wmon-h">STRESS MONITOR <span>›</span></div>
+        <div class="wmon-s"><span id="wh-sm-state" class="muted">No Data Available</span></div>
+      </div>
     </div>
 
-    <div class="card">
-      <div class="hd" style="margin-bottom:4px"><div class="t">Health monitor</div><span class="muted">typical range</span></div>
-      <div id="ov-health"></div>
+    <!-- activities -->
+    <div class="card wpad">
+      <div class="wsec-h">ACTIVITIES</div>
+      <div class="wact" id="wh-act"><div class="wact-ic">🌙</div><div class="wact-hrs" id="wh-act-hrs">—</div><div class="wact-d">SLEEP</div><div class="wact-t" id="wh-act-t"></div></div>
+      <div class="wact-btns"><button class="wbtn">+ ADD ACTIVITY</button><button class="wbtn">◷ START ACTIVITY</button></div>
     </div>
 
-    <div class="card">
-      <div class="hd" style="margin-bottom:12px"><div class="t">Stress</div><span class="muted">live · 0–3</span></div>
-      <div id="ov-stress"></div>
+    <!-- my dashboard -->
+    <div class="wsec-h2">My Dashboard</div>
+    <div id="wh-dash"></div>
+
+    <!-- strain & recovery weekly -->
+    <div class="card wpad">
+      <div class="wsec-h">STRAIN &amp; RECOVERY</div>
+      <div id="wh-week"></div>
     </div>
+
+    <!-- summary rows -->
+    <div id="wh-summary"></div>
+
+    <!-- detailed Health monitor + Stress (existing renderers target these ids) -->
+    <div class="card"><div class="hd" style="margin-bottom:4px"><div class="t">Health monitor</div><span class="muted">typical range</span></div><div id="ov-health"></div></div>
+    <div class="card"><div class="hd" style="margin-bottom:12px"><div class="t">Stress</div><span class="muted">live · 0–3</span></div><div id="ov-stress"></div></div>
   </section>
 
   <section class="screen" id="s-recovery">
