@@ -982,7 +982,7 @@ function setStatus(t, on){ setField('status', t); const d=$('dot'); if(d) d.clas
 const rt = { counts:{} };
 let capturing=false; const capture=[]; const CAP_MAX=100000, CAP_TRIM=10000;  // ring buffer for file export
 let lastCaptureText='';   // last pull's raw capture, persisted to IndexedDB so it survives an app restart
-let lastStrayAbort=0;     // throttle for auto-stopping a stuck high-freq firehose when we're not pulling
+let lastStrayAbort=0, strayTries=0, lastIdleLog=0;   // stop-a-stuck-firehose state + idle-log rate limiter
 let _rtT=null;
 function renderRt(){ if(_rtT) return; _rtT=setTimeout(()=>{ _rtT=null; const el=$('rt'); if(!el) return;  // throttle DOM updates
   const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
@@ -1013,14 +1013,20 @@ function onFrame(label, dv){
   rxBuf.set(label, buf.length ? buf.slice() : null);     // own the remainder (subarray is a view into the merged buffer)
 }
 function processFrame(label, info){
-  // A stuck high-freq firehose keeps the band streaming HISTORICAL_DATA(47)/METADATA(49) even when we're NOT
-  // pulling. Don't flood the log with it, and actively STOP it: abort + exit high-freq (throttled).
+  // A stuck high-freq firehose keeps the band streaming HISTORICAL_DATA(47)/METADATA(49) when we're NOT pulling.
+  // Try abort+exit a few times to stop it, then GIVE UP (don't keep spamming — that floods the log with command
+  // responses) and tell the user to reconnect (a disconnect resets the band's BLE state). Dump frames are never
+  // logged here. Everything else, when idle, is rate-limited so a chatty band can't flood the log either.
   const isDumpFrame = info.packetType===47 || info.packetType===49;
   if(!pulling && isDumpFrame && !info.error){
-    if(Date.now()-lastStrayAbort > 2500){ lastStrayAbort=Date.now();
+    if(strayTries < 4 && Date.now()-lastStrayAbort > 1500){
+      lastStrayAbort=Date.now(); strayTries++;
       send(20,[],'abort_historical_transmits'); send(97,[0x00],'exit_high_freq_sync');
-      log('⏹ band was streaming on its own (stuck high-freq) — sent abort + exit-high-freq to stop it.','dim'); }
-  } else if(!pulling || info.error){ logFrame('RX['+label+']', info); }   // normal per-frame log (suppressed during a bulk pull)
+      if(strayTries===1) log('⏹ band streaming on its own — stopping it (abort + exit high-freq)…','dim');
+      else if(strayTries===4) log('⚠️ band won’t stop on its own — DISCONNECT then reconnect to reset it.','err');
+    }
+  } else if(info.error){ logFrame('RX['+label+']', info); }
+  else if(!pulling){ if(Date.now()-lastIdleLog >= 300){ lastIdleLog=Date.now(); logFrame('RX['+label+']', info); } }   // ≤~3/s when idle
   if(!info.error){ const k=info.name; rt.counts[k]=(rt.counts[k]||0)+1; renderRt(); }
   // REALTIME_DATA(40) decoded from real captures: [8]=HR bpm, [9]=RR-present flag,
   // [10..12)=RR interval ms (verified: mean HR byte ≈ 60000/mean RR).
@@ -1912,6 +1918,7 @@ async function finishConnect(name){
   await subscribeAll();
   // Clear any band state left mid-stream (a stuck high-freq firehose, an unfinished dump) so the connection
   // starts clean instead of being flooded with historical data we never asked for.
+  strayTries=0;   // fresh connection → allow the auto-stop to try again
   try{ await send(97,[0x00],'exit_high_freq_sync'); await send(20,[],'abort_historical_transmits'); }catch(e){}
   log('connected. Live HR is flowing — see the Strain/Overview tabs.','ok');
   renderAll();
