@@ -1431,20 +1431,28 @@ const ackPayload = (trim)=> (ACK_BUILDERS[ackMode]||ACK_BUILDERS.normal)(trim>>>
 // can't set the interval on iOS, but a fresh connection re-rolls it. ensureFastLink streams a brief READ-ONLY
 // window (no ack → nothing freed), measures the rate, and if the link came up slow, disconnects + reconnects to
 // renegotiate, up to maxRerolls times. Returns the best rec/s seen. pulling must already be true on entry.
-const FAST_LINK_RPS = 30;        // below this in a read-only probe = a throttled interval worth re-rolling
-async function ensureFastLink(maxRerolls=2){
+// FAST_LINK_RPS: below this in a read-only probe = a throttled connection interval (iOS gave ~30ms+ instead of
+// 15ms, and/or few packets/connection-event). RESEARCHED 2026-06-27: an iOS central has NO API to set the
+// interval/MTU/PHY — it's iOS's at-connect radio-scheduling lottery — so a fresh connection is the only re-roll,
+// which is exactly what the BLE DFU/firmware-update community does. So: probe, and if slow, disconnect+reconnect
+// up to maxRerolls times. (cmd 96 is a firmware stream-mode, NOT an interval change — A/B-proven, research-confirmed.)
+const FAST_LINK_RPS = 30;
+async function ensureFastLink(maxRerolls=3){
   let best=0;
   for(let attempt=0; attempt<=maxRerolls; attempt++){
     if(stopRequested || !deviceId) return best;
     pulling=true; const savedDrain=drain; drain=newDrain(); pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1;
     const t0=Date.now();
-    await send(22,[0x00],'send_historical_data'); await delay(5000);     // stream the first window, DON'T ack
+    await send(22,[0x00],'send_historical_data'); await delay(4000);     // stream the first window, DON'T ack
     await send(20,[],'abort_historical_transmits'); await delay(150);
     const n=pullRecords.filter(r=>r.src===47).length, sec=(Date.now()-t0)/1000, rps=n/Math.max(0.1,sec);
     best=Math.max(best,rps);
     pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1; drain=savedDrain;   // clean slate for the real drain
-    log(`📶 link speed ${rps.toFixed(0)} rec/s${rps>=FAST_LINK_RPS?' — fast ✓':' — SLOW'}`, rps>=FAST_LINK_RPS?'ok':'err');
-    if(rps>=FAST_LINK_RPS || attempt>=maxRerolls) return best;
+    log(`📶 link speed ${rps.toFixed(0)} rec/s${rps>=FAST_LINK_RPS?' — fast ✓':' — SLOW (throttled BLE interval)'}`, rps>=FAST_LINK_RPS?'ok':'err');
+    if(rps>=FAST_LINK_RPS || attempt>=maxRerolls){
+      if(rps<FAST_LINK_RPS) log('⚠️ link still slow after re-rolls. iOS sets the speed at connect & we can’t override it — keep the app FOREGROUND with the screen on, turn OFF Low Power Mode, and (if stuck) toggle Bluetooth in Settings. Syncing anyway.','err');
+      return best;
+    }
     log(`⟳ slow link — reconnecting to renegotiate a faster BLE interval [${attempt+1}/${maxRerolls}]…`,'cmd');
     try{ await BleClient.disconnect(deviceId); }catch(e){}
     await delay(800); linkDown=true;

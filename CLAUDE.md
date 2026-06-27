@@ -175,6 +175,22 @@ permanently lost from WHOOP. So:
   `PullStats`, `BLE_CMD: Command …`). They name commands and give exact pointer values; invaluable for RE.
 - Fallback for live data if ever needed: **live overnight capture** (foreground + keep-awake; streams
   HR/RR without touching the buffer) or **passively sniff WHOOP's own sync** (Android HCI/nRF).
+- ⚡ **SYNC SPEED — it's the iOS BLE connection interval, NOT our code (RESEARCHED 2026-06-27).** Same drain comes
+  up **fast (~120 rec/s, big batches, ~1× dup)** or **slow (~8 rec/s, tiny 13-rec batches, 3× dup)** depending purely
+  on the connection iOS negotiates AT CONNECT TIME, and it's locked for the session from the first second. Root cause:
+  iOS grants either a **15 ms** interval (fast) or **30 ms / fewer packets-per-connection-event** (slow) based on its
+  2.4 GHz radio scheduling at connect — a lottery. Apple QA1931: a central has **NO API to set interval/MTU/PHY**
+  (Android's `requestConnectionPriority`/`requestMtu`/`setPreferredPhy` have no iOS equivalent; the plugin's
+  `requestConnectionPriority` is an **iOS no-op**). The band requests its interval via L2CAP; iOS may honor 15 ms or
+  **clamp Min==Max==15→30 ms** (documented variance). Only **HID-over-GATT** unlocks 11.25 ms (can't add to WHOOP);
+  the standard HR service gets **no** special interval. The 3× dup is downstream: on a slow link the band emits
+  HISTORY_END often with a fixed look-back window, so each tiny batch re-sends the prior ones. **cmd 96 does NOT change
+  the interval** (firmware stream-mode only — A/B-proven + research-confirmed). **The ONLY app-side lever is
+  disconnect+reconnect to RE-ROLL** the negotiation — exactly what BLE DFU/OTA apps do. Implemented as `ensureFastLink()`
+  (v2.23.0): read-only probe at "Sync full history" start → if `<30 rec/s`, reconnect up to 3× to re-roll → then drain;
+  logs `📶 link speed N rec/s`. Other (minor) levers: **foreground + screen wake-lock** (v2.18.0, real), **Low Power
+  Mode OFF**, subscribe once to only the needed chars (no mid-session re-subscribe → causes iOS stalls), keep
+  per-notification JS light. Sources: Apple QA1931, Punch Through / Silicon Labs / Nordic BLE-throughput guides.
 
 **UPDATE 2026-06-20 — the standalone pull is SOLVED (see the Historical-sync section below).** We don't
 need to "rewind" at all: the dump is a per-batch **ACK-loop** and the bug was acking with `trim=0`
