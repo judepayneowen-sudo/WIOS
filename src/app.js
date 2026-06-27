@@ -988,6 +988,7 @@ let capturing=false; const capture=[]; const CAP_MAX=100000, CAP_TRIM=10000;  //
 let lastCaptureText='';   // last pull's raw capture, persisted to IndexedDB so it survives an app restart
 let lastStrayAbort=0, strayTries=0, lastIdleLog=0;   // stop-a-stuck-firehose state + idle-log rate limiter
 let probing=false;        // a deliberate read-only diagnostic (hi-freq / IMU probe) is streaming — don't auto-abort it
+let managedPull=false;    // a dailySync/seek multi-pass pull is in progress — don't let the stray-firehose guard abort between passes
 let _rtT=null;
 function renderRt(){ if(_rtT) return; _rtT=setTimeout(()=>{ _rtT=null; const el=$('rt'); if(!el) return;  // throttle DOM updates
   const rows=Object.keys(rt.counts).sort().map(k=>`${k}:${rt.counts[k]}`);
@@ -1023,7 +1024,7 @@ function processFrame(label, info){
   // responses) and tell the user to reconnect (a disconnect resets the band's BLE state). Dump frames are never
   // logged here. Everything else, when idle, is rate-limited so a chatty band can't flood the log either.
   const isDumpFrame = info.packetType===47 || info.packetType===49;
-  if(!pulling && !probing && isDumpFrame && !info.error){       // !probing → don't cancel a deliberate hi-freq/IMU probe
+  if(!pulling && !probing && !managedPull && isDumpFrame && !info.error){   // !probing/!managedPull → don't cut off a deliberate probe or a between-pass managed pull
     if(strayTries < 4 && Date.now()-lastStrayAbort > 1500){
       lastStrayAbort=Date.now(); strayTries++;
       send(20,[],'abort_historical_transmits'); send(97,[0x00],'exit_high_freq_sync');
@@ -1316,7 +1317,11 @@ const BURST_MAX_MS = 9000;   // safety cap: max wait for a batch's HISTORY_END b
 const LIVE_EDGE_S = 30;      // once the dump reaches within this many seconds of "now", stop (caught up — see drain loop)
 const u32le = (n)=> [n&0xFF,(n>>>8)&0xFF,(n>>>16)&0xFF,(n>>>24)&0xFF];
 let pulling=false; let autoExport=false; let skipDrainConfirm=false; let stopRequested=false; const pullRecords=[]; const pullSeen=new Set(); let pullMaxIdx=-1;
-let hiFreqSync = (localStorage.getItem('hiFreqSync')??'1')==='1';   // cmd 96 during the drain — A/B togglable so we can MEASURE if it helps
+// cmd 96 (high-freq sync) defaults OFF. Adversarial capture analysis (2026-06-27) showed it does NOT raise the
+// BLE rate (it's a firmware stream-mode, not an interval change) and it INTRODUCES a 3× intra-batch duplication:
+// every clean dup≈1.03 capture used NO cmd 96; every dup≈3.0 (slow) capture used it. So it's net-harmful. Kept as
+// a toggle for experiments only.
+let hiFreqSync = (localStorage.getItem('hiFreqSync')??'0')==='1';
 const u32at = (p,o)=> (p[o]|(p[o+1]<<8)|(p[o+2]<<16)|(p[o+3]<<24))>>>0;
 function onPullRecord(p){
   if(p.length<11) return;
@@ -1426,42 +1431,14 @@ const ACK_BUILDERS = {
 const ackPayload = (trim)=> (ACK_BUILDERS[ackMode]||ACK_BUILDERS.normal)(trim>>>0);
 
 // Sync full history: the ACK-loop drain. DESTRUCTIVE in 'normal' ack mode (frees the records it pulls).
-// The sync's speed is set by the BLE connection interval iOS negotiates AT CONNECT TIME — a fast link streams
-// big batches with ~no overlap (≈120 rec/s), a slow one dribbles tiny 3×-overlapping batches (≈8 rec/s). We
-// can't set the interval on iOS, but a fresh connection re-rolls it. ensureFastLink streams a brief READ-ONLY
-// window (no ack → nothing freed), measures the rate, and if the link came up slow, disconnects + reconnects to
-// renegotiate, up to maxRerolls times. Returns the best rec/s seen. pulling must already be true on entry.
-// FAST_LINK_RPS: below this in a read-only probe = a throttled connection interval (iOS gave ~30ms+ instead of
-// 15ms, and/or few packets/connection-event). RESEARCHED 2026-06-27: an iOS central has NO API to set the
-// interval/MTU/PHY — it's iOS's at-connect radio-scheduling lottery — so a fresh connection is the only re-roll,
-// which is exactly what the BLE DFU/firmware-update community does. So: probe, and if slow, disconnect+reconnect
-// up to maxRerolls times. (cmd 96 is a firmware stream-mode, NOT an interval change — A/B-proven, research-confirmed.)
-const FAST_LINK_RPS = 30;
-async function ensureFastLink(maxRerolls=3){
-  let best=0;
-  for(let attempt=0; attempt<=maxRerolls; attempt++){
-    if(stopRequested || !deviceId) return best;
-    pulling=true; const savedDrain=drain; drain=newDrain(); pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1;
-    const t0=Date.now();
-    await send(22,[0x00],'send_historical_data'); await delay(4000);     // stream the first window, DON'T ack
-    await send(20,[],'abort_historical_transmits'); await delay(150);
-    const n=pullRecords.filter(r=>r.src===47).length, sec=(Date.now()-t0)/1000, rps=n/Math.max(0.1,sec);
-    best=Math.max(best,rps);
-    pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1; drain=savedDrain;   // clean slate for the real drain
-    log(`📶 link speed ${rps.toFixed(0)} rec/s${rps>=FAST_LINK_RPS?' — fast ✓':' — SLOW (throttled BLE interval)'}`, rps>=FAST_LINK_RPS?'ok':'err');
-    if(rps>=FAST_LINK_RPS || attempt>=maxRerolls){
-      if(rps<FAST_LINK_RPS) log('⚠️ link still slow after re-rolls. iOS sets the speed at connect & we can’t override it — keep the app FOREGROUND with the screen on, turn OFF Low Power Mode, and (if stuck) toggle Bluetooth in Settings. Syncing anyway.','err');
-      return best;
-    }
-    log(`⟳ slow link — reconnecting to renegotiate a faster BLE interval [${attempt+1}/${maxRerolls}]…`,'cmd');
-    try{ await BleClient.disconnect(deviceId); }catch(e){}
-    await delay(800); linkDown=true;
-    if(!await reconnect()){ log('reconnect failed — proceeding on the current link.','err'); return best; }
-    await send(97,[0x00],'exit_high_freq_sync'); await delay(150);       // clear state on the fresh link
-    pulling=true;                                                         // onDisconnect cleared it — restore for the next probe/drain
-  }
-  return best;
-}
+// ⚠️ ensureFastLink (v2.23.0) REMOVED 2026-06-27 after an adversarial investigation REFUTED its premise. The
+// sync's speed is NOT the iOS connection interval (inter-notification timing is the same ~15ms quantum in fast
+// and slow sessions). The real lever is PACKETS-PER-CONNECTION-EVENT / batch size: when the band's TX buffer is
+// full it packs many records per event (~120 rec/s, dup≈1.03); near the live edge it sends a few records per
+// event, each batch paying ~1–2 connection-intervals of HISTORY_END→ack round-trip dead air (~8 rec/s). A
+// reconnect can't change that, and the auto-reconnect probe STORM (31s backoff × rerolls) actively broke syncs.
+// So: no link probe, no auto-reconnect re-roll. Speed is improved by pulling a LARGER mid-buffer backlog (so the
+// buffer stays full) and by NOT using cmd 96 (which adds a 3× intra-batch duplication — see hiFreqSync default).
 async function drainHistory(opts={}){
   if(!deviceId){ log('connect first','err'); return; }
   if(pulling){ pulling=false; stopRequested=true; const b=$('fullsync'); if(b){ b.textContent='Sync full history'; b.classList.remove('live'); } log('sync: stop requested — halting (no more passes)','dim'); return; }
@@ -1482,7 +1459,6 @@ async function drainHistory(opts={}){
     : `SYNC FULL HISTORY — 🧪 EXPERIMENT ack mode “${ackMode}”. Watch the oldest BEFORE/AFTER line to see if it freed the records.`, 'ok');
   let before=null; let drainT0=Date.now();
   try{
-    if(opts.checkLink){ await ensureFastLink(2); pulling=true; drainT0=Date.now(); }   // re-roll a slow link BEFORE the drain; time only the drain
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
     await send(97,[0x00],'exit_high_freq_sync'); await delay(150);   // clear any lingering firehose, THEN turn it on cleanly below
     // HIGH-FREQ ON (toggle): cmd 96 is MEANT to make the band stream faster. It's still the SAME ack-loop (one
@@ -1512,8 +1488,13 @@ async function drainHistory(opts={}){
     let guard=0, reprimes=0, lastEnd=drain.endCount, lastN=pullRecords.length, lastProgress=Date.now(), lastLog=0;
     while(pulling && drain.strategy && guard++<400000){
       if(drain.complete){ log('HISTORY_COMPLETE — whole buffer delivered ✓','ok'); break; }
-      if(drain.endCount!==lastEnd || pullRecords.length!==lastN){            // progress since last look
-        lastEnd=drain.endCount; lastN=pullRecords.length; lastProgress=Date.now(); reprimes=0;
+      // PROGRESS = NEW UNIQUE RECORDS only. Near the live edge the band re-serves the SAME window: endCount ticks
+      // up on every re-served batch but pullRecords doesn't grow (dedup). Resetting the stall on endCount alone
+      // (the old bug) made the drain re-prime forever, pulling 3× dups at 0.8 rec/s. Gate the stall reset on real
+      // new records so a stuck/repeating cursor hits the re-prime cap and stops instead of thrashing.
+      if(drain.endCount!==lastEnd) lastEnd=drain.endCount;                   // track for logging; does NOT count as progress
+      if(pullRecords.length!==lastN){                                       // genuine forward progress
+        lastN=pullRecords.length; lastProgress=Date.now(); reprimes=0;
         if(Date.now()-lastLog>1500){ lastLog=Date.now(); const mt=pullMaxTs47(); const behindH=(Date.now()/1000-mt)/3600;
           const rps=pullRecords.length/Math.max(0.1,(Date.now()-drainT0)/1000);
           log(`  …${pullRecords.length} rec · up to ${new Date(mt*1000).toLocaleTimeString()} (${behindH<0.5?'≈ now — almost done':behindH.toFixed(1)+'h behind'}) · ${rps.toFixed(0)} rec/s`,'dim'); }
@@ -1542,13 +1523,15 @@ async function drainHistory(opts={}){
         const g=TRIM_STRATEGIES.find(s=>s.id===drain.strategy); const t=g?g.get():null; if(t!=null) await send(23, ackPayload(t), 'historical_data_result');
         continue;
       }
-      // STALL: no fresh batch for a while. Mid-buffer the band pauses (and after freeing acked records the stream
-      // can need re-priming). Wait a beat, then re-prime a few times before concluding we hit end-of-buffer.
+      // STALL: no NEW records for a while. Mid-buffer the band pauses (and after freeing acked records the stream
+      // can need re-priming). Wait a beat, then re-prime a couple times before concluding end-of-buffer/live-edge.
+      // (3, not 5: a stuck cursor that only re-serves dups gains nothing from more re-primes — each costs up to
+      // BURST_MAX_MS of dead air, which is what produced the 45s stalls in the broken capture.)
       if(Date.now()-lastProgress < 700){ await delay(60); continue; }
-      if(reprimes++ < 5){ lastProgress=Date.now();
-        log(`stream idle at idx ${pullMax().idx} — re-priming send_historical_data [${reprimes}/5]`,'dim');
+      if(reprimes++ < 3){ lastProgress=Date.now();
+        log(`stream idle at idx ${pullMax().idx} — re-priming send_historical_data [${reprimes}/3]`,'dim');
         const eR=drain.endCount; await send(22,[0x00],'send_historical_data'); await waitBatch(eR);
-      } else { log(`stopped — end of buffer at idx ${pullMax().idx} (no further batches after ${reprimes} re-primes).`,'ok'); break; }
+      } else { log(`stopped — end of buffer / live edge at idx ${pullMax().idx} (no new records after ${reprimes} re-primes).`,'ok'); break; }
       if(pullRecords.length>300000){ log('record cap reached — stopping','dim'); break; }
     }
     drain.autoAck=false;
@@ -1789,6 +1772,7 @@ async function dailySync(){
   const agg = { n:0, minTs:Infinity, maxTs:0, hv:[] };          // aggregate across continuation passes
   let lastMax = 0; let userStopped = false;
   const MAX_PASSES = 24;                                        // a full night across slow batches + reconnects
+  managedPull=true;                                             // suppress the stray-firehose auto-abort BETWEEN passes (it was cutting off each pass's stream)
   try{
     for(let pass=1; pass<=MAX_PASSES; pass++){
       // If the link dropped mid-pull (the band's backstop-abort), reconnect and resume from where we got to
@@ -1824,7 +1808,7 @@ async function dailySync(){
     }
   }
   catch(e){ log('daily pull error: '+e.message,'err'); }
-  finally{ skipDrainConfirm=false; const db=$('dailysync'); if(db){ db.textContent='Trim to date & sync to app'; db.classList.remove('live'); }
+  finally{ managedPull=false; skipDrainConfirm=false; const db=$('dailysync'); if(db){ db.textContent='Trim to date & sync to app'; db.classList.remove('live'); }
     await refreshSyncState(); }                                 // pill → "Up to date" / new "behind"
   // One aggregate preview for the whole multi-pass capture. The data is already stored on the phone (each
   // drain pass calls persistPull → store.ingest); the laptop send below is just an optional extra copy.
@@ -2119,13 +2103,13 @@ async function subscribeAll(){
 
 // Re-establish a dropped BLE link to the SAME band and re-wire notifications, so a mid-pull disconnect (the
 // band's "Abort History Transmit handled by backstop" we saw on 2026-06-24) can be recovered and the drain
-// resumed from where it left off. Retries with exponential backoff. Returns true once reconnected.
+// resumed from where it left off. The FIRST attempt fires IMMEDIATELY (the band is usually right there); the
+// backoff delay only applies AFTER a failed attempt — so the common case incurs zero pre-wait. Honors Stop
+// (stopRequested) between attempts so the UI doesn't freeze for the whole backoff. Returns true once reconnected.
 async function reconnect(tries=6){
   if(!deviceId){ return false; }
   for(let i=0;i<tries;i++){
-    const wait = Math.min(8000, 1000*Math.pow(2,i));      // 1s,2s,4s,8s,8s,8s
-    log(`link down — reconnecting in ${wait/1000}s [${i+1}/${tries}]…`,'dim');
-    await delay(wait);
+    if(stopRequested){ log('reconnect cancelled — stop requested.','dim'); return false; }
     try{
       try{ await BleClient.disconnect(deviceId); }catch(e){}   // clear any half-open handle first
       await BleClient.connect(deviceId, onDisconnect, { timeout: 8000 });
@@ -2135,8 +2119,10 @@ async function reconnect(tries=6){
       log('✓ reconnected to band.','ok');
       return true;
     }catch(e){ log('reconnect attempt failed: '+e.message,'err'); }
+    if(i < tries-1){ const wait = Math.min(8000, 1000*Math.pow(2,i));   // 1s,2s,4s,8s,8s AFTER a failure only
+      log(`retrying reconnect in ${wait/1000}s [${i+2}/${tries}]…`,'dim'); await delay(wait); }
   }
-  log('could not reconnect after several tries — stopping. Tap Pull last night again when the band is back in range.','err');
+  log('could not reconnect after several tries — stopping. Tap again when the band is back in range.','err');
   return false;
 }
 
@@ -2215,7 +2201,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('rthr').onclick       = toggleRealtimeHr;
   $('dailysync').onclick  = dailySync;
   $('synchist').onclick   = syncHistory;
-  $('fullsync').onclick    = ()=>drainHistory({checkLink:true});
+  $('fullsync').onclick    = ()=>drainHistory();
   $('bandcheck').onclick   = checkBandBuffer;
   $('forcetrim').onclick   = forceTrimSeek;
   { const a=$('showoldest'); if(a) a.onclick=showOldest; }

@@ -175,22 +175,33 @@ permanently lost from WHOOP. So:
   `PullStats`, `BLE_CMD: Command …`). They name commands and give exact pointer values; invaluable for RE.
 - Fallback for live data if ever needed: **live overnight capture** (foreground + keep-awake; streams
   HR/RR without touching the buffer) or **passively sniff WHOOP's own sync** (Android HCI/nRF).
-- ⚡ **SYNC SPEED — it's the iOS BLE connection interval, NOT our code (RESEARCHED 2026-06-27).** Same drain comes
-  up **fast (~120 rec/s, big batches, ~1× dup)** or **slow (~8 rec/s, tiny 13-rec batches, 3× dup)** depending purely
-  on the connection iOS negotiates AT CONNECT TIME, and it's locked for the session from the first second. Root cause:
-  iOS grants either a **15 ms** interval (fast) or **30 ms / fewer packets-per-connection-event** (slow) based on its
-  2.4 GHz radio scheduling at connect — a lottery. Apple QA1931: a central has **NO API to set interval/MTU/PHY**
-  (Android's `requestConnectionPriority`/`requestMtu`/`setPreferredPhy` have no iOS equivalent; the plugin's
-  `requestConnectionPriority` is an **iOS no-op**). The band requests its interval via L2CAP; iOS may honor 15 ms or
-  **clamp Min==Max==15→30 ms** (documented variance). Only **HID-over-GATT** unlocks 11.25 ms (can't add to WHOOP);
-  the standard HR service gets **no** special interval. The 3× dup is downstream: on a slow link the band emits
-  HISTORY_END often with a fixed look-back window, so each tiny batch re-sends the prior ones. **cmd 96 does NOT change
-  the interval** (firmware stream-mode only — A/B-proven + research-confirmed). **The ONLY app-side lever is
-  disconnect+reconnect to RE-ROLL** the negotiation — exactly what BLE DFU/OTA apps do. Implemented as `ensureFastLink()`
-  (v2.23.0): read-only probe at "Sync full history" start → if `<30 rec/s`, reconnect up to 3× to re-roll → then drain;
-  logs `📶 link speed N rec/s`. Other (minor) levers: **foreground + screen wake-lock** (v2.18.0, real), **Low Power
-  Mode OFF**, subscribe once to only the needed chars (no mid-session re-subscribe → causes iOS stalls), keep
-  per-notification JS light. Sources: Apple QA1931, Punch Through / Silicon Labs / Nordic BLE-throughput guides.
+- ⚡ **SYNC SPEED — VERIFIED root cause (adversarial multi-agent investigation, 2026-06-27). ⚠️ The earlier
+  "it's the iOS connection interval" claim was WRONG — REFUTED twice; do not revive it.** A drain runs **fast
+  (~120 rec/s, ~50-rec batches, dup≈1.03)** or **slow (~8 rec/s, ~13-rec batches, dup≈3.0)**. PROVEN findings:
+  - **NOT the connection interval.** Inter-NOTIFICATION timing is the SAME ~15 ms quantum in fast and slow
+    sessions (the "different timing" we once measured was an artifact of counting ALL frames incl. console/event;
+    isolating in-batch `(47)` gaps: fast 6.6 ms/rec vs slow 40 ms/rec). So a reconnect "re-roll" can't fix it.
+  - **It's PACKETS-PER-CONNECTION-EVENT / batch size** (Bluetooth spec: an event stays open via the More-Data bit
+    only while a side has data queued; an acked-batch stop-and-wait pays ≥1 interval of dead air per `HISTORY_END
+    →ack→resume`). Fast = band TX buffer full → many records/event (records-per-clump 2.6). Slow/live-edge = few
+    records/event (1.1) → each tiny batch's fixed round-trip dominates. records/event, NOT interval length, is the lever.
+  - ⛔ **cmd 96 (high-freq sync) is NET-HARMFUL — DEFAULT IT OFF (`hiFreqSync`, v2.24.0).** Every clean dup≈1.03
+    capture used NO cmd 96; every dup≈3.0 (slow) capture USED it. cmd 96 introduces an **intra-batch 3× record
+    triplication** (51 wire / ~17 unique / +17 advance, ~0 inter-batch overlap) and does NOT raise the rate.
+  - ⛔ **`ensureFastLink` (v2.23.0) REMOVED (v2.24.0)** — built on the refuted interval premise; its read-only
+    probe + auto-reconnect (31 s backoff × rerolls) actively BROKE syncs (a 0.8 rec/s capture was its storm +
+    a dailySync seek/abort thrash). No link probe, no auto-reconnect re-roll.
+  - **The fast lever = pull a LARGER MID-BUFFER backlog** (seek further back so the band's TX buffer stays full →
+    big batches, dup≈1.03). Scraping the live edge is inherently slow. Keep the v2.17.0 async ack-pipelining;
+    feed it a full buffer. Real minor levers: foreground + screen wake-lock (v2.18.0), Low Power Mode OFF.
+  - **Broken-capture failure mode = self-inflicted aborts:** `forceTrimTo`/`probeReadPos` abort + the stray-firehose
+    guard firing cmd20/cmd97 BETWEEN passes cut off each stream → "Hist pull too short for valid stats" → re-seek.
+    Fixed (v2.24.0): `managedPull` flag suppresses the guard during a dailySync; stall reset gated on NEW records
+    only (dup re-serves no longer reset the re-prime counter → no infinite live-edge loop); re-prime cap 5→3;
+    `reconnect()` fires immediately (backoff only after a failure) + honors Stop.
+  - Apple QA1931 (true but ~2× swing only, not our 6×): no iOS API to set interval/MTU/PHY; plugin
+    `requestConnectionPriority` is an iOS no-op; only HID-over-GATT gets 11.25 ms; HR service gets no special interval.
+    Sources: Apple QA1931, Memfault BLE primer, ble-guides (Punch Through tables), Silicon Labs/Nordic throughput.
 
 **UPDATE 2026-06-20 — the standalone pull is SOLVED (see the Historical-sync section below).** We don't
 need to "rewind" at all: the dump is a per-batch **ACK-loop** and the bug was acking with `trim=0`
