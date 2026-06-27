@@ -1759,7 +1759,9 @@ async function dailySync(){
       if(linkDown){ if(!await reconnect()){ break; } }
       if(pass===1) log('① Trimming to the chosen date (FORCE_TRIM)…','cmd');
       else { $('seekdt').value = toLocalInput(new Date(lastMax)); log(`↻ Continuing from ${new Date(lastMax).toLocaleTimeString()} (pass ${pass})…`,'cmd'); }
+      const seekT0=Date.now();
       const ok = await forceTrimSeek();
+      log(`  ⏱ seek took ${((Date.now()-seekT0)/1000).toFixed(0)}s (binary-search probes — NOT counted in the drain rec/s below)`,'dim');
       if(!ok){
         if(linkDown){ continue; }                              // dropped during the seek → reconnect loop above
         if(pass===1){ log('seek failed — nothing pulled. Adjust “Night to pull” and tap again.','err'); return; }
