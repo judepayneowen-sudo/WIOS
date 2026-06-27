@@ -1426,7 +1426,35 @@ const ACK_BUILDERS = {
 const ackPayload = (trim)=> (ACK_BUILDERS[ackMode]||ACK_BUILDERS.normal)(trim>>>0);
 
 // Sync full history: the ACK-loop drain. DESTRUCTIVE in 'normal' ack mode (frees the records it pulls).
-async function drainHistory(){
+// The sync's speed is set by the BLE connection interval iOS negotiates AT CONNECT TIME — a fast link streams
+// big batches with ~no overlap (≈120 rec/s), a slow one dribbles tiny 3×-overlapping batches (≈8 rec/s). We
+// can't set the interval on iOS, but a fresh connection re-rolls it. ensureFastLink streams a brief READ-ONLY
+// window (no ack → nothing freed), measures the rate, and if the link came up slow, disconnects + reconnects to
+// renegotiate, up to maxRerolls times. Returns the best rec/s seen. pulling must already be true on entry.
+const FAST_LINK_RPS = 30;        // below this in a read-only probe = a throttled interval worth re-rolling
+async function ensureFastLink(maxRerolls=2){
+  let best=0;
+  for(let attempt=0; attempt<=maxRerolls; attempt++){
+    if(stopRequested || !deviceId) return best;
+    pulling=true; const savedDrain=drain; drain=newDrain(); pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1;
+    const t0=Date.now();
+    await send(22,[0x00],'send_historical_data'); await delay(5000);     // stream the first window, DON'T ack
+    await send(20,[],'abort_historical_transmits'); await delay(150);
+    const n=pullRecords.filter(r=>r.src===47).length, sec=(Date.now()-t0)/1000, rps=n/Math.max(0.1,sec);
+    best=Math.max(best,rps);
+    pullRecords.length=0; pullSeen.clear(); pullMaxIdx=-1; drain=savedDrain;   // clean slate for the real drain
+    log(`📶 link speed ${rps.toFixed(0)} rec/s${rps>=FAST_LINK_RPS?' — fast ✓':' — SLOW'}`, rps>=FAST_LINK_RPS?'ok':'err');
+    if(rps>=FAST_LINK_RPS || attempt>=maxRerolls) return best;
+    log(`⟳ slow link — reconnecting to renegotiate a faster BLE interval [${attempt+1}/${maxRerolls}]…`,'cmd');
+    try{ await BleClient.disconnect(deviceId); }catch(e){}
+    await delay(800); linkDown=true;
+    if(!await reconnect()){ log('reconnect failed — proceeding on the current link.','err'); return best; }
+    await send(97,[0x00],'exit_high_freq_sync'); await delay(150);       // clear state on the fresh link
+    pulling=true;                                                         // onDisconnect cleared it — restore for the next probe/drain
+  }
+  return best;
+}
+async function drainHistory(opts={}){
   if(!deviceId){ log('connect first','err'); return; }
   if(pulling){ pulling=false; stopRequested=true; const b=$('fullsync'); if(b){ b.textContent='Sync full history'; b.classList.remove('live'); } log('sync: stop requested — halting (no more passes)','dim'); return; }
   // ⚠️ DESTRUCTIVE: the ack-loop advances the band's commit cursor and frees the acked records. If the
@@ -1444,8 +1472,9 @@ async function drainHistory(){
   log(ackMode==='normal'
     ? 'SYNC FULL HISTORY — ACK-loop drain (ack each HISTORY_END trim until HISTORY_COMPLETE). ⚠️ DESTRUCTIVE to data the WHOOP app hasn’t already synced — the ack frees the records on the band.'
     : `SYNC FULL HISTORY — 🧪 EXPERIMENT ack mode “${ackMode}”. Watch the oldest BEFORE/AFTER line to see if it freed the records.`, 'ok');
-  let before=null; const drainT0=Date.now();
+  let before=null; let drainT0=Date.now();
   try{
+    if(opts.checkLink){ await ensureFastLink(2); pulling=true; drainT0=Date.now(); }   // re-roll a slow link BEFORE the drain; time only the drain
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
     await send(97,[0x00],'exit_high_freq_sync'); await delay(150);   // clear any lingering firehose, THEN turn it on cleanly below
     // HIGH-FREQ ON (toggle): cmd 96 is MEANT to make the band stream faster. It's still the SAME ack-loop (one
@@ -2178,7 +2207,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('rthr').onclick       = toggleRealtimeHr;
   $('dailysync').onclick  = dailySync;
   $('synchist').onclick   = syncHistory;
-  $('fullsync').onclick    = drainHistory;
+  $('fullsync').onclick    = ()=>drainHistory({checkLink:true});
   $('bandcheck').onclick   = checkBandBuffer;
   $('forcetrim').onclick   = forceTrimSeek;
   { const a=$('showoldest'); if(a) a.onclick=showOldest; }
