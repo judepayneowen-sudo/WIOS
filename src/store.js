@@ -56,6 +56,10 @@ export function dayKeyOf(tsSec) {
 }
 
 const med = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y); return s[s.length >> 1]; };
+// Loop-based min/max — NEVER spread a big array into Math.min/max: a 60h pull is ~200k samples and
+// `Math.min(...arr)` overflows the call stack ("Maximum call stack size exceeded"), which broke the whole sync.
+const aMin = (a) => { let m = Infinity; for (const x of a) if (x < m) m = x; return m === Infinity ? null : m; };
+const aMax = (a) => { let m = -Infinity; for (const x of a) if (x > m) m = x; return m === -Infinity ? null : m; };
 
 // Compute a day's summary + Day Strain from its merged columnar series. Strain needs only HR + the user's
 // profile (no sleep-window detection), so it's always computable here. HRV is an RMSSD proxy over the stored
@@ -100,8 +104,8 @@ export function computeDaySummary(rec, profile = {}) {
     minTs: rec.minTs, maxTs: rec.maxTs,
     spanH: rec.maxTs > rec.minTs ? +((rec.maxTs - rec.minTs) / 3600).toFixed(1) : 0,
     avgHr: hrs.length ? Math.round(hrs.reduce((a, c) => a + c, 0) / hrs.length) : null,
-    minHr: hrs.length ? Math.min(...hrs) : null,
-    maxHr: hrs.length ? Math.max(...hrs) : null,
+    minHr: hrs.length ? aMin(hrs) : null,
+    maxHr: hrs.length ? aMax(hrs) : null,
     restHr: hrs.length ? Math.round(percentile(hrs, 0.05)) : null, // 5th-pct overnight floor ≈ resting HR
     hrvMs: (sleep && sleep.hrvSwsMs != null) ? sleep.hrvSwsMs : rmssd,   // recovery HRV: last-SWS window (patent), else whole-night
     hrvNightMs: rmssd,                                                   // keep whole-night RMSSD too (for reference/calibration)
@@ -229,16 +233,24 @@ export async function ingest(records, profile = {}) {
   if (!byDay.size) return [];
   const db = await open();
   const summaries = [];
-  for (const [day, recs] of byDay) {
-    const existing = await wrap(db.transaction(DAYS).objectStore(DAYS).get(day));
-    const merged = mergeDay(day, existing, recs);
-    const summary = computeDaySummary(merged, profile);
-    const metaRow = { day, ...summary, updatedAt: Date.now() };
-    const t = db.transaction([DAYS, META], 'readwrite');
-    await Promise.all([ wrap(t.objectStore(DAYS).put(merged)), wrap(t.objectStore(META).put(metaRow)) ]);
-    summaries.push(metaRow);
-  }
-  db.close();
+  const errors = [];
+  try {
+    // Each day in its own try so one bad day (e.g. an IndexedDB transaction hiccup under memory pressure on a
+    // huge pull) doesn't discard the others. Read + write use SEPARATE fresh transactions per day.
+    for (const [day, recs] of byDay) {
+      try {
+        const existing = await wrap(db.transaction(DAYS).objectStore(DAYS).get(day));
+        const merged = mergeDay(day, existing, recs);
+        const summary = computeDaySummary(merged, profile);
+        const metaRow = { day, ...summary, updatedAt: Date.now() };
+        const t = db.transaction([DAYS, META], 'readwrite');
+        await Promise.all([ wrap(t.objectStore(DAYS).put(merged)), wrap(t.objectStore(META).put(metaRow)) ]);
+        summaries.push(metaRow);
+      } catch (e) { errors.push(`${day}: ${e && e.message || e}`); }
+    }
+  } finally { try { db.close(); } catch (e) {} }
+  // If NOTHING saved and there were days to save, surface it (so the caller doesn't falsely report success).
+  if (!summaries.length && byDay.size) throw new Error('store write failed for all days — ' + errors.join('; '));
   return summaries.sort((a, b) => a.day < b.day ? 1 : -1);
 }
 

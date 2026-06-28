@@ -259,7 +259,8 @@ function interactiveChart(host, series, opts={}){
   const pts=series.map((s,i)=> (typeof s==='number')?{t:'',v:s}:{t:s.t||'',v:s.v});
   const n=pts.length; if(!n){ host.innerHTML=''; return; }
   const vals=pts.map(p=>p.v);
-  const mn=o.min!=null?o.min:Math.min(...vals), mx=o.max!=null?o.max:Math.max(...vals), rg=(mx-mn)||1;
+  let vlo=Infinity,vhi=-Infinity; for(const v of vals){ if(v<vlo)vlo=v; if(v>vhi)vhi=v; }   // loop, not spread (stack-safe)
+  const mn=o.min!=null?o.min:vlo, mx=o.max!=null?o.max:vhi, rg=(mx-mn)||1;
   const cw=Math.max(240,(host.clientWidth||320));
   const innerW=o.ppP? Math.max(cw, Math.round(n*o.ppP)) : cw;
   const H=o.h, padT=16, padB=18, P=8;
@@ -1074,7 +1075,8 @@ function showPullPreview({ nd, minTs, maxTs, hrs, hv }){
   setField('pv-dur', nd ? hrs : '—');
   setField('pv-records', nd ? `${nd}` : 'none');
   setField('pv-span', nd ? `${new Date(minTs*1000).toLocaleString()} → ${new Date(maxTs*1000).toLocaleTimeString()}` : '—');
-  setField('pv-hr', (hv&&hv.length) ? `${Math.min(...hv)}–${Math.max(...hv)} bpm · avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)}` : 'no HR decoded');
+  { let lo=Infinity,hi=-Infinity,sum=0; if(hv) for(const v of hv){ if(v<lo)lo=v; if(v>hi)hi=v; sum+=v; }   // loop, not spread (stack-safe on big pulls)
+    setField('pv-hr', (hv&&hv.length) ? `${lo}–${hi} bpm · avg ${Math.round(sum/hv.length)}` : 'no HR decoded'); }
   const durH = nd ? (maxTs-minTs)/3600 : 0;
   const v=$('pv-verdict'); if(!v) return;
   if(durH>=5){ v.className='ln ok';  v.textContent=`✅ Looks like a full night (${hrs}). Save / send it, then note WHOOP's sleep numbers for this date.`; }
@@ -1086,7 +1088,7 @@ function showPullPreview({ nd, minTs, maxTs, hrs, hv }){
 // dedup-merged by local day, so re-pulling a night updates rather than duplicates. Never lets a storage hiccup
 // break the pull. Refreshes the History screen if it's open.
 async function persistPull(dump){
-  if(!dump || !dump.length) return;
+  if(!dump || !dump.length) return false;
   try{
     const saved = await store.ingest(dump, scoringProfile());
     if(saved.length){
@@ -1094,8 +1096,10 @@ async function persistPull(dump){
       log(`💾 Stored on phone: ${saved.map(s=>s.day).join(', ')} — ${d.n} records, Day Strain ${d.strain}${d.sleep?`, sleep ${d.sleep.asleepMin}m`:''}. View under Health → Stored data.`,'ok');
       await refreshHist();                                    // refresh the real-data screens (Sleep/Strain/Trends)
       if(curScreen==='storage') renderStorage();
+      return true;
     }
-  }catch(e){ log('on-phone store failed (pull still fine): '+e.message,'err'); }
+    return false;
+  }catch(e){ log('⚠️ on-phone store FAILED — data NOT saved: '+e.message+'. Use Save file / Send to laptop to keep this pull.','err'); return false; }
 }
 // Render the on-phone history (async — IndexedDB). Called by showScreen when the 'storage' screen opens and
 // by persistPull after a new night lands. Lists each stored night with its summary + Day Strain, plus
@@ -1569,7 +1573,8 @@ async function drainHistory(opts={}){
     const minTs=dump.reduce((m,r)=>r.ts<m?r.ts:m,Infinity), maxTs=dump.reduce((m,r)=>r.ts>m?r.ts:m,0);
     const span=nd?`${new Date(minTs*1000).toLocaleString()} → ${new Date(maxTs*1000).toLocaleString()}`:'—';
     const hrs=nd?((maxTs-minTs)/3600).toFixed(1)+'h':'0h';
-    const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
+    let hmin=Infinity,hmax=-Infinity,hsum=0; for(const v of hv){ if(v<hmin)hmin=v; if(v>hmax)hmax=v; hsum+=v; }   // loop, not Math.min(...hv) — spread overflows the stack on a 200k-record pull
+    const sane=hv.length?`HR ${hmin}–${hmax}, avg ${Math.round(hsum/hv.length)} bpm`:'no HR decoded';
     await persistPull(dump);                                      // ⭐ keep a copy ON THE PHONE (Phase 2 store) — FIRST
     drainPersisted=true;
     try{ const ct=captureText(); if(ct){ lastCaptureText=ct; await store.saveLastCapture(ct, {frames:capture.length, records:nd}); } }catch(e){}   // persist the raw pull so Save/Send works after a restart
@@ -1610,8 +1615,10 @@ async function drainHistory(opts={}){
     // BACKSTOP: if the try threw BEFORE the persist line (anything between the loop and persistPull), the pulled
     // records would still be lost. Save them here as a last resort so a mid-sync error/Stop can never discard data.
     if(!drainPersisted && pullRecords.length){
-      try{ const d=pullRecords.filter(r=>r.src===47).length ? pullRecords.filter(r=>r.src===47) : pullRecords;
-        await persistPull(d); log(`💾 saved ${d.length} records after an interrupted sync (backstop).`,'ok'); }catch(e){ log('backstop save failed: '+e.message,'err'); }
+      const d=pullRecords.filter(r=>r.src===47).length ? pullRecords.filter(r=>r.src===47) : pullRecords;
+      const ok=await persistPull(d);   // persistPull reports its own success/failure now — only claim "saved" if it really did
+      if(ok) log(`💾 saved ${d.length} records after an interrupted sync (backstop).`,'ok');
+      else log(`⚠️ ${d.length} records could NOT be saved to the phone after the interrupted sync — tap Save file / Send to laptop NOW to keep them.`,'err');
     }
     const bb=$('fullsync'); if(bb){ bb.textContent='Sync full history'; bb.classList.remove('live'); }
     const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } }
@@ -1981,7 +1988,8 @@ async function speedTest(hiFreq){
     const sec=(Date.now()-t0)/1000;
     const recs=pullRecords.filter(r=>r.src===47);
     const tss=recs.map(r=>r.ts).filter(t=>t>1500000000);
-    const span=tss.length?(Math.max(...tss)-Math.min(...tss)):0;
+    let tlo=Infinity,thi=-Infinity; for(const t of tss){ if(t<tlo)tlo=t; if(t>thi)thi=t; }   // loop, not spread (stack-safe)
+    const span=tss.length?(thi-tlo):0;
     const rate=recs.length/Math.max(0.1,sec);
     log(`⏱ RESULT [high-freq ${hiFreq?'ON':'OFF'}]: ${recs.length} records in ${sec.toFixed(1)}s = ${rate.toFixed(1)} rec/s · ${(span/Math.max(0.1,sec)).toFixed(0)}× realtime · ${drain.endCount} batch(es)`, recs.length>0?'ok':'err');
     log('   → now run the OTHER toggle and compare rec/s. (Non-destructive — nothing was acked.)','dim');
