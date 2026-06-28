@@ -1475,7 +1475,7 @@ async function drainHistory(opts={}){
   log(ackMode==='normal'
     ? 'SYNC FULL HISTORY — ACK-loop drain (ack each HISTORY_END trim until HISTORY_COMPLETE). ⚠️ DESTRUCTIVE to data the WHOOP app hasn’t already synced — the ack frees the records on the band.'
     : `SYNC FULL HISTORY — 🧪 EXPERIMENT ack mode “${ackMode}”. Watch the oldest BEFORE/AFTER line to see if it freed the records.`, 'ok');
-  let before=null; let drainT0=Date.now();
+  let before=null; let drainT0=Date.now(); let drainPersisted=false;
   try{
     before=await readOldest(); log(`oldest buffered BEFORE: ${tsStr(before)}`,'cmd');
     await send(97,[0x00],'exit_high_freq_sync'); await delay(150);   // clear any lingering firehose, THEN turn it on cleanly below
@@ -1554,22 +1554,27 @@ async function drainHistory(opts={}){
     }
     drain.autoAck=false;
     if(!drain.strategy) log('stopped — no trim format advanced the stream. Save/Send the capture so I can read the METADATA(49) offsets and lock the trim.','err');
-    await send(97,[0x00],'exit_high_freq_sync');                 // DEFENSIVE: ensure high-freq is off (if a prior run left it on), then abort
-    await send(20,[],'abort_historical_transmits'); await delay(400);
-    const after=await readOldest();
-    // Coverage must come from the dense dump records (HISTORICAL_DATA 47), NOT sparse EVENT(48) connection
-    // blips — a single reconnect event at "now" otherwise inflates the span to a phantom ~16h. Fall back to
-    // all records only if this firmware delivered the dump as EVENT(48) (no 47 present).
+    // ⭐⭐ PERSIST FIRST — bank the pulled records to the phone BEFORE any further band I/O. The exit-high-freq /
+    // abort / readOldest cleanup below can THROW right after a Stop (the link is being torn down), which used to
+    // jump straight to catch and SKIP persistPull → the whole pull (e.g. a 60h sync) was silently lost. Save now;
+    // the band cleanup is best-effort afterwards and can't cost us the data.
+    // Coverage must come from the dense dump records (HISTORICAL_DATA 47), NOT sparse EVENT(48) connection blips
+    // (a single reconnect event at "now" otherwise inflates the span). Fall back to all records if no 47 present.
     const dump = pullRecords.filter(r=>r.src===47).length ? pullRecords.filter(r=>r.src===47) : pullRecords;
     const n=pullRecords.length, nd=dump.length, hv=dump.filter(r=>r.hr>0).map(r=>r.hr);
     const minTs=dump.reduce((m,r)=>r.ts<m?r.ts:m,Infinity), maxTs=dump.reduce((m,r)=>r.ts>m?r.ts:m,0);
     const span=nd?`${new Date(minTs*1000).toLocaleString()} → ${new Date(maxTs*1000).toLocaleString()}`:'—';
     const hrs=nd?((maxTs-minTs)/3600).toFixed(1)+'h':'0h';
     const sane=hv.length?`HR ${Math.min(...hv)}–${Math.max(...hv)}, avg ${Math.round(hv.reduce((a,c)=>a+c,0)/hv.length)} bpm`:'no HR decoded';
+    await persistPull(dump);                                      // ⭐ keep a copy ON THE PHONE (Phase 2 store) — FIRST
+    drainPersisted=true;
+    try{ const ct=captureText(); if(ct){ lastCaptureText=ct; await store.saveLastCapture(ct, {frames:capture.length, records:nd}); } }catch(e){}   // persist the raw pull so Save/Send works after a restart
     updateBandVitals(dump);                                       // pull skin temp + SpO2 out of the (47) records
     showPullPreview({ nd, minTs, maxTs, hrs, hv });               // on-device readout so a bad night shows immediately
-    await persistPull(dump);                                      // ⭐ keep a copy ON THE PHONE (Phase 2 store)
-    try{ const ct=captureText(); if(ct){ lastCaptureText=ct; await store.saveLastCapture(ct, {frames:capture.length, records:nd}); } }catch(e){}   // persist the raw pull so Save/Send works after a restart
+    // band cleanup — best-effort, AFTER the data is safely stored, so a failure here can't lose it
+    let after=null;
+    try{ await send(97,[0x00],'exit_high_freq_sync'); await send(20,[],'abort_historical_transmits'); await delay(400); after=await readOldest(); }
+    catch(e){ log('post-sync band cleanup skipped (data already saved): '+e.message,'dim'); }
     log(`SYNC ${drain.complete?'COMPLETE':'STOPPED'}: ${nd} data records spanning ${hrs} (${span}); ${sane}. trim strategy=${drain.strategy||'NONE'}.`, nd>60?'ok':'err');
     // ⏱ THROUGHPUT — the honest measure of sync speed. records/sec is the headline; “× realtime” = band-seconds
     // of data delivered per wall-second (high = good). Compare runs with high-freq ON vs OFF to see if cmd 96
@@ -1598,6 +1603,12 @@ async function drainHistory(opts={}){
     }
   }catch(e){ log('sync error: '+e.message,'err'); }
   finally{ pulling=false; autoExport=false; await releaseWake();
+    // BACKSTOP: if the try threw BEFORE the persist line (anything between the loop and persistPull), the pulled
+    // records would still be lost. Save them here as a last resort so a mid-sync error/Stop can never discard data.
+    if(!drainPersisted && pullRecords.length){
+      try{ const d=pullRecords.filter(r=>r.src===47).length ? pullRecords.filter(r=>r.src===47) : pullRecords;
+        await persistPull(d); log(`💾 saved ${d.length} records after an interrupted sync (backstop).`,'ok'); }catch(e){ log('backstop save failed: '+e.message,'err'); }
+    }
     const bb=$('fullsync'); if(bb){ bb.textContent='Sync full history'; bb.classList.remove('live'); }
     const db=$('dailysync'); if(db){ db.textContent='Pull last night → laptop'; db.classList.remove('live'); } }
 }
