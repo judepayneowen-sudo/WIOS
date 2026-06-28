@@ -70,7 +70,9 @@ export function computeDaySummary(rec, profile = {}) {
   const strainAcc = makeStrainAccumulator({ restingHr, maxHr, sex });
 
   const hrs = [], skins = [], spo2s = [], rrs = [], mags = [];
+  const hours = new Array(24).fill(0);                       // record count per LOCAL hour-of-day (which hours have data)
   for (let i = 0; i < n; i++) {
+    hours[new Date(ts[i] * 1000).getHours()]++;
     const h = hr[i];
     if (h > 0) {
       hrs.push(h);
@@ -108,6 +110,7 @@ export function computeDaySummary(rec, profile = {}) {
     activity, activeMin: activity != null ? Math.round(activeSec / 60) : null,
     strain: strainAcc.strain,
     zoneSeconds: strainAcc.zoneSeconds,
+    hours,
     sleep,
   };
 }

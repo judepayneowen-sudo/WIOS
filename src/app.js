@@ -1158,11 +1158,28 @@ async function sendRangeToLaptop(){
   }catch(e){ clearTimeout(to);
     log(`send failed: ${e.name==='AbortError'?'timed out':e.message}. Check the drop-box is running and IP:port matches (and tap Allow if iOS asks for local-network access).`,'err'); }
 }
+// A 24-cell strip showing WHICH local hours of the day have records (filled = recorded; brightness = density).
+// So a night that only covers 23:00→07:00 reads at a glance, not just "8h · N rec".
+function hoursStrip(hours){
+  if(!hours || hours.length!==24) return '';
+  const max=Math.max(1,...hours), covered=hours.filter(c=>c>0).length;
+  const cells=hours.map((c,h)=>{ const on=c>0; const op=on?(0.4+0.6*c/max).toFixed(2):1;
+    const ampm=(h%12===0?12:h%12)+(h<12?'a':'p');
+    return `<div title="${ampm} · ${c.toLocaleString()} rec" style="flex:1;height:100%;border-radius:1px;background:${on?'var(--rec-green)':'rgba(255,255,255,.06)'};opacity:${op}"></div>`; }).join('');
+  return `<div class="kv" style="display:block;border:none;padding-top:6px"><span class="k">Hours recorded</span> <span class="v">${covered}/24 h</span>`
+    +`<div style="display:flex;gap:1px;height:16px;margin-top:5px">${cells}</div>`
+    +`<div style="display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-top:2px"><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>11p</span></div></div>`;
+}
 async function renderStorage(){
   const body=$('storage-body'); if(!body) return;
   let days, use;
   try{ days=await store.listDays(); use=await store.usage(); }
   catch(e){ body.innerHTML=`<div class="card"><div class="err">store error: ${e.message}</div></div>`; return; }
+  // Backfill the hours strip for days stored before this field existed (load their raw ts, bucket by local hour).
+  await Promise.all(days.filter(d=>!d.hours).map(async d=>{
+    try{ const rec=await store.getDay(d.day); if(rec && rec.ts){ const h=new Array(24).fill(0);
+      for(let i=0;i<rec.n;i++) h[new Date(rec.ts[i]*1000).getHours()]++; d.hours=h; } }catch(e){}
+  }));
   if(!days.length){ body.innerHTML=`<div class="card"><div class="muted">No nights stored yet. Pull a night (Setup → “Pull last night → laptop”) and it’s saved here automatically.</div></div>`; return; }
   const fmtDay=(k)=>{ const [y,m,d]=k.split('-'); return new Date(+y,+m-1,+d).toLocaleDateString(undefined,{weekday:'short',month:'short',day:'numeric'}); };
   const mb=(b)=> b? (b/1048576).toFixed(1)+' MB':'—';
@@ -1179,6 +1196,7 @@ async function renderStorage(){
       +`<div class="kv"><span class="k">HRV (RMSSD)</span><span class="v">${d.hrvMs??'—'} ms</span></div>`
       +`<div class="kv"><span class="k">Skin temp / SpO₂</span><span class="v">${d.skinTempC!=null?d.skinTempC+'°C':'—'} / ${d.spo2!=null?d.spo2+'%':'—'}</span></div>`
       +`<div class="kv"><span class="k">Movement index</span><span class="v">${d.activity??'—'}${d.activeMin!=null?` · ~${d.activeMin}m active`:''}</span></div>`
+      +hoursStrip(d.hours)
       +sleepBlock(d.sleep)
       +`<button class="act" data-del="${d.day}" style="${dimBtn};margin-top:8px">Delete this night</button>`
       +`</div>`;
