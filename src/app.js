@@ -1262,15 +1262,19 @@ async function sendToLaptop(){
   const text=captureText()||lastCaptureText;                     // fall back to the persisted last pull after a restart
   if(!text){ log('nothing captured yet — connect and capture first','err'); return; }
   const url=`http://${host}/capture`;
-  log(`sending ${capture.length} frames → ${url} …`,'cmd');
-  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), 8000);
+  // Scale the timeout with the body size — a big drain is 15–20 MB of hex, which can't push through the native
+  // HTTP bridge + single-threaded Python server in the old fixed 8 s (that was the "timed out" on large pulls).
+  const mb=text.length/1048576;
+  const ms=Math.min(180000, Math.max(20000, Math.ceil(mb)*15000));   // ~15 s/MB, floor 20 s, cap 3 min
+  log(`sending ${capture.length} frames (~${mb.toFixed(1)} MB) → ${url} … (up to ${Math.round(ms/1000)}s for a large capture)`,'cmd');
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), ms);
   try{
     const res=await fetch(url,{ method:'POST', headers:{'Content-Type':'text/plain'}, body:text, signal:ctrl.signal });
     clearTimeout(to);
-    if(res.ok){ const t=await res.text().catch(()=>''); log(`✓ sent to laptop (${capture.length} frames). ${t}`.trim(),'ok'); }
+    if(res.ok){ const t=await res.text().catch(()=>''); log(`✓ sent to laptop (${capture.length} frames, ~${mb.toFixed(1)} MB). ${t}`.trim(),'ok'); }
     else log(`laptop responded ${res.status} — is the drop-box running on ${host}?`,'err');
   }catch(e){ clearTimeout(to);
-    log(`send failed: ${e.name==='AbortError'?'timed out':e.message}. If iOS just asked to allow local network access, tap Allow then Send again. Otherwise check the drop-box is running and the IP:port matches.`,'err');
+    log(`send failed: ${e.name==='AbortError'?`timed out after ${Math.round(ms/1000)}s (capture ~${mb.toFixed(1)} MB — try “Save file” → AirDrop instead, or use “Send range → laptop” which sends the smaller decoded JSON)`:e.message}. If iOS just asked to allow local network access, tap Allow then Send again. Otherwise check the drop-box is running and the IP:port matches.`,'err');
   }
 }
 function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
