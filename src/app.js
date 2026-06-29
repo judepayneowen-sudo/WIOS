@@ -1149,18 +1149,22 @@ async function sendRangeToLaptop(){
   let data; try{ data=await store.exportAll({raw:true}); }catch(e){ log('export failed: '+e.message,'err'); return; }
   data.days=(data.days||[]).filter(d=> d.day>=lo && d.day<=hi);
   if(!data.days.length){ log('no stored days in that range','err'); return; }
-  const json=JSON.stringify(data), kb=(json.length/1024).toFixed(0);
+  const json=JSON.stringify(data), mb=json.length/1048576;
   const fname=`wios-store-${lo}_to_${hi}.json`;
   const url=`http://${host}/capture`;
-  log(`sending ${data.days.length} day(s) · ${kb} KB → ${url} …`,'cmd');
-  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), 20000);
+  const ms=Math.min(180000, Math.max(20000, Math.ceil(mb)*15000));   // ~15s/MB (raw 1Hz export of a long day is several MB), floor 20s, cap 3min
+  log(`sending ${data.days.length} day(s) · ${mb.toFixed(1)} MB → ${url} … (up to ${Math.round(ms/1000)}s)`,'cmd');
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(), ms);
   try{
     const res=await fetch(url,{ method:'POST', headers:{'Content-Type':'application/json','X-Filename':fname}, body:json, signal:ctrl.signal });
     clearTimeout(to);
-    if(res.ok){ const t=await res.text().catch(()=>''); log(`✓ sent ${data.days.length} day(s) (${lo} → ${hi}) to the laptop captures folder. ${t}`.trim(),'ok'); }
+    if(res.ok){ const t=await res.text().catch(()=>''); log(`✓ sent ${data.days.length} day(s) (${lo} → ${hi}, ${mb.toFixed(1)} MB) to the laptop captures folder. ${t}`.trim(),'ok'); }
     else log(`laptop responded ${res.status} — is the drop-box running on ${host}?`,'err');
   }catch(e){ clearTimeout(to);
-    log(`send failed: ${e.name==='AbortError'?'timed out':e.message}. Check the drop-box is running and IP:port matches (and tap Allow if iOS asks for local-network access).`,'err'); }
+    const why = e.name==='AbortError' ? `timed out after ${Math.round(ms/1000)}s (${mb.toFixed(1)} MB)`
+      : /connect|refused|network|unreachable/i.test(e.message||'') ? `could not connect to ${host} — the drop-box isn’t reachable there`
+      : (e.message||'failed');
+    log(`send failed: ${why}. ① Is tools/whoop-dropbox.py running? ② Does ${host} match the IP:port it printed (DHCP can change it)? ③ Same WiFi, no VPN, and tap Allow if iOS asks for local-network access. Or use “Export all → share” to AirDrop/Save-to-Files instead.`,'err'); }
 }
 // A 24-cell strip showing WHICH local hours of the day have records (filled = recorded; brightness = density).
 // So a night that only covers 23:00→07:00 reads at a glance, not just "8h · N rec".
