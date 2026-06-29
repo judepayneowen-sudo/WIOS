@@ -1790,7 +1790,17 @@ async function forceTrimSeek(){
   if(crashed && (!res || res.ts==null)){ log('the seek hit a band reset — try a more recent time.','err'); return false; }
   await forceTrimTo(res.trim);
   const offMin=res.ts!=null?Math.round((res.ts-target)/60):null;
-  log(`🎯 landed ${tsStr(res.ts)} @ trim ${res.trim} (${res.probes.length} probes${offMin!=null?`, ${offMin} min vs target`:''}). Pulling from here.`,'ok');
+  // If we land WELL AFTER the target (couldn't reach back far enough), the target is OLDER than the band's
+  // oldest ADDRESSABLE trim. This happens after a band REBOOT: the firmware resets its trim/commit counter to
+  // near 0 and starts over, so trims drop from ~tens-of-thousands to ~MIN_SAFE_TRIM, and everything recorded
+  // before the reboot is orphaned (still in flash by record-index, but no longer reachable via the trim the
+  // sync reads from). Make that explicit instead of silently pulling the wrong window.
+  if(offMin!=null && offMin>30){
+    const rebooted = res.trim < MIN_SAFE_TRIM+4000;        // landed right at the floor ⇒ trim space was reset
+    log(`⚠️ couldn’t reach ${tsStr(target)} — the band’s OLDEST addressable data is ${tsStr(res.ts)} (${(offMin/60).toFixed(1)}h newer than you asked).${rebooted?' The band REBOOTED (its trim counter reset to ~'+res.trim+'), so everything before the reboot is no longer pullable — it’s orphaned in flash. ':' '}Pick a time at/after ${tsStr(res.ts)}, or sync forward from now.`,'err');
+  } else {
+    log(`🎯 landed ${tsStr(res.ts)} @ trim ${res.trim} (${res.probes.length} probes${offMin!=null?`, ${offMin} min vs target`:''}). Pulling from here.`,'ok');
+  }
   return true;
 }
 
