@@ -115,6 +115,17 @@ async function get(pathname, token, params={}){
   if(!r.ok) throw new Error(pathname+' → '+r.status+': '+await r.text());
   return r.json();
 }
+// Collection endpoints page at 25 records; follow next_token so a wide pull (e.g. 90 days) isn't silently
+// capped at the first page. WHOOP returns `next_token`; the query param is `nextToken`.
+async function getAll(pathname, token, params={}){
+  let records = [], next = null, pages = 0;
+  do {
+    const page = await get(pathname, token, next ? { ...params, nextToken: next } : params);
+    if(Array.isArray(page.records)) records = records.concat(page.records);
+    next = page.next_token || null; pages++;
+  } while(next && pages < 60);
+  return { records };
+}
 
 const day = (d)=> new Date(d).toISOString().slice(0,10);
 const cell = (v,suf='',w=9)=> ((v==null||Number.isNaN(v)) ? '—' : (v+suf)).padEnd(w);
@@ -125,17 +136,19 @@ async function pull(days){
   const end = new Date(), start = new Date(Date.now()-days*864e5);
   const p = { start:start.toISOString(), end:end.toISOString(), limit:25 };
   const [recovery, cycles, sleep, profile] = await Promise.all([
-    get('/recovery', token, p), get('/cycle', token, p),
-    get('/activity/sleep', token, p), get('/user/profile/basic', token),
+    getAll('/recovery', token, p), getAll('/cycle', token, p),
+    getAll('/activity/sleep', token, p), get('/user/profile/basic', token),
   ]);
 
   const rows = {};
   const row = (k)=> (rows[k] ||= { date:k });
 
-  // Cycle → strain + HR summary
+  // Cycle → strain + HR summary. Keep the cycle's [start,end] window: WHOOP accrues Day Strain over this
+  // physiological cycle (wake→wake), so calibration must accumulate capture load inside it, NOT by calendar day.
   for(const c of (cycles.records||[])){
     const r=row(day(c.start)), s=c.score||{};
     r.strain=s.strain; r.avgHr=s.average_heart_rate; r.maxHr=s.max_heart_rate; r.kilojoule=s.kilojoule;
+    r.cycleStart=c.start; r.cycleEnd=c.end||null;   // end is null for the still-open current cycle
   }
   // Recovery → recovery%, HRV, RHR, SpO2, skin temp
   for(const x of (recovery.records||[])){

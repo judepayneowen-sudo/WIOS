@@ -109,28 +109,18 @@ function storeDayToStreams(day){
   }
   return { hr, rrs, accel };
 }
-// `phys` = WHOOP's OWN measured physiology so strain load uses the same RHR/maxHR WHOOP does, not guesses:
-//   rhrByDate[date] = the API resting_heart_rate for that day (WHOOP measures it nightly)
-//   observedMaxHr   = the highest HR WHOOP ever recorded (its real maxHR — NOT the age formula)
-// A static profile.maxHr / profile.restingHr only override when explicitly set (e.g. a known lab max).
-function loadCaptures(profile, phys={}){
-  if(!existsSync(CAP_DIR)) return {};
-  const rhrByDate = phys.rhrByDate || {};
-  const fallbackRhr = profile.restingHr>0 ? profile.restingHr : 50;
-  const maxHr = profile.maxHr>0 ? profile.maxHr : (phys.observedMaxHr>0 ? phys.observedMaxHr : maxHeartRate(profile.age||30));
-  const rhrFor = (date)=> rhrByDate[date]>0 ? rhrByDate[date] : fallbackRhr;
-  console.log(`  using maxHr ${maxHr} (${profile.maxHr>0?'profile':phys.observedMaxHr>0?'observed peak':'Tanaka'}) · RHR ${Object.keys(rhrByDate).length?'per-day from WHOOP':'fallback '+fallbackRhr}`);
-  const byDay = {}; // date → { load, seconds, samples }
+// Collect every capture's HR samples into ONE flat, time-sorted stream [{t(ms), hr}]. Strain then windows this by
+// WHOOP's physiological cycle [start,end] (not the calendar day), because Day Strain accrues over the wake→wake
+// cycle — grouping by midnight split workouts across the wrong day and destroyed the load↔strain correlation.
+function collectHr(){
+  if(!existsSync(CAP_DIR)) return [];
+  const samples = [];
   for(const f of readdirSync(CAP_DIR)){
     if(f.endsWith('.json')){                                  // store-export from the app (per-day decoded streams)
       let exp; try{ exp=JSON.parse(readFileSync(path.join(CAP_DIR, f),'utf8')); }catch{ continue; }
       for(const day of (exp&&exp.days)||[]){
-        const st=storeDayToStreams(day); if(!st || !st.hr.length){ continue; }
-        const acc=makeStrainAccumulator({ restingHr:rhrFor(day.day), maxHr, sex:profile.sex||'m' });
-        let prevT=null;
-        for(const s of st.hr){ const dt = prevT==null?1:Math.min(MAX_DT,(s.t-prevT)/1000);
-          if(dt>0){ acc.add(s.hr, dt); const d=(byDay[day.day] ||= {load:0,seconds:0,samples:0}); d.seconds+=dt; d.samples++; } prevT=s.t; }
-        const d=(byDay[day.day] ||= {load:0,seconds:0,samples:0}); d.load+=acc.load;
+        const st=storeDayToStreams(day); if(!st || !st.hr.length) continue;
+        for(const s of st.hr) samples.push(s);
         console.log(`  · ${f} [${day.day}]: ${st.hr.length} HR samples (store-export)`);
       }
       continue;
@@ -138,20 +128,26 @@ function loadCaptures(profile, phys={}){
     if(!f.endsWith('.txt')) continue;
     const { hr, stats } = decodeCapture(readFileSync(path.join(CAP_DIR, f), 'utf8'));
     if(!hr.length){ console.log(`  · ${f}: ${stats.frames} frames, no HR decoded (realtime=${stats.realtime}, historical=${stats.historical})`); continue; }
-    // Group consecutive samples by day, accumulating TRIMP load with capped dt.
-    let acc=null, curDay=null, prevT=null;
-    const flush=(day)=>{ if(acc && curDay){ const d=(byDay[curDay] ||= {load:0,seconds:0,samples:0}); d.load+=acc.load; } };
-    for(const s of hr){
-      const day=dayKey(s.t);
-      if(day!==curDay){ flush(); curDay=day; acc=makeStrainAccumulator({ restingHr:rhrFor(day), maxHr, sex:profile.sex||'m' }); prevT=null; }
-      const dt = prevT==null ? 1 : Math.min(MAX_DT, (s.t-prevT)/1000);
-      if(dt>0){ acc.add(s.hr, dt); const d=(byDay[day] ||= {load:0,seconds:0,samples:0}); d.seconds+=dt; d.samples++; }
-      prevT=s.t;
-    }
-    flush();
+    for(const s of hr) samples.push(s);
     console.log(`  · ${f}: ${hr.length} HR samples across ${new Set(hr.map(s=>dayKey(s.t))).size} day(s)`);
   }
-  return byDay;
+  samples.sort((a,b)=> a.t-b.t);
+  return samples;
+}
+// Accumulate TRIMP load over a time window [startMs,endMs) from the flat sample stream, capping inter-sample dt so
+// connection drops don't inflate it. Returns { load, seconds } (seconds = actual captured coverage in the window).
+function loadInWindow(samples, startMs, endMs, restingHr, maxHr, sex){
+  const acc = makeStrainAccumulator({ restingHr, maxHr, sex });
+  let prevT=null, seconds=0;
+  for(const s of samples){
+    if(s.t < startMs) continue;
+    if(s.t >= endMs) break;
+    if(!(s.hr>0)){ prevT=s.t; continue; }
+    const dt = prevT==null ? 1 : Math.min(MAX_DT, (s.t-prevT)/1000);
+    if(dt>0){ acc.add(s.hr, dt); seconds+=dt; }
+    prevT=s.t;
+  }
+  return { load:acc.load, seconds };
 }
 
 // Overnight epochs per night for sleep-STAGE calibration. Decodes the historical HR+RR from every
@@ -198,18 +194,28 @@ console.log(`Profile: age ${profile.age}, sex ${profile.sex}, restingHr ${profil
 
 // WHOOP's own measured physiology, pulled from the answer-key so strain load matches WHOOP's RHR/maxHR:
 //   rhrByDate    — per-day resting_heart_rate (recovery already uses this; now strain does too)
-//   observedMaxHr — the highest workout max_heart_rate WHOOP recorded = its real max HR (not age-derived)
+//   observedMaxHr — the highest workout max_heart_rate WHOOP recorded.
 const rhrByDate = {};
 let observedMaxHr = 0;
 for(const d of answers){
   if(d.rhr>0) rhrByDate[d.date] = d.rhr;
   if(d.maxHr>0 && d.maxHr<230) observedMaxHr = Math.max(observedMaxHr, d.maxHr);
 }
-console.log(`WHOOP physiology: RHR ${fix(Math.min(...Object.values(rhrByDate).concat(Infinity)),0)}–${fix(Math.max(...Object.values(rhrByDate).concat(-Infinity)),0)} bpm over ${Object.keys(rhrByDate).length} days · observed max HR ${observedMaxHr||'(none in window — using profile/Tanaka)'}`);
+const fallbackRhr = profile.restingHr>0 ? profile.restingHr : 50;
+const rhrFor = (date)=> rhrByDate[date]>0 ? rhrByDate[date] : fallbackRhr;
+// Max HR EXACTLY as the app computes it (effMaxHr): explicit profile value wins, else the observed peak FLOORED at
+// the Tanaka age estimate — a short window with no hard effort gives a too-low observed max (here 156 vs 187), which
+// compresses the HRR zones and wildly inflates load. Flooring keeps the calibrator and the app on the SAME maxHR so
+// the fitted STRAIN_SCALE actually transfers to the phone.
+const tanaka = maxHeartRate(profile.age||30);
+const maxHr = profile.maxHr>0 ? profile.maxHr : Math.max(observedMaxHr, tanaka);
+const maxHrSrc = profile.maxHr>0 ? 'profile' : (observedMaxHr>tanaka ? 'observed peak' : `Tanaka floor (observed ${observedMaxHr||'—'})`);
+const rhrVals = Object.values(rhrByDate);
+console.log(`WHOOP physiology: RHR ${rhrVals.length?fix(Math.min(...rhrVals),0)+'–'+fix(Math.max(...rhrVals),0)+' bpm over '+rhrVals.length+' days':'(none — fallback '+fallbackRhr+')'} · maxHR ${maxHr} (${maxHrSrc})`);
 
 console.log('\nCaptures:');
-const capByDay = loadCaptures(profile, { rhrByDate, observedMaxHr });
-if(!Object.keys(capByDay).length) console.log('  (none decoded — strain scale will be skipped; recovery still fits from the API)');
+const hrSamples = collectHr();
+if(!hrSamples.length) console.log('  (none decoded — strain scale will be skipped; recovery still fits from the API)');
 
 const fitted = { recovery: { ...RECOVERY_WEIGHTS }, strainScale: STRAIN_SCALE, sleepNeed: { ...SLEEP_NEED } };
 
@@ -256,24 +262,39 @@ if(recRows.length < 6){
 }
 
 /* ----------------------------- STRAIN ------------------------------------- */
+// Accumulate load over each WHOOP CYCLE window [cycleStart,cycleEnd] (wake→wake), not the calendar day, and fit only
+// on cycles our capture actually COVERS — a half-captured cycle yields partial load that no single scale can match
+// to a full-day strain. Coverage = captured seconds ÷ cycle length; fit on ≥MIN_COVER, list the rest as provisional.
 console.log('\n— Strain —');
-const strainPairs = [];
+const MIN_COVER = 0.6;   // need ≥60% of the cycle captured for a trustworthy load↔strain pair
+const allPairs = [];
 for(const d of answers){
-  const cap = capByDay[d.date];
-  if(d.strain!=null && cap && cap.load>0) strainPairs.push({ date:d.date, load:cap.load, y:d.strain, mins:cap.seconds/60 });
+  if(d.strain==null || !d.cycleStart) continue;
+  const start = Date.parse(d.cycleStart);
+  const end = d.cycleEnd ? Date.parse(d.cycleEnd) : start + 24*3600e3;   // open current cycle → cap at +24h
+  if(!(end>start)) continue;
+  const { load, seconds } = loadInWindow(hrSamples, start, end, rhrFor(d.date), maxHr, profile.sex||'m');
+  if(seconds < 60) continue;                                              // essentially no capture in this cycle
+  allPairs.push({ date:d.date, load, y:d.strain, mins:seconds/60, coverage: seconds/((end-start)/1000) });
 }
-if(!strainPairs.length){
-  console.log('  no capture day overlaps an API strain day. Capture a full active day (band connected),');
-  console.log('  Send to laptop, then re-run. (A short capture only covers part of the day → partial load.)');
+const strainPairs = allPairs.filter(p=> p.coverage>=MIN_COVER && p.load>0);
+if(!allPairs.length){
+  console.log('  no capture overlaps an API cycle with a strain score. Wear the band a full day (band connected),');
+  console.log('  Send range → laptop, then re-run.');
 } else {
-  for(const p of strainPairs) console.log(`  · ${p.date}: load ${fix(p.load,1)} over ${fix(p.mins,0)} min  → WHOOP strain ${fix(p.y,1)}`);
-  // strain = 21·(1 − e^(−load/scale)); fit scale to minimize MSE across pairs.
-  const loss=(s)=> rmse(strainPairs, p=> strainFromLoad(p.load, s[0]));
-  const before = rmse(strainPairs, p=> strainFromLoad(p.load, STRAIN_SCALE));
-  const s = goldenMin(v=> loss([v]), 1, 100000);   // patent weight·minute load units → scale is ~thousands
-  fitted.strainScale = +s.toFixed(1);
-  console.log(`  STRAIN_SCALE ${STRAIN_SCALE} → ${fix(s,1)}   ·  RMSE ${fix(before,2)} → ${fix(loss([s]),2)} strain`);
-  if(strainPairs.some(p=> p.mins < 180)) console.log('  ⚠ some capture days cover <3h — load is partial, so the scale is biased low. Treat as provisional until a full-day (47) capture lands.');
+  for(const p of allPairs.sort((a,b)=>a.date<b.date?-1:1))
+    console.log(`  · ${p.date}: load ${fix(p.load,1)} over ${fix(p.mins,0)} min (${(p.coverage*100).toFixed(0)}% of cycle)  → WHOOP strain ${fix(p.y,1)}${p.coverage<MIN_COVER?'   ⤵ partial — excluded from fit':''}`);
+  if(strainPairs.length < 3){
+    console.log(`  only ${strainPairs.length} cycle(s) have ≥${MIN_COVER*100}% coverage — too few to fit a reliable scale. Keeping STRAIN_SCALE ${STRAIN_SCALE}.`);
+    console.log('  Capture more FULL days (wear it + keep WHOOP Core connected dawn→dawn) and re-run.');
+  } else {
+    // strain = 21·(1 − e^(−load/scale)); fit scale to minimize MSE across the well-covered pairs.
+    const loss=(s)=> rmse(strainPairs, p=> strainFromLoad(p.load, s[0]));
+    const before = rmse(strainPairs, p=> strainFromLoad(p.load, STRAIN_SCALE));
+    const s = goldenMin(v=> loss([v]), 1, 100000);   // patent weight·minute load units → scale is ~thousands
+    fitted.strainScale = +s.toFixed(1);
+    console.log(`  fit on ${strainPairs.length} well-covered cycle(s) · STRAIN_SCALE ${STRAIN_SCALE} → ${fix(s,1)}   ·  RMSE ${fix(before,2)} → ${fix(loss([s]),2)} strain`);
+  }
 }
 
 /* ----------------------------- SLEEP -------------------------------------- */
