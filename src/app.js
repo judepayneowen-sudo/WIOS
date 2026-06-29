@@ -129,11 +129,15 @@ function computedRestHr(){
   const v = histDays.map(d=>d.restHr).filter(x=>x>0).slice(0,30);
   return v.length ? median(v) : 50;
 }
-const effMaxHr = ()=> profile.maxHr>0 ? profile.maxHr : maxHeartRate(profileAge());
+// Max HR like WHOOP does it: NOT the age formula — WHOOP uses your OBSERVED peak HR and revises it upward as it
+// sees higher. So: an explicit profile value wins; else take the highest HR ever stored, floored at the Tanaka age
+// estimate (so a cold start with little data can't sit below your physiological max → no inflated strain).
+function observedMaxHr(){ let m=0; for(const d of histDays){ const v=d.maxHr||0; if(v>m && v<230) m=v; } return m; }
+const effMaxHr = ()=> profile.maxHr>0 ? profile.maxHr : Math.max(observedMaxHr(), maxHeartRate(profileAge()));
 const newStrainAcc = ()=> makeStrainAccumulator({ restingHr:computedRestHr(), maxHr:effMaxHr(), sex:profile.sex||'m' });
-// The profile with derived/measured fields filled in (age from birthday, restingHr from the band), for the
-// store + score math which expect concrete numbers.
-const scoringProfile = ()=> ({ ...profile, age:profileAge(), restingHr:computedRestHr(), maxHr:profile.maxHr });
+// The profile with derived/measured fields filled in (age from birthday, restingHr from the band, maxHr observed),
+// for the store + score math which expect concrete numbers — never pass a raw 0 maxHr (breaks the HRR denominator).
+const scoringProfile = ()=> ({ ...profile, age:profileAge(), restingHr:computedRestHr(), maxHr:effMaxHr() });
 
 /* ----------------------------- live state --------------------------------- */
 const state = { hr:null, hrvMs:null, restHr:null, hrCount:0, hrSum:0, strainAcc:null, recovery:null, sleep:null,

@@ -109,16 +109,24 @@ function storeDayToStreams(day){
   }
   return { hr, rrs, accel };
 }
-function loadCaptures(profile){
+// `phys` = WHOOP's OWN measured physiology so strain load uses the same RHR/maxHR WHOOP does, not guesses:
+//   rhrByDate[date] = the API resting_heart_rate for that day (WHOOP measures it nightly)
+//   observedMaxHr   = the highest HR WHOOP ever recorded (its real maxHR — NOT the age formula)
+// A static profile.maxHr / profile.restingHr only override when explicitly set (e.g. a known lab max).
+function loadCaptures(profile, phys={}){
   if(!existsSync(CAP_DIR)) return {};
-  const maxHr = profile.maxHr>0 ? profile.maxHr : maxHeartRate(profile.age||30);
+  const rhrByDate = phys.rhrByDate || {};
+  const fallbackRhr = profile.restingHr>0 ? profile.restingHr : 50;
+  const maxHr = profile.maxHr>0 ? profile.maxHr : (phys.observedMaxHr>0 ? phys.observedMaxHr : maxHeartRate(profile.age||30));
+  const rhrFor = (date)=> rhrByDate[date]>0 ? rhrByDate[date] : fallbackRhr;
+  console.log(`  using maxHr ${maxHr} (${profile.maxHr>0?'profile':phys.observedMaxHr>0?'observed peak':'Tanaka'}) · RHR ${Object.keys(rhrByDate).length?'per-day from WHOOP':'fallback '+fallbackRhr}`);
   const byDay = {}; // date → { load, seconds, samples }
   for(const f of readdirSync(CAP_DIR)){
     if(f.endsWith('.json')){                                  // store-export from the app (per-day decoded streams)
       let exp; try{ exp=JSON.parse(readFileSync(path.join(CAP_DIR, f),'utf8')); }catch{ continue; }
       for(const day of (exp&&exp.days)||[]){
         const st=storeDayToStreams(day); if(!st || !st.hr.length){ continue; }
-        const acc=makeStrainAccumulator({ restingHr:profile.restingHr||50, maxHr, sex:profile.sex||'m' });
+        const acc=makeStrainAccumulator({ restingHr:rhrFor(day.day), maxHr, sex:profile.sex||'m' });
         let prevT=null;
         for(const s of st.hr){ const dt = prevT==null?1:Math.min(MAX_DT,(s.t-prevT)/1000);
           if(dt>0){ acc.add(s.hr, dt); const d=(byDay[day.day] ||= {load:0,seconds:0,samples:0}); d.seconds+=dt; d.samples++; } prevT=s.t; }
@@ -135,7 +143,7 @@ function loadCaptures(profile){
     const flush=(day)=>{ if(acc && curDay){ const d=(byDay[curDay] ||= {load:0,seconds:0,samples:0}); d.load+=acc.load; } };
     for(const s of hr){
       const day=dayKey(s.t);
-      if(day!==curDay){ flush(); curDay=day; acc=makeStrainAccumulator({ restingHr:profile.restingHr||50, maxHr, sex:profile.sex||'m' }); prevT=null; }
+      if(day!==curDay){ flush(); curDay=day; acc=makeStrainAccumulator({ restingHr:rhrFor(day), maxHr, sex:profile.sex||'m' }); prevT=null; }
       const dt = prevT==null ? 1 : Math.min(MAX_DT, (s.t-prevT)/1000);
       if(dt>0){ acc.add(s.hr, dt); const d=(byDay[day] ||= {load:0,seconds:0,samples:0}); d.seconds+=dt; d.samples++; }
       prevT=s.t;
@@ -188,8 +196,19 @@ let profile = { age:30, sex:'m', restingHr:50, maxHr:0 };
 if(existsSync(PROFILE)){ try{ profile={...profile, ...JSON.parse(readFileSync(PROFILE,'utf8'))}; }catch{} }
 console.log(`Profile: age ${profile.age}, sex ${profile.sex}, restingHr ${profile.restingHr}, maxHr ${profile.maxHr||('Tanaka→'+maxHeartRate(profile.age))}`);
 
+// WHOOP's own measured physiology, pulled from the answer-key so strain load matches WHOOP's RHR/maxHR:
+//   rhrByDate    — per-day resting_heart_rate (recovery already uses this; now strain does too)
+//   observedMaxHr — the highest workout max_heart_rate WHOOP recorded = its real max HR (not age-derived)
+const rhrByDate = {};
+let observedMaxHr = 0;
+for(const d of answers){
+  if(d.rhr>0) rhrByDate[d.date] = d.rhr;
+  if(d.maxHr>0 && d.maxHr<230) observedMaxHr = Math.max(observedMaxHr, d.maxHr);
+}
+console.log(`WHOOP physiology: RHR ${fix(Math.min(...Object.values(rhrByDate).concat(Infinity)),0)}–${fix(Math.max(...Object.values(rhrByDate).concat(-Infinity)),0)} bpm over ${Object.keys(rhrByDate).length} days · observed max HR ${observedMaxHr||'(none in window — using profile/Tanaka)'}`);
+
 console.log('\nCaptures:');
-const capByDay = loadCaptures(profile);
+const capByDay = loadCaptures(profile, { rhrByDate, observedMaxHr });
 if(!Object.keys(capByDay).length) console.log('  (none decoded — strain scale will be skipped; recovery still fits from the API)');
 
 const fitted = { recovery: { ...RECOVERY_WEIGHTS }, strainScale: STRAIN_SCALE, sleepNeed: { ...SLEEP_NEED } };
