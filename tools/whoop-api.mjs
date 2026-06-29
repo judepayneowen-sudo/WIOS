@@ -29,18 +29,24 @@ const TOK_FILE = path.join(ROOT, '.whoop-tokens.json');
 const CAL_DIR  = path.join(ROOT, 'calibration');
 const DATA_OUT = path.join(CAL_DIR, 'whoop-data.json');
 
+// Strip surrounding quotes + whitespace — a quoted value (WHOOP_CLIENT_ID="abc") otherwise sends the quotes as
+// part of the id and WHOOP answers `invalid_client`. Same for a stray trailing space or a UTF-8 BOM on line 1.
+const clean = (s)=> s==null ? s : s.replace(/^﻿/,'').trim().replace(/^(['"])(.*)\1$/,'$2').trim();
 function cfg(){
-  let id = process.env.WHOOP_CLIENT_ID, secret = process.env.WHOOP_CLIENT_SECRET;
+  let id = clean(process.env.WHOOP_CLIENT_ID), secret = clean(process.env.WHOOP_CLIENT_SECRET);
   if((!id || !secret) && existsSync(ENV_FILE)){
     for(const line of readFileSync(ENV_FILE,'utf8').split(/\r?\n/)){
-      const m = line.match(/^\s*(WHOOP_CLIENT_ID|WHOOP_CLIENT_SECRET)\s*=\s*(.*?)\s*$/);
-      if(m){ if(m[1]==='WHOOP_CLIENT_ID') id ||= m[2]; else secret ||= m[2]; }
+      const m = line.match(/^\s*(WHOOP_CLIENT_ID|WHOOP_CLIENT_SECRET)\s*=\s*(.*)$/);
+      if(m){ const v=clean(m[2]); if(m[1]==='WHOOP_CLIENT_ID') id ||= v; else secret ||= v; }
     }
   }
   if(!id || !secret){
     console.error('Missing credentials. Create a .whoop.env file in the repo root with:\n  WHOOP_CLIENT_ID=...\n  WHOOP_CLIENT_SECRET=...\n(see tools/WHOOP-API.md)');
     process.exit(1);
   }
+  // Sanity-echo (the client id is NOT secret — it already appears in the auth URL below) so a wrong/blank id is
+  // obvious before the browser round-trip. WHOOP client ids are UUIDs (36 chars); flag anything that isn't.
+  console.error(`client id: ${id.slice(0,8)}…${id.slice(-4)} (len ${id.length})${id.length!==36?'  ⚠ not a 36-char UUID — check .whoop.env':''}`);
   return { id, secret };
 }
 
