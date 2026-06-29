@@ -361,7 +361,10 @@ if(!stageRows.length){
 } else {
   // Fit the most impactful thresholds; keep restHrPct + smoothing fixed (structural, not data-driven).
   const KEYS = ['wakeMove','wakeHrRel','deepHrRel','deepHrv','remHrRel','remHrv'];
-  const RANGES = { wakeMove:[1,6], wakeHrRel:[0.1,0.4], deepHrRel:[0.02,0.15], deepHrv:[0.9,1.4], remHrRel:[0.03,0.2], remHrv:[0.7,1.05] };
+  // Each range must BRACKET the param's default (in SLEEP_STAGE_PARAMS) — otherwise goldenMin searches the wrong
+  // scale and rails at a bound (the old [1,6] for wakeMove, whose default is 0.109, returned a meaningless 6 that
+  // disabled movement-based wake detection). wakeMove is accel-actigraphy (~0.1), the *HrRel are HR fractions.
+  const RANGES = { wakeMove:[0.02,0.4], wakeHrRel:[0.2,0.7], deepHrRel:[0.04,0.2], deepHrv:[1.0,1.8], remHrRel:[0.03,0.2], remHrv:[0.6,1.05] };
   const toParams = (v)=> ({ ...SLEEP_STAGE_PARAMS, ...Object.fromEntries(KEYS.map((k,i)=>[k,v[i]])) });
   // Loss = RMSE across all (night × stage) minute errors.
   const loss = (v)=>{ const P=toParams(v); let s=0,n=0;

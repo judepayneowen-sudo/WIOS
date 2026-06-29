@@ -91,7 +91,7 @@ export function trimpIncrement(hrFrac, dtMinutes, sex = 'm') {
 // We compress the accumulated weight·minute load through a saturating exponential; SCALE sets how much load
 // reaches a given strain — CALIBRATE against known (load, WHOOP-strain) pairs. Units are weight·minutes from
 // the patent w(v) integral above (w up to 42), so SCALE is ~thousands, not the old TRIMP ~hundreds.
-export const STRAIN_SCALE = 4000; // CALIBRATE (patent weight·minute units)
+export const STRAIN_SCALE = 3019; // CALIBRATE (patent weight·minute units) — fitted 2026-06-29 on 5 cycle-aligned days (provisional, few days)
 export function strainFromLoad(load, scale = STRAIN_SCALE) {
   if (load <= 0) return 0;
   return +(21 * (1 - Math.exp(-load / scale))).toFixed(1);
@@ -162,7 +162,7 @@ export const STAGE = { AWAKE: 'awake', LIGHT: 'light', SWS: 'sws', REM: 'rem' };
 // rest day (i≈3) adds ~minutes while an all-out day (i≈20) adds ~70–80 min — matching WHOOP's behaviour far
 // better than the old linear `minPerStrain·i`. Only strainSat is calibrated (regress against the API's
 // `need_from_recent_strain_milli`); the shape (mid/slope) is WHOOP's published constant.
-export const SLEEP_NEED = { baselineMin: 480, debtRepayFrac: 0.35, strainSat: 1.7, strainMid: 17, strainSlope: 3.5 }; // CALIBRATE strainSat
+export const SLEEP_NEED = { baselineMin: 470, debtRepayFrac: 0.35, strainSat: 1.7, strainMid: 17, strainSlope: 3.5 }; // CALIBRATE strainSat — baselineMin 470 fitted 2026-06-29; strainSat kept at patent 1.7 (8-day fit too volatile)
 /** Additional sleep-need MINUTES demanded by a day's strain (0–21), per the WHOOP patent logistic. */
 export function strainNeedMinutes(dayStrain = 0, p = SLEEP_NEED) {
   return 60 * p.strainSat / (1 + Math.exp((p.strainMid - dayStrain) / p.strainSlope));
