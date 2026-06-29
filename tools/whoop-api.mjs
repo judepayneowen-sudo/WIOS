@@ -177,10 +177,21 @@ async function pull(days){
     r.needStrainMin=mins(nd.need_from_recent_strain_milli); r.needNapMin=mins(nd.need_from_recent_nap_milli);
   }
 
-  const ordered = Object.keys(rows).sort();                 // ascending for the JSON
-  const data = ordered.map(k=>rows[k]);
+  // ACCUMULATE into the existing archive — once the membership/trial ends the API is gone, so every answer-key day
+  // captured now is permanent. Merge by date; the new pull's defined fields win, but fields it didn't return are
+  // KEPT from the archive (a later partial pull never erases an earlier complete day). This is why daily pulls during
+  // the trial build a growing frozen dataset we can re-calibrate from forever.
   mkdirSync(CAL_DIR, { recursive:true });
+  const merged = {};
+  if(existsSync(DATA_OUT)){ try{ for(const r of JSON.parse(readFileSync(DATA_OUT,'utf8'))) if(r&&r.date) merged[r.date]=r; }catch{} }
+  for(const k of Object.keys(rows)){
+    const defined = Object.fromEntries(Object.entries(rows[k]).filter(([,v])=> v!==undefined));
+    merged[k] = { ...merged[k], ...defined };
+  }
+  const kept = Object.keys(merged).length - Object.keys(rows).length;   // pre-existing days outside this pull window
+  const data = Object.keys(merged).sort().map(k=>merged[k]);
   writeFileSync(DATA_OUT, JSON.stringify(data, null, 2));
+  if(kept>0) console.log(`(archive: ${data.length} total days — ${Object.keys(rows).length} from this pull + ${kept} kept from earlier pulls)`);
 
   console.log(`\nWHOOP official scores — ${profile.first_name||''} ${profile.last_name||''} (last ${days} days)`);
   console.log(`Wrote ${path.relative(ROOT, DATA_OUT)} (${data.length} days, all fields) → run: npm run calibrate\n`);

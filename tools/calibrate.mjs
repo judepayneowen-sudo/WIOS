@@ -224,26 +224,35 @@ const fitted = { recovery: { ...RECOVERY_WEIGHTS }, strainScale: STRAIN_SCALE, s
 // "30-day baseline". Fit weights {hrv, rhr, resp, sleep, bias} to API recovery%.
 // resp is fit only when the data has respiratory rate (rich JSON); otherwise dropped.
 console.log('\n— Recovery —');
-const BASE_WIN = 30, MIN_BASE = 5;
+const BASE_WIN = 30;
 const haveResp = answers.some(d=> d.resp!=null);
-const recRows = [];
-for(let i=0;i<answers.length;i++){
-  const d=answers[i];
-  if(d.recovery==null || d.hrv==null || d.rhr==null) continue;
-  const prior = answers.slice(Math.max(0,i-BASE_WIN), i).filter(x=>x.hrv!=null && x.rhr!=null);
-  if(prior.length < MIN_BASE) continue;
-  const respPrior = prior.filter(x=>x.resp!=null).map(x=>x.resp);
-  recRows.push({
-    hrv:Math.log(d.hrv), rhr:d.rhr, resp:d.resp ?? null,   // HRV z-score on ln(RMSSD) — must match app.js computeRecoveryTrend
-    hrvBase: rollingStats(prior.map(x=>Math.log(x.hrv))),
-    rhrBase: rollingStats(prior.map(x=>x.rhr)),
-    respBase: respPrior.length>=MIN_BASE ? rollingStats(respPrior) : null,
-    sleepPerformance: d.sleepPerf!=null ? d.sleepPerf/100 : null,
-    y: d.recovery,
-  });
-}
+const buildRecRows = (minBase)=>{
+  const rows=[];
+  for(let i=0;i<answers.length;i++){
+    const d=answers[i];
+    if(d.recovery==null || d.hrv==null || d.rhr==null) continue;
+    const prior = answers.slice(Math.max(0,i-BASE_WIN), i).filter(x=>x.hrv!=null && x.rhr!=null);
+    if(prior.length < minBase) continue;
+    const respPrior = prior.filter(x=>x.resp!=null).map(x=>x.resp);
+    rows.push({
+      hrv:Math.log(d.hrv), rhr:d.rhr, resp:d.resp ?? null,   // HRV z-score on ln(RMSSD) — must match app.js computeRecoveryTrend
+      hrvBase: rollingStats(prior.map(x=>Math.log(x.hrv))),
+      rhrBase: rollingStats(prior.map(x=>x.rhr)),
+      respBase: respPrior.length>=minBase ? rollingStats(respPrior) : null,
+      sleepPerformance: d.sleepPerf!=null ? d.sleepPerf/100 : null,
+      y: d.recovery,
+    });
+  }
+  return rows;
+};
+// Ideal baseline is 5+ prior days; if a short trial hasn't built that, fall back to a 3-day baseline so we can still
+// extract a PROVISIONAL fit (flagged) rather than nothing — the membership/trial may end before 30 days accrue.
+let minBase = 5, recRows = buildRecRows(minBase);
+if(recRows.length < 6){ const r3 = buildRecRows(3); if(r3.length > recRows.length){ minBase = 3; recRows = r3; } }
+const recProvisional = minBase < 5 || recRows.length < 10;
 if(recRows.length < 6){
-  console.log(`  only ${recRows.length} day(s) have HRV+RHR+baseline — need ~10+ for a good fit. Pull more: node tools/whoop-api.mjs 90`);
+  console.log(`  only ${recRows.length} day(s) have HRV+RHR+baseline. Keep wearing + let the WHOOP app sync, re-pull daily before`);
+  console.log('  the trial ends (the archive accumulates). Recovery keeps its peer-derived defaults until then.');
 } else {
   // params: [hrv, rhr, resp, sleep, bias]
   const predict = (w)=> (r)=> recoveryScore({
@@ -257,7 +266,7 @@ if(recRows.length < 6){
   const before = rmse(recRows, predict(x0));
   const w = coordDescent(loss, x0, ranges);
   fitted.recovery = { hrv:+w[0].toFixed(3), rhr:+w[1].toFixed(3), resp:+w[2].toFixed(3), sleep:+w[3].toFixed(3), bias:+w[4].toFixed(3) };
-  console.log(`  fit on ${recRows.length} days · RMSE ${fix(before,1)}% → ${fix(loss(w),1)}% recovery`);
+  console.log(`  fit on ${recRows.length} days (${minBase}-day baseline) · RMSE ${fix(before,1)}% → ${fix(loss(w),1)}% recovery${recProvisional?'   ⚠ PROVISIONAL — few days; re-pull as more accrue':''}`);
   console.log(`  weights: hrv ${fix(w[0],2)}  rhr ${fix(w[1],2)}  resp ${haveResp?fix(w[2],2):'(no data — kept '+RECOVERY_WEIGHTS.resp+')'}  sleep ${fix(w[3],2)}  bias ${fix(w[4],2)}`);
 }
 
