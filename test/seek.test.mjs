@@ -78,5 +78,17 @@ for (const trim of [8000, 20000, 35000, 49000, 60000, 80000, 100000]) {
   ok(res.ts <= target + 1, 'post-gap: landed at/before target');
 }
 
+// 5. Reboot-orphan: target OLDER than everything reachable, with a STALE seed loTs (get_data_range still names
+//    an orphaned older record). Must report the oldest REAL probe, NOT the synthetic seed (the "landed 18/06" bug).
+{
+  const target = 1000;                                       // older than any probe ts below
+  const probed = [];
+  const probe = async (trim) => { const ts = 5000 + (trim - MIN_SAFE); probed.push(ts); return { ts, trim }; };   // all ts ≥ 5000 ≫ target
+  const res = await bisectSeek({ loTrim: MIN_SAFE, loTs: 100 /* stale seed, ≤ target */, hiTrim: WRITEPTR, hiTs: 9e8, target, probe, tol: 120, maxIter: 16 });
+  ok(res.ts >= 5000, `reboot-orphan: returns a REAL probed ts (${res.ts}), not the stale seed (100)`);
+  ok(res.ts === Math.min(...probed), 'reboot-orphan: returns the OLDEST real probe');
+  ok(res.hit === false, 'reboot-orphan: not a hit (target unreachable)');
+}
+
 console.log(`\nseek: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

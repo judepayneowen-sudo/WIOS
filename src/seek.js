@@ -22,7 +22,8 @@ export async function bisectSeek({ loTrim, loTs, hiTrim, hiTs, target, probe, to
   // search can't stagnate on a flat-then-steep curve (an off-wrist gap), giving fast, guaranteed convergence.
   let a = { trim: loTrim, f: loTs - target };
   let b = { trim: hiTrim, f: hiTs - target };
-  let best = loTs != null && loTs <= target ? { trim: loTrim, ts: loTs } : null;
+  let best = null;          // newest REAL probe at/before target — the proper landing
+  let oldestProbe = null;   // oldest REAL probe seen — the honest fallback when target is older than ALL the data
   let last = 0;                                   // which side moved last: -1 = a, +1 = b
   const probes = [];
   for (let i = 0; i < maxIter && b.trim - a.trim > 2; i++) {
@@ -32,6 +33,7 @@ export async function bisectSeek({ loTrim, loTs, hiTrim, hiTs, target, probe, to
     const m = await probe(mt);
     probes.push(mt);
     if (!m || m.ts == null) { a = { trim: mt, f: a.f }; continue; }   // erased/empty → below the data; raise floor
+    if (!oldestProbe || m.ts < oldestProbe.ts) oldestProbe = { trim: mt, ts: m.ts };   // track the genuine oldest reachable
     const fm = m.ts - target;
     // Return only when we've landed at/just-BEFORE target within tol — never after (the drain reads forward, so
     // landing early is safe but landing late would skip the gap between target and the landing).
@@ -45,9 +47,12 @@ export async function bisectSeek({ loTrim, loTs, hiTrim, hiTs, target, probe, to
       b = { trim: mt, f: fm }; last = +1;
     }
   }
-  // Bracket converged without hitting tol (e.g. the target sits inside an off-wrist gap with no record there) —
-  // return the newest record still at/before target. The drain reads forward through target, so landing a touch
-  // early never misses data.
-  const r = best || { trim: a.trim, ts: target + a.f };
+  // Bracket converged without hitting tol. Prefer the newest REAL probe at/before target (the proper landing).
+  // If none exists — i.e. the target is OLDER than everything the band can reach (e.g. its trim space was reset
+  // by a reboot) — return the OLDEST REAL probe, NOT the synthetic seed `loTs`: that seed comes from
+  // get_data_range's "oldest", which after a reboot still names an orphaned record that the low trim no longer
+  // maps to (this is why a stuck seek used to mis-report "landed 18/06" while the band actually served 06-29).
+  // Fall back to the synthetic only if NO probe ever returned data (degenerate bracket).
+  const r = best || oldestProbe || { trim: a.trim, ts: target + a.f };
   return { trim: r.trim, ts: r.ts, probes, hit: false };
 }
