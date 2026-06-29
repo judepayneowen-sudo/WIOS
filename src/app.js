@@ -1766,7 +1766,7 @@ async function forceTrimSeek(){
     // fall back to just-before-target when it is. The search probes real points and self-corrects from here.
     hiTrim=range.writeTrim;     hiTs=(newest!=null?newest:target+86400);
     loTrim=MIN_SAFE_TRIM;       loTs=(oldest!=null && oldest<target) ? oldest : (target-3600);
-    log(`bounds: floor ${loTrim} → writeptr ${hiTrim} · seeking ${tsStr(target)} (band cursor ≈ ${tsStr(oldest)})`,'dim');
+    log(`bounds: trim [${loTrim} → ${hiTrim}] · range newest ${tsStr(newest)} · cursor ${tsStr(oldest)} · seeking ${tsStr(target)}`,'dim');
   } else {
     // Fallback (writeptr not parsed): probe the cursor and climb, the pre-reconciliation way.
     const cur=await probeReadPos();
@@ -1781,7 +1781,11 @@ async function forceTrimSeek(){
   // The probe the search drives: FORCE_TRIM there, stream the first batch, read its (ts,trim), abort uncommitted.
   let crashed=false;
   const probe=async(trim)=>{ await forceTrimTo(trim); let m=await probeReadPos(); if(!m){ await delay(400); m=await probeReadPos(); }
-    if(linkDown){ crashed=true; await reconnect(); return null; } return m; };
+    if(linkDown){ crashed=true; await reconnect(); return null; }
+    // DIAGNOSTIC: log every probe so a stuck seek is obvious — if the ts barely moves as `trim` swings widely, the
+    // band is ignoring/clamping FORCE_TRIM (the read head isn't following the trim) rather than the search misbehaving.
+    log(`  probe trim ${trim} → ${m&&m.ts?tsStr(m.ts):'(empty/erased flash)'}${m&&m.trim!=null?` @ endTrim ${m.trim}`:''}`,'dim');
+    return m; };
   const res=await bisectSeek({ loTrim, loTs, hiTrim, hiTs, target, probe, tol:120, maxIter:16 });
   if(crashed && (!res || res.ts==null)){ log('the seek hit a band reset — try a more recent time.','err'); return false; }
   await forceTrimTo(res.trim);
@@ -2109,6 +2113,10 @@ async function autoConnect(){
   resetSession();
   setSync('connecting'); setStatus('auto-connecting…');
   try{ await BleClient.initialize(); }catch(e){ setSync('off'); setStatus('not connected'); return; }
+  // iOS REQUIRES the peripheral to be re-hydrated from CoreBluetooth (retrievePeripherals) before you can connect
+  // by a saved id — after an app restart, connect(savedId) on its own fails with "device not found". getDevices
+  // rebuilds that handle. Best-effort: if it returns nothing we still try connect (and fall back to tap-to-connect).
+  try{ await BleClient.getDevices([id]); }catch(e){ log('getDevices failed (will still try connect): '+e.message,'dim'); }
   // The band doesn't advertise continuously — it may not be reachable the instant the app opens, so retry a few
   // times with backoff (same connect call reconnect() uses) before giving up to the tap-to-connect fallback.
   for(let i=0;i<6;i++){
