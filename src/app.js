@@ -1059,6 +1059,30 @@ const SECTIONS = [
         'Stress experienced during sleep.')
     + card(`<button class="act" style="width:100%" data-act="stress-session">Start a Stress Session</button>`); } },
 
+  // ----- DETAIL: Sleep Planner (alarm) -----
+  { id:'sleepplanner', build:()=>{
+    const need=sleepNeedMinutes({dayStrain:(latestDay()&&latestDay().strain)||SAMPLE.strain.day})||480;
+    const wakeMin=7*60+30, bedMin=((wakeMin-Math.round(need))%1440+1440)%1440;
+    const hm=(m)=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+    const a=lget('alarm',null);
+    return `<div class="hd"><div class="t">SLEEP PLANNER</div></div>`
+      + `<div class="sp-top">`
+        + `<div class="sp-logo">◯</div>`
+        + `<p class="sp-head">Go to bed at <b>${hm(bedMin)}</b> today to achieve a <b>76%</b> Sleep Consistency tomorrow.</p>`
+        + `<div class="sp-goal-lbl">TOMORROW I WANT TO</div>`
+        + `<button class="sp-goal">IMPROVE MY SLEEP</button>`
+      + `</div>`
+      + `<div class="sp-times">`
+        + `<div class="sp-t"><b>${hm(bedMin)}</b><span>SUGGESTED<br>TIME TO BED</span></div>`
+        + `<div class="sp-t right"><b>${hm(wakeMin)}</b><span>YOUR<br>WAKE TIME</span></div>`
+      + `</div>`
+      + `<div class="sp-bedbar"><span class="sp-inbed">TIME IN BED · ${hm(((wakeMin-bedMin)%1440+1440)%1440).replace(/^0/,'')}</span></div>`
+      + `<div class="sp-opt">OPTIMAL · 00:00 - 08:25</div>`
+      + `<div class="card sp-alarm"><div class="wsec-h">ALARM</div><div class="sp-alarm-row">`
+        + `<div class="sp-acard"><span>ALARM SET TO</span><b>${a?'ON':'OFF'}</b></div>`
+        + `<div class="sp-acard"><span>WAKE TIME SET TO</span><b>${a||hm(wakeMin)}</b></div>`
+      + `</div><button class="wbtn wfull" style="margin-top:12px" data-act="alarm">◔ SET ALARM</button></div>`; } },
+
   // ----- DETAIL: Journal -----
   { id:'journal', build:()=>{
     const day=new Date().toISOString().slice(0,10); const j=(lget('journal',{})[day])||{};
@@ -2505,7 +2529,6 @@ document.addEventListener('DOMContentLoaded', ()=>{
   { const a=$('dp-prev'); if(a) a.onclick=()=>shiftDay(-1); }
   { const a=$('dp-next'); if(a) a.onclick=()=>shiftDay(1); }
   { const sp=$('wstrap'); if(sp) sp.onclick = onSyncPillTap; }
-  { const sa=$('wh-setalarm'); if(sa) sa.onclick = setSmartAlarm; }
   initStickyRings();
   $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} lset('bandId',null); deviceId=null; setSync('off'); } };
   $('hello').onclick      = ()=>send(145,[0x01],'get_hello');
