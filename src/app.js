@@ -296,6 +296,15 @@ function smoothPath(pts){
   }
   return d;
 }
+// Inline smooth-line SVG string (for static generated screens that can't post-render a chart host).
+function inlineLine(series,{color='#5BC8E0',h=140,min=0,max=null}={}){
+  const n=series.length; if(!n) return '';
+  const vals=series.map(s=>typeof s==='number'?s:s.v); const mx=max!=null?max:Math.max(...vals,1), mn=min;
+  const W=330,padT=10,padB=14,P=6, iw=W-2*P, ih=h-padT-padB;
+  const X=i=>P+i*iw/Math.max(1,n-1), Y=v=>padT+(1-(v-mn)/((mx-mn)||1))*ih;
+  const pts=series.map((s,i)=>[X(i),Y(typeof s==='number'?s:s.v)]);
+  return `<svg viewBox="0 0 ${W} ${h}" width="100%" height="${h}" style="display:block"><path d="${smoothPath(pts)}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round"/></svg>`;
+}
 function interactiveChart(host, series, opts={}){
   if(!host) return;
   const o=Object.assign({color:'#3aa0ff',h:130,fill:true,min:null,max:null,unit:'',fmt:v=>Math.round(v),ppP:0,bands:null}, opts);
@@ -1028,10 +1037,27 @@ const SECTIONS = [
     if(tab==='session'){ const left=Math.max(0,Math.ceil((_stressEnd-Date.now())/1000)); const running=left>0;
       return head + card(`<div style="text-align:center;padding:6px"><div class="big" style="font-size:40px;color:var(--rec-green)">${running?left+'s':'Ready'}</div><div class="muted" style="letter-spacing:1px">${running?'BREATHE — IN 4s · OUT 6s':'60-second guided reading'}</div></div>`+stressGauge(v))
         + card(running?`<div class="muted" style="text-align:center">live stress ${v.toFixed(1)} / 3 — keep breathing slowly…</div>`:`<button class="act" style="width:100%" data-act="stress-session">Start a 60-second session</button>`); }
+    const lvl=v<1?'LOW':v<2?'MEDIUM':'HIGH', SC={low:'#6faee6',med:'#3fe0a0',high:'#e8702a'};
+    const sBars=(today,typ)=>`<div class="sc-bars"><div class="sc-bar">${today.map(b=>`<i style="flex:${Math.max(0.001,b[0])};background:${b[1]}"></i>`).join('')}</div>`+
+      `<div class="sc-bar typ">${typ.map(b=>`<i style="flex:${Math.max(0.001,b[0])};background:${b[1]}"></i>`).join('')}</div></div>`;
+    const sTrio=(rows)=>`<div class="sc-trio">${rows.map(r=>`<div><b>${r.t}</b><span class="sc-chip">${r.p>=100?'▲':'▼'} ${r.p}%</span><div class="sc-lbl"><span class="sc-sw" style="background:${r.c}"></span>${r.l}</div></div>`).join('')}</div>`;
+    const sCard=(ic,title,bars,trio,desc)=>card(
+      `<div class="sc-h"><span class="sc-ht">${ic} ${title}</span><span class="sc-hs">TUE, JUN 30 STRESS<br>VS. TYPICAL TUESDAY</span></div>`+
+      sBars(bars.today,bars.typ)+sTrio(trio)+`<p class="sc-desc">${desc}</p><div class="sc-trend">SEE TRENDS →</div>`);
     return head
-    + card(stressGauge(v))
-    + card(hd('Today')+kvr('Day stress','—')+kvr('Sleep stress','—')+kvr('High / Medium / Low','— / — / —'))
-    + card(`<button class="act" style="width:100%" data-act="stress-session">Start a Stress Session</button>`+scaffold('<div style="margin-top:8px">Live stress = our HRV/HR blend (calibratable). Day & sleep stress totals come once we accumulate sessions.</div>')); } },
+    + card(`<div style="text-align:center">${stressGauge(v)}<div style="font-size:13px;font-weight:700;color:#6ba8e0;margin-top:4px">${lvl} · ${v.toFixed(1)}</div></div>`)
+    + card(`<div class="wsec-h">STRESS · TODAY</div>${inlineLine(SAMPLE.stress.day,{color:'#5BC8E0',h:150,max:3})}`+
+        `<p class="sc-desc" style="margin-top:8px">Your body is signaling ${lvl.toLowerCase()} stress. This indicates your cardiovascular system is ${v<1?'stable, calm, and near its resting state':'responding to load'}.</p>`)
+    + sCard('◔','TOTAL DAY', {today:[[.95,SC.low],[.05,SC.med]],typ:[[.45,SC.low],[.45,SC.med],[.1,SC.high]]},
+        [{t:'10:19',p:131,c:SC.low,l:'LOW'},{t:'0:38',p:87,c:SC.med,l:'MEDIUM'},{t:'0:00',p:100,c:SC.high,l:'HIGH'}],
+        'Stress experienced throughout the day including sleep and activities.')
+    + sCard('🧍','NON ACTIVITY', {today:[[.58,SC.low],[.42,SC.med]],typ:[[.3,SC.low],[.55,SC.med],[.15,SC.high]]},
+        [{t:'0:29',p:172,c:SC.low,l:'LOW'},{t:'0:18',p:35,c:SC.med,l:'MEDIUM'},{t:'0:00',p:100,c:SC.high,l:'HIGH'}],
+        'Stress experienced outside of Strain activities and sleep.')
+    + sCard('🌙','SLEEP', {today:[[.96,SC.low],[.04,SC.med]],typ:[[.7,SC.low],[.22,SC.med],[.08,SC.high]]},
+        [{t:'9:49',p:34,c:SC.low,l:'LOW'},{t:'0:20',p:86,c:SC.med,l:'MEDIUM'},{t:'0:00',p:100,c:SC.high,l:'HIGH'}],
+        'Stress experienced during sleep.')
+    + card(`<button class="act" style="width:100%" data-act="stress-session">Start a Stress Session</button>`); } },
 
   // ----- DETAIL: Journal -----
   { id:'journal', build:()=>{
