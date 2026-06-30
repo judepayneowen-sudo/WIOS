@@ -166,6 +166,7 @@ function computeRecoveryTrend(){
 }
 async function refreshHist(){
   try{ histDays = await store.listDays(); }catch(e){ histDays=[]; }
+  if(DEMO && !histDays.length) histDays = makeDemoDays();   // ?demo=1 only — fills screens for design/harness work
   computeRecoveryTrend();
   // patch live state with the most recent night so Home tiles reflect real data
   const ls=histDays.find(d=>d.sleep), ld=histDays[0];
@@ -246,6 +247,31 @@ const SAMPLE = {
 SAMPLE.strain.hr24 = genHR24();
 SAMPLE.strain.hr   = SAMPLE.strain.hr24.filter((_,i)=>i%12===0);    // hourly sparkline
 SAMPLE.stress.day  = SAMPLE.strain.hr24.map(p=>({t:p.t, v:Math.max(0,Math.min(3,(p.v-52)/40))}));
+
+// DEMO MODE (dev/harness only, gated by ?demo=1 in the URL — production never passes it). Seeds histDays with
+// ~10 realistic days so the Home/Trends screens render filled (rings, weekly chart, dashboard) for design work,
+// instead of the empty "—" you get with no stored data. Deterministic (index-driven, no RNG) for stable shots.
+const DEMO = typeof location !== 'undefined' && /[?&]demo\b/.test(location.search || '');
+function makeDemoDays(){
+  const out=[], nowS=Math.floor(Date.now()/1000);
+  for(let i=0;i<10;i++){
+    const ts=nowS - i*86400, k=store.dayKeyOf(ts);
+    const wig=(a,b,ph)=> a + b*Math.sin(i*0.7+ph);
+    const strain=+Math.max(3,wig(11,5,0)).toFixed(1), hrvMs=Math.round(wig(66,12,1)), restHr=Math.round(wig(51,3,2));
+    const perf=Math.round(wig(84,9,3)), asleepMin=Math.round(wig(420,35,1));
+    const endS=Math.floor(Date.parse(k+'T07:00:00')/1000), startS=endS-(asleepMin+40)*60;
+    out.push({
+      day:k, n:60000, spanH:22, minTs:ts-79200, maxTs:ts,
+      avgHr:Math.round(wig(72,6,0)), minHr:48, maxHr:Math.round(wig(150,10,0)),
+      restHr, hrvMs, hrvNightMs:hrvMs, skinTempC:+wig(33.3,0.4,1).toFixed(1), spo2:96,
+      activity:0.1, activeMin:45, strain, zoneSeconds:[5400,4200,3000,2400,1200,360],
+      hours:Array.from({length:24},(_,h)=> (h>=8||h<=6)?60:30),
+      sleep:{ performance:perf, asleepMin, inBedMin:asleepMin+40, needMin:475, needBaselineMin:455,
+              disturbances:9, start:startS, end:endS, hrvSwsMs:hrvMs, segs:SAMPLE.sleep.segs },
+    });
+  }
+  return out;
+}
 
 /* ----------------------------- chart components --------------------------- */
 // SVG presentation attributes don't resolve CSS var() on WebKit — map our theme vars to hex.

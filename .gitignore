@@ -9,3 +9,6 @@ dist/
 .DS_Store
 captures/
 calibration/
+
+# Headless screenshot harness output
+/shots/

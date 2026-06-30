@@ -14,7 +14,8 @@
     "calibrate:all": "node tools/whoop-api.mjs 14 && node tools/calibrate.mjs",
     "add:ios": "npm run build:web && cap add ios",
     "sync": "npm run build:web && cap sync ios",
-    "open": "cap open ios"
+    "open": "cap open ios",
+    "shoot": "npm run build:web && node tools/shoot.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^6.1.0",
@@ -24,6 +25,7 @@
   },
   "devDependencies": {
     "@capacitor/cli": "^6.1.0",
-    "esbuild": "^0.23.0"
+    "esbuild": "^0.23.0",
+    "playwright-core": "^1.52.0"
   }
 }
