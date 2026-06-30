@@ -625,6 +625,7 @@ function sleepFromStore(d){
   const sl=d.sleep;
   return { perf: sl.performance!=null?sl.performance:0, eff:null, consistency:null, respiratory:null,
     debtMin:0, inBedMin:sl.inBedMin, disturbances:sl.disturbances||0, segs:sl.segs||[],
+    start:sl.start, end:sl.end,
     need:{ baseline:sl.needBaselineMin||480, debt:0, strain:Math.max(0,(sl.needMin||0)-(sl.needBaselineMin||480)), nap:0 } };
 }
 // Adapt a stored day → the shape renderStrain expects. Calories estimated from TRIMP load; workouts come from
@@ -675,7 +676,8 @@ function renderSleep(){
   const t=sleepTotals(S.segs);
   const asleep=t.light+t.rem+t.sws, inbed=asleep+t.awake;
   setHTML('slp-pct', S.perf+'<i>%</i>'); setRing('slp-arc', S.perf, 'var(--sleep)');
-  setField('slp-hours', fmtMs(asleep)+' asleep · '+fmtMs(inbed)+' in bed');
+  const tr = (S.start&&S.end) ? `<b style="color:#cfd9df">${fmtClock(S.start)} – ${fmtClock(S.end)}</b><br>` : '';
+  setHTML('slp-hours', tr+fmtMs(asleep)+' asleep · '+fmtMs(inbed)+' in bed');
   // sleep breakdown rows → tap into each sub-metric trend view
   const brow=(label,val,trend)=>`<div class="rec-crow" data-trend="${trend}"><span class="rec-cl">${label}</span><span class="rec-cv" style="font-size:16px">${val}</span><span class="nch" style="color:var(--dimmer);margin-left:12px">›</span></div>`;
   setHTML('slp-breakdown',
