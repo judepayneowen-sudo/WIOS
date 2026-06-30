@@ -662,7 +662,7 @@ function renderSleep(){
   markPreview('s-sleep', !real);
   const t=sleepTotals(S.segs);
   const asleep=t.light+t.rem+t.sws, inbed=asleep+t.awake;
-  setField('slp-pct', S.perf); setRing('slp-arc', S.perf, 'var(--sleep)');
+  setHTML('slp-pct', S.perf+'<i>%</i>'); setRing('slp-arc', S.perf, 'var(--sleep)');
   setField('slp-hours', fmtMs(asleep)+' asleep · '+fmtMs(inbed)+' in bed');
   setHTML('slp-hypno', hypnogram(S.segs));
   setHTML('slp-stages', ['rem','sws','light','awake'].map(k=>`<div class="stg"><span class="sw" style="background:${STAGE[k].c}"></span>`+
