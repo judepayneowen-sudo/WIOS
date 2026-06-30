@@ -282,6 +282,20 @@ const cssColor=(c)=> CSSVAR[c]||c;
 // Interactive, horizontally-scrollable line chart with a drag-to-read scrub readout.
 // host: container el · series: [{t,v}] or [number] · opts: {color,h,fill,min,max,unit,fmt,ppP,bands}
 let _chartId=0;
+// Catmull-Rom → cubic-bézier: turns a list of [x,y] points into ONE smooth path (HD graphs, no polyline kinks).
+// Uniform tangents (1/6 the chord); falls back to straight segments for <3 points.
+function smoothPath(pts){
+  if(!pts.length) return '';
+  if(pts.length < 3) return 'M' + pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' L');
+  let d = 'M' + pts[0][0].toFixed(1) + ' ' + pts[0][1].toFixed(1);
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||pts[i+1];
+    const c1x=p1[0]+(p2[0]-p0[0])/6, c1y=p1[1]+(p2[1]-p0[1])/6;
+    const c2x=p2[0]-(p3[0]-p1[0])/6, c2y=p2[1]-(p3[1]-p1[1])/6;
+    d += `C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
 function interactiveChart(host, series, opts={}){
   if(!host) return;
   const o=Object.assign({color:'#3aa0ff',h:130,fill:true,min:null,max:null,unit:'',fmt:v=>Math.round(v),ppP:0,bands:null}, opts);
@@ -296,8 +310,9 @@ function interactiveChart(host, series, opts={}){
   const H=o.h, padT=16, padB=18, P=8;
   const X=i=> P + i*(innerW-2*P)/Math.max(1,n-1);
   const Y=v=> padT + (1-(v-mn)/rg)*(H-padT-padB);
-  let line=''; pts.forEach((p,i)=>{ line+=(i?'L':'M')+X(i).toFixed(1)+' '+Y(p.v).toFixed(1)+' '; });
-  const area=`M${X(0).toFixed(1)} ${H-padB} `+pts.map((p,i)=>'L'+X(i).toFixed(1)+' '+Y(p.v).toFixed(1)).join(' ')+` L${X(n-1).toFixed(1)} ${H-padB} Z`;
+  const XY=pts.map((p,i)=>[X(i),Y(p.v)]);
+  const line=smoothPath(XY);                                  // smooth HD curve through the points
+  const area=`${line} L${X(n-1).toFixed(1)} ${(H-padB).toFixed(1)} L${X(0).toFixed(1)} ${(H-padB).toFixed(1)} Z`;
   let bands=''; if(o.bands) for(const b of o.bands){ const y1=Y(b.hi),y2=Y(b.lo);
     bands+=`<rect x="0" y="${y1.toFixed(1)}" width="${innerW}" height="${Math.max(0,y2-y1).toFixed(1)}" fill="${b.c}" opacity="0.10"/>`; }
   let ticks=''; const step=Math.max(1,Math.round(n/6));
@@ -431,12 +446,12 @@ function renderWeek(){
   for(const v of [0,7,14,21]) s+=`<text class="wk-axl" x="2" y="${yS(v)+4}">${v}</text>`;
   // right recovery axis labels
   for(const v of [0,33,66,100]){ const c=v>=67?'var(--rec-green)':v>=34?'var(--rec-yellow)':'var(--rec-red)'; s+=`<text class="wk-axr" x="${W-2}" y="${yR(v)+4}" text-anchor="end" fill="${c}">${v}%</text>`; }
-  // strain line + points (blue)
-  const sp=days.map((p,i)=> p.d? `${x(i)},${yS(p.d.strain)}`:null).filter(Boolean);
-  if(sp.length>1) s+=`<polyline points="${sp.join(' ')}" fill="none" stroke="var(--strain)" stroke-width="2" opacity=".9"/>`;
-  // recovery connecting line (grey)
-  const rp=days.map((p,i)=> p.d&&p.d.rec!=null? `${x(i)},${yR(p.d.rec)}`:null).filter(Boolean);
-  if(rp.length>1) s+=`<polyline points="${rp.join(' ')}" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="1.5"/>`;
+  // strain line + points (blue) — smooth HD curve
+  const sp=days.map((p,i)=> p.d? [x(i),yS(p.d.strain)]:null).filter(Boolean);
+  if(sp.length>1) s+=`<path d="${smoothPath(sp)}" fill="none" stroke="var(--strain)" stroke-width="2.5" opacity=".92" stroke-linecap="round"/>`;
+  // recovery connecting line (grey) — smooth HD curve
+  const rp=days.map((p,i)=> p.d&&p.d.rec!=null? [x(i),yR(p.d.rec)]:null).filter(Boolean);
+  if(rp.length>1) s+=`<path d="${smoothPath(rp)}" fill="none" stroke="rgba(255,255,255,.38)" stroke-width="1.6"/>`;
   days.forEach((p,i)=>{
     if(p.d){ s+=`<circle cx="${x(i)}" cy="${yS(p.d.strain)}" r="5.5" fill="var(--bg)" stroke="var(--strain)" stroke-width="2.5"/>`;
       s+=`<text class="wk-val" x="${x(i)}" y="${yS(p.d.strain)+20}" text-anchor="middle" fill="var(--strain)">${p.d.strain.toFixed(1)}</text>`; }
