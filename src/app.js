@@ -664,6 +664,17 @@ function renderSleep(){
   const asleep=t.light+t.rem+t.sws, inbed=asleep+t.awake;
   setHTML('slp-pct', S.perf+'<i>%</i>'); setRing('slp-arc', S.perf, 'var(--sleep)');
   setField('slp-hours', fmtMs(asleep)+' asleep · '+fmtMs(inbed)+' in bed');
+  // sleep breakdown rows → tap into each sub-metric trend view
+  const brow=(label,val,trend)=>`<div class="rec-crow" data-trend="${trend}"><span class="rec-cl">${label}</span><span class="rec-cv" style="font-size:16px">${val}</span><span class="nch" style="color:var(--dimmer);margin-left:12px">›</span></div>`;
+  setHTML('slp-breakdown',
+    `<div class="t" style="font-size:13px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin-bottom:4px">Sleep breakdown</div>`+
+    brow('HOURS VS. NEEDED', fmtMs(asleep), 'hours_vs_needed')+
+    brow('SLEEP CONSISTENCY', (S.consistency!=null?S.consistency:69)+'%', 'sleep_consistency')+
+    brow('SLEEP EFFICIENCY', (S.eff!=null?S.eff:92)+'%', 'sleep_efficiency')+
+    brow('SLEEP DEBT', fmtMs(S.debtMin!=null?S.debtMin:24), 'sleep_debt')+
+    brow('RESTORATIVE SLEEP', Math.round((t.rem+t.sws)/Math.max(1,inbed)*100)+'%', 'restorative_sleep')+
+    brow('TIME IN BED', fmtMs(inbed), 'time_in_bed'));
+  setHTML('slp-weekly', recCard('SLEEP PERFORMANCE', miniBars(REC_WEEK.sleepPerf, REC_WEEK.days, ()=>'#7ba1bb', v=>v+'%')));
   setHTML('slp-hypno', hypnogram(S.segs));
   setHTML('slp-stages', ['rem','sws','light','awake'].map(k=>`<div class="stg"><span class="sw" style="background:${STAGE[k].c}"></span>`+
     `<span class="nm">${STAGE[k].nm}</span><span class="tm">${fmtMs(t[k])}</span><span class="pc">${Math.round(t[k]/inbed*100)}%</span></div>`).join(''));
