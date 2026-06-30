@@ -1,0 +1,216 @@
+{
+ "screen": "hours_vs_needed",
+ "globalNotes": "Dark theme throughout (background ~#0E1419 top fading to ~#0A0E12 / near-black bottom). Vertically scrolling screen; the two screenshots are scroll positions of one continuous TREND VIEW screen for the \"Hours vs. Needed (Hours)\" sleep metric. Status bar at very top (09:40, silent-bell icon, cellular 1-bar, wifi, battery 38%) is OS chrome, not part of the app content. A floating circular WHOOP logo button (the \\\\/\\\\/ mark in a blue/purple gradient ring) sits fixed at bottom-right in the lower scroll position (image 2) \u2014 this is the WHOOP Coach / AI assistant launcher and is EXCLUDED. Title bar 'TREND VIEW' with a back chevron stays pinned at top. Green accent = sleep-need series (#19E68C-ish), light blue/teal accent = actual hours-of-sleep series (#7FC9D6-ish).",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Top nav bar",
+   "type": "nav",
+   "description": "Pinned header. Left: white back chevron '<' (~x60). Center: title 'TREND VIEW' in white, uppercase, bold, letter-spaced, ~16px. Right side empty. Sits on the dark background.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#0E1419"
+   ],
+   "interaction": "Back chevron returns to previous screen (sleep detail / overview)."
+  },
+  {
+   "order": 2,
+   "name": "Metric selector dropdown",
+   "type": "button",
+   "description": "Full-width rounded rectangle pill/card, lighter grey (~#3A4148) than background. Left: a crescent-moon-in-circle sleep icon (grey outline). Center-left text 'HOURS VS. NEEDED (HOURS)' uppercase, white, bold, ~17px. Right: downward chevron 'v' (white). Indicates a dropdown to switch which sleep metric/trend is shown.",
+   "literals": [
+    "HOURS VS. NEEDED (HOURS)"
+   ],
+   "colors": [
+    "#3A4148",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens a dropdown list to pick a different trend metric."
+  },
+  {
+   "order": 3,
+   "name": "Avg Need stat (left, top)",
+   "type": "metric-row",
+   "description": "Left-aligned stat block. Big value '8:14' in green (~#19E68C), bold, ~34px, with small 'hr' suffix in same green to its right. Below it label 'AVG. NEED' in grey uppercase ~13px. Represents average sleep need for the selected period.",
+   "literals": [
+    "8:14",
+    "hr",
+    "AVG. NEED"
+   ],
+   "colors": [
+    "#19E68C",
+    "#8A929B"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 4,
+   "name": "Avg Hours stat (left, below)",
+   "type": "metric-row",
+   "description": "Left-aligned stat block directly under Avg Need. Big value '7:40' in light blue/teal (~#7FC9D6), bold, ~34px, with small 'hr' suffix in same blue. Below it label 'AVG. HOURS' in grey uppercase ~13px. Represents average actual hours slept.",
+   "literals": [
+    "7:40",
+    "hr",
+    "AVG. HOURS"
+   ],
+   "colors": [
+    "#7FC9D6",
+    "#8A929B"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 5,
+   "name": "Time-range segmented toggle (W / M / 6M)",
+   "type": "pill",
+   "description": "Right-aligned rounded segmented control on a dark (~#1C2127) track. Three segments: 'W', 'M', '6M'. Middle 'M' is selected (lighter grey ~#3A4148 fill, white bold text); 'W' and '6M' are unselected (grey text ~#8A929B). White uppercase text.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#3A4148",
+    "#1C2127",
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "Switches the chart/stat aggregation to Week, Month, or 6 Months. M (Month) currently active."
+  },
+  {
+   "order": 6,
+   "name": "Date-range navigator",
+   "type": "metric-row",
+   "description": "Centered below the toggle. Left grey '<' chevron, center label 'JUN 1 - JUN 30, 26' in white uppercase bold ~18px, right grey '>' chevron. The '26' is the year (2026). Right chevron appears dimmer/disabled (current period).",
+   "literals": [
+    "JUN 1 - JUN 30, 26",
+    "<",
+    ">"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#5A626B"
+   ],
+   "interaction": "Left chevron steps to previous month; right chevron to next month (disabled at current)."
+  },
+  {
+   "order": 7,
+   "name": "Explanatory paragraph",
+   "type": "text",
+   "description": "Multi-line body text, white/light grey ~#E8EAED, regular weight, ~22px, left-aligned, full verbatim: 'Your average sleep need this month is 8:14. Wear your WHOOP to bed each night to track how your hours of sleep and sleep need change over time.'",
+   "literals": [
+    "Your average sleep need this month is 8:14. Wear your WHOOP to bed each night to track how your hours of sleep and sleep need change over time."
+   ],
+   "colors": [
+    "#E8EAED"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 8,
+   "name": "Hours vs Need line chart",
+   "type": "chart",
+   "description": "Line chart plotting two series across the month. Y-axis (left) gridlines/labels at 0, 3, 6, 9, 12 (hours) in grey, with faint horizontal gridlines. X-axis labels (bottom, two-line): 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30'. GREEN series (~#19E68C) = sleep NEED per night; LIGHT-BLUE/TEAL series (~#7FC9D6) = actual HOURS slept. Both series only have data in the right ~40% of the chart (mid-to-late June); left portion is empty (no wear). Two horizontal dashed AVERAGE reference lines near the y=8-9 band: a green dashed line (avg need) and a blue/teal dashed line (avg hours) just below it, each tagged at the LEFT edge with a small rounded label pill reading 'AVG.' \u2014 the upper pill is green-filled with dark text, the lower pill is blue-filled with dark text. At the far RIGHT of the chart, the latest data points are annotated: green value '8:31' (latest sleep need, teal/green text near the green line end) and blue value '9:16' (latest hours, with a small hollow circle marker) higher up; a hollow circle marker also sits on the green line. The two right-edge markers are small open circles (one teal/blue ~9:16, one green ~8:31).",
+   "literals": [
+    "12",
+    "9",
+    "6",
+    "3",
+    "0",
+    "Jun 2",
+    "Jun 9",
+    "Jun 16",
+    "Jun 23",
+    "Jun 30",
+    "AVG.",
+    "AVG.",
+    "9:16",
+    "8:31"
+   ],
+   "colors": [
+    "#19E68C",
+    "#7FC9D6",
+    "#8A929B",
+    "#2A3036"
+   ],
+   "interaction": "Likely tap/scrub on a point to see that night's hours-vs-need values."
+  },
+  {
+   "order": 9,
+   "name": "Learn More header row",
+   "type": "section-header",
+   "description": "Row with left label 'LEARN MORE' (grey uppercase bold ~16px) and right link 'VIEW ALL' (white uppercase bold) followed by a white right-arrow '->'.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL"
+   ],
+   "colors": [
+    "#8A929B",
+    "#FFFFFF"
+   ],
+   "interaction": "'VIEW ALL' navigates to the full library of sleep articles."
+  },
+  {
+   "order": 10,
+   "name": "Article cards carousel",
+   "type": "list",
+   "description": "Horizontally scrollable row of article cards. Card 1: dark card with a green tile cluster at top (three green squares \u2014 a clock icon, a central seated-person/sleep icon highlighted bright green, and a lounge-chair icon), a black 'ARTICLE' tag badge top-right, title 'What is Sleep Debt & How Do You Catch Up on Sleep?' (white ~22px). Card 2: photo of a woman sleeping in bed wearing an eye mask, 'ARTICLE' tag badge top-right, title 'Everything You Want to Know About Sleep & Tracking It with W...' (truncated). Card 3 (partially visible, scrolled off right): photo of a woman, title 'Dr. Allison ... Health Effe... Sleep'.",
+   "literals": [
+    "ARTICLE",
+    "ARTICLE",
+    "What is Sleep Debt & How Do You Catch Up on Sleep?",
+    "Everything You Want to Know About Sleep & Tracking It with W...",
+    "Dr. Allison",
+    "Health Effe",
+    "Sleep"
+   ],
+   "colors": [
+    "#19A86E",
+    "#1C2127",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping a card opens that article; the row scrolls horizontally."
+  },
+  {
+   "order": 11,
+   "name": "What is Sleep Hours vs. Need? info card",
+   "type": "card",
+   "description": "Large rounded info card, slightly lighter dark fill (~#171C22). Heading 'What is Sleep Hours vs. Need?' in white, bold, ~26px. Body in three paragraphs, light grey ~#C7CDD3, regular ~22px: Para1 'Hours vs Need shows how many hours of sleep you got compared to how many you needed each night.' Para2 'Sleep need is calculated each day based on your personalized baseline, as well as sleep debt, Day Strain and naps. It is a measure of how much sleep you need in order to hit peak performance.' Para3 'Meet your sleep need consistently to accelerate Recovery and maximize your performance.'",
+   "literals": [
+    "What is Sleep Hours vs. Need?",
+    "Hours vs Need shows how many hours of sleep you got compared to how many you needed each night.",
+    "Sleep need is calculated each day based on your personalized baseline, as well as sleep debt, Day Strain and naps. It is a measure of how much sleep you need in order to hit peak performance.",
+    "Meet your sleep need consistently to accelerate Recovery and maximize your performance."
+   ],
+   "colors": [
+    "#171C22",
+    "#FFFFFF",
+    "#C7CDD3"
+   ],
+   "interaction": "none (static informational text)"
+  }
+ ],
+ "charts": [
+  {
+   "name": "Hours vs Need monthly line chart",
+   "kind": "line",
+   "series": "Two line series. (1) Sleep NEED per night = green (#19E68C). (2) Actual HOURS slept per night = light blue/teal (#7FC9D6). Plus two horizontal dashed average reference lines: green dashed (avg need ~8:14) and blue/teal dashed (avg hours ~7:40), each labeled 'AVG.' with a colored pill at the left edge.",
+   "xAxis": "Dates across June: tick labels 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30' (weekly). Range = Jun 1 to Jun 30, 2026. Data only present in the latter ~40% (mid-to-late June).",
+   "yAxis": "Hours of sleep, single left axis. Gridline labels 0, 3, 6, 9, 12.",
+   "notes": "Right-edge on-point annotations: '9:16' (latest actual hours, blue, with hollow circle marker) and '8:31' (latest sleep need, green, with hollow circle marker). Two dashed horizontal AVG lines near the 8-9h band with 'AVG.' pills (green pill upper, blue pill lower) at the left edge. Faint horizontal gridlines at each y label. No data / flat-empty left side of chart.",
+   "colors": [
+    "#19E68C",
+    "#7FC9D6",
+    "#8A929B"
+   ]
+  }
+ ],
+ "excluded": [
+  "Floating circular WHOOP Coach / AI assistant launcher button (the \\/\\/ mark in a blue-purple gradient ring) fixed at bottom-right in the lower scroll position \u2014 AI/coach feature, excluded from build."
+ ],
+ "_key": "hours_vs_needed",
+ "_dir": "home/hours vs needed (hours)"
+}

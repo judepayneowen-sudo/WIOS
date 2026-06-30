@@ -1,0 +1,332 @@
+{
+ "screen": "hr_zones_all",
+ "globalNotes": "Dark theme throughout (near-black background ~#0B0E11 / #0E1417). Two screenshots are vertical scroll positions of the SAME \"TREND VIEW\" screen for the \"HEART RATE ZONES ALL\" metric; image 2 is scrolled further down. Sticky/persistent header \"TREND VIEW\" with a back chevron appears at top in BOTH screenshots (it stays pinned while content scrolls). A circular WHOOP coach/AI orb floats bottom-right in both shots (excluded). Status bar at very top (09:40, silent bell, cellular, wifi, battery 38%). Overlap region between the two images = the \"HR ZONES BREAKDOWN\" section (appears at bottom of image 1 and top of image 2) \u2014 count it once.",
+ "excluded": [
+  "Floating circular WHOOP Coach / AI orb (bottom-right, gradient blue/purple ring with 'W' WHOOP logo glyph) present in both screenshots \u2014 AI assistant entry point, excluded"
+ ],
+ "charts": [
+  {
+   "name": "Stacked bar chart \u2014 weekly zone time",
+   "kind": "zone-bars",
+   "series": "Stacked HR-zone time per week. Segment colours: Zone0=white (#FFFFFF), Zone1=light blue-grey (#A9B7C2), Zone2=blue (#2E7FB8), Zone3=teal/green (#3BB58F), Zone4=amber (~0, not visible), Zone5=orange (~0, not visible). Plus a white horizontal DASHED reference line = AVG (weekly average ~2:34).",
+   "xAxis": "4 weekly buckets, left-to-right: 'Jun 3 - 9', 'Jun 10 - 16', 'Jun 17 - 23', 'Jun 24 - 30' (labels grey #8A9099)",
+   "yAxis": "Time in h:mm, labels bottom-to-top: 0:00, 1:15, 3:45, 5:00 (note: NOT linearly spaced). Faint horizontal gridlines at each label.",
+   "notes": "Bars: Jun 3-9 empty; Jun 10-16 empty; Jun 17-23 = tall multi-zone bar (white Zone0 base up to ~2:30, light blue-grey Zone1 up to ~4:00, thin teal/green + blue caps at top), reaching between 3:45 and 5:00; Jun 24-30 = short bar near 0:30 (small white base + thin blue-grey cap). White-tabbed 'AVG.' label at left edge sits on the dashed AVG reference line (~2:34 level). No point currently selected.",
+   "colors": [
+    "#FFFFFF",
+    "#A9B7C2",
+    "#2E7FB8",
+    "#3BB58F"
+   ]
+  },
+  {
+   "name": "HR zones proportion bar",
+   "kind": "zone-bars",
+   "series": "Single thin full-width horizontal stacked proportion bar of relative time per zone: Zone0 white (#FFFFFF) ~65% left, Zone1 light blue-grey (#A9B7C2) ~30%, Zone2 tiny blue (#2E7FB8), Zone3 tiny teal/green (#3BB58F) at far right. Zones 4/5 = 0, absent. Rounded ends.",
+   "xAxis": "none (single proportion bar)",
+   "yAxis": "none",
+   "notes": "Widths reflect legend times: Zone0 1:39 (largest white), Zone1 0:49, Zone2 0:04, Zone3 0:01.",
+   "colors": [
+    "#FFFFFF",
+    "#A9B7C2",
+    "#2E7FB8",
+    "#3BB58F"
+   ]
+  }
+ ],
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar on dark background. Left: time '09:40' in white bold + a small silent/mute bell icon (bell with slash) immediately right of time. Right: cellular signal bars (2 of 4 filled), wifi glyph, battery pill showing '38' with battery outline. All white/light-grey icons.",
+   "literals": [
+    "09:40",
+    "38"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Screen header / nav bar",
+   "type": "nav",
+   "description": "Centered uppercase title 'TREND VIEW' in white, letter-spaced, semibold, ~16px. A left-aligned back chevron '<' (thin white stroke) at far left for navigating back. No right-side action. This header is pinned/persistent across scroll (present in both images).",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Back chevron returns to the previous (metric detail / overview) screen."
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown",
+   "type": "button",
+   "description": "Full-width rounded pill/card (~#262B30 dark grey, slightly lighter than background, rounded ~16px corners). Left: a heart-with-clock outline icon (white line icon). Center-left text 'HEART RATE ZONES ALL' in bold white uppercase, ~18px, letter-spaced. Far right: a downward chevron 'v' (white). Tapping opens a metric picker to switch which trend metric is shown.",
+   "literals": [
+    "HEART RATE ZONES ALL"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#262B30"
+   ],
+   "interaction": "Opens dropdown/picker to select a different trend metric."
+  },
+  {
+   "order": 4,
+   "name": "Summary stat block (left) \u2014 Avg weekly total",
+   "type": "metric",
+   "description": "Left-aligned stacked block. Top label 'AVG. WEEKLY TOTAL' in grey uppercase (~13px, letter-spaced, ~#8A9099). Below it a very large white value '2:34' (bold, ~56px) with a smaller lower-case unit 'hr' (~20px, grey-white) baseline-aligned to the right of the number.",
+   "literals": [
+    "AVG. WEEKLY TOTAL",
+    "2:34",
+    "hr"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 5,
+   "name": "Trend-vs-prior-month pill",
+   "type": "pill",
+   "description": "Small rounded pill below the big value, dark amber/brown fill (~#3A2A12). Contains a downward-pointing solid triangle (orange ~#E8912A) followed by orange text '18% vs. prior month' (bold, ~14px). Indicates this period's avg weekly total is 18% lower than the prior month.",
+   "literals": [
+    "18% vs. prior month"
+   ],
+   "colors": [
+    "#E8912A",
+    "#3A2A12"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 6,
+   "name": "Time-range segmented toggle",
+   "type": "pill",
+   "description": "Right-aligned segmented control on the same row as the summary stat. Dark rounded container (~#1C2126) with three segments 'W' | 'M' | '6M'. The middle 'M' segment is selected (lighter grey fill ~#3A4047, white text); 'W' and '6M' are unselected (grey text ~#8A9099). Selects Week / Month / 6-Month view.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3A4047",
+    "#8A9099"
+   ],
+   "interaction": "Switches the trend time window (W=week, M=month selected, 6M=6 months)."
+  },
+  {
+   "order": 7,
+   "name": "Date-range stepper",
+   "type": "metric-row",
+   "description": "Below the toggle, right-aligned. A left chevron '<' (dim grey), centered range label 'JUN 3 - JUN 30, 26' in white bold uppercase (~16px), and a right chevron '>' (white). The left chevron is dimmer (current/most-recent period). Steps the displayed month range backward/forward.",
+   "literals": [
+    "JUN 3 - JUN 30, 26"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#5A6066"
+   ],
+   "interaction": "Left/right chevrons page the date range to prior/next month."
+  },
+  {
+   "order": 8,
+   "name": "Summary sentence",
+   "type": "text",
+   "description": "Two-line paragraph in white/light text (~22px, regular weight) spanning full width: 'You spent 0:31 in activities in the last 7 days. This is below your weekly average from the last four weeks (2:34).'",
+   "literals": [
+    "You spent 0:31 in activities in the last 7 days. This is below your weekly average from the last four weeks (2:34)."
+   ],
+   "colors": [
+    "#F2F2F2"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 9,
+   "name": "Stacked bar chart \u2014 weekly zone time",
+   "type": "chart",
+   "description": "Vertical stacked bar chart of weekly HR-zone time (see charts[0]). Y-axis labels 0:00, 1:15, 3:45, 5:00; x-axis 4 weekly buckets Jun 3-9, Jun 10-16, Jun 17-23, Jun 24-30; white dashed AVG line with white 'AVG.' tab at left (~2:34). Tall multi-zone bar on Jun 17-23, short bar on Jun 24-30, first two weeks empty.",
+   "literals": [
+    "5:00",
+    "3:45",
+    "1:15",
+    "0:00",
+    "AVG.",
+    "Jun 3 - 9",
+    "Jun 10 - 16",
+    "Jun 17 - 23",
+    "Jun 24 - 30"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#A9B7C2",
+    "#2E7FB8",
+    "#3BB58F",
+    "#8A9099"
+   ],
+   "interaction": "Likely tap a bar to select that week (no selection currently shown)."
+  },
+  {
+   "order": 10,
+   "name": "Chart footnote (info)",
+   "type": "text",
+   "description": "Small grey info row below the chart: a circled 'i' info icon (grey) followed by grey text 'Zone time is derived from logged activities' (~14px).",
+   "literals": [
+    "Zone time is derived from logged activities"
+   ],
+   "colors": [
+    "#8A9099"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 11,
+   "name": "HR Zones Breakdown \u2014 section header",
+   "type": "section-header",
+   "description": "Section title row: 'HR ZONES BREAKDOWN' in bold white uppercase (~16px, letter-spaced) followed inline by '(AVG. WEEKLY TOTAL)' in grey uppercase (~13px). Appears at bottom of image 1 and top of image 2 (same element).",
+   "literals": [
+    "HR ZONES BREAKDOWN",
+    "(AVG. WEEKLY TOTAL)"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 12,
+   "name": "HR zones proportion bar",
+   "type": "chart",
+   "description": "A single thin full-width horizontal stacked proportion bar showing relative time split across zones (see charts[1]). Left ~65% solid white (Zone 0), then light blue-grey (Zone 1) ~30%, then tiny blue (Zone 2) and tiny teal/green (Zone 3) at far right; Zones 4/5 absent. Rounded ends.",
+   "literals": [],
+   "colors": [
+    "#FFFFFF",
+    "#A9B7C2",
+    "#2E7FB8",
+    "#3BB58F"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 13,
+   "name": "HR zones legend \u2014 two-column grid",
+   "type": "list",
+   "description": "Six zone rows in a 2-column grid (3 rows). Each entry = a small square colour swatch + a bold white time value + a grey 'Zone N' label. Left column top-to-bottom: white swatch '1:39  Zone 0'; blue swatch '0:04  Zone 2'; amber/orange swatch '0:00  Zone 4'. Right column top-to-bottom: blue-grey swatch '0:49  Zone 1'; teal/green swatch '0:01  Zone 3'; orange-red swatch '0:00  Zone 5'. Times bold white, zone labels grey (~#8A9099).",
+   "literals": [
+    "1:39",
+    "Zone 0",
+    "0:49",
+    "Zone 1",
+    "0:04",
+    "Zone 2",
+    "0:01",
+    "Zone 3",
+    "0:00",
+    "Zone 4",
+    "0:00",
+    "Zone 5"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#A9B7C2",
+    "#2E7FB8",
+    "#3BB58F",
+    "#E8A23A",
+    "#E8512A",
+    "#8A9099"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 14,
+   "name": "Add Activity button",
+   "type": "button",
+   "description": "Full-width rounded card (~#262B30 dark grey). Left: a '+' plus icon (white). Bold white uppercase label 'ADD ACTIVITY'. Right: a '>' chevron (white). Navigates to add/log an activity.",
+   "literals": [
+    "ADD ACTIVITY"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#262B30"
+   ],
+   "interaction": "Opens the add-activity flow."
+  },
+  {
+   "order": 15,
+   "name": "Set HR Zones goal button",
+   "type": "button",
+   "description": "Full-width rounded card (~#262B30 dark grey). Left: a clipboard-with-check icon (white line icon). Bold white uppercase label 'SET A HR ZONES GOAL IN WEEKLY PLAN'. Right: a '>' chevron (white). Navigates to the Weekly Plan to set an HR-zones goal.",
+   "literals": [
+    "SET A HR ZONES GOAL IN WEEKLY PLAN"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#262B30"
+   ],
+   "interaction": "Opens Weekly Plan to set an HR zones goal."
+  },
+  {
+   "order": 16,
+   "name": "Learn More \u2014 section header row",
+   "type": "section-header",
+   "description": "Row with left bold grey-white uppercase 'LEARN MORE' and right a 'VIEW ALL' link in white bold uppercase followed by a right-arrow '\u2192'. Header for the educational carousel below.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "'VIEW ALL' navigates to the full list of learn-more content."
+  },
+  {
+   "order": 17,
+   "name": "Learn More \u2014 horizontal content carousel",
+   "type": "card",
+   "description": "Horizontally scrollable row of media cards (3+ partially visible). Card 1: thumbnail of a woman in a cream top against dark background; top-right black pill label 'VIDEO'; a heart-with-up-arrow icon badge overlay; a circular black play '\u25b6' button lower-left; white title beneath 'What is Max Heart Rate?'. Card 2: photo of a person's torso/forearm with a wrist band outdoors; top-right black pill 'ARTICLE'; white title 'HR Zones: Calculated for Precision & Accuracy'; grey subtitle '5 MIN. READ'. Card 3 (partially cut off at right edge): runner photo; white title 'Why Chang... HR or HR Z...' (truncated, likely 'Why Change Your HR or HR Zones?'); grey '5 MIN. REA...' (truncated '5 MIN. READ'). Cards rounded with dark gradient overlays.",
+   "literals": [
+    "VIDEO",
+    "What is Max Heart Rate?",
+    "ARTICLE",
+    "HR Zones: Calculated for Precision & Accuracy",
+    "5 MIN. READ",
+    "Why Chang",
+    "HR or HR Z",
+    "5 MIN. REA"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9099",
+    "#000000"
+   ],
+   "interaction": "Tapping a card opens that video/article; carousel scrolls horizontally."
+  },
+  {
+   "order": 18,
+   "name": "What is Heart Rate Zone Training? \u2014 info card",
+   "type": "card",
+   "description": "Large rounded dark card (~#15191D). Bold white title 'What is Heart Rate Zone Training?' (~26px). Body paragraph in light-grey regular text: 'Heart rate (HR) zone training is an exercise method that focuses on tracking your heart rate during workouts and maintaining specific HR ranges. Training within these zones helps you manage workout intensity, boosting your cardiovascular health and overall fitness.' Then a second paragraph begins (cut off at bottom of screen): 'On WHOOP, your HR zones are personalized to your unique physiology, based on your heart rate reserve...' (continues below the fold).",
+   "literals": [
+    "What is Heart Rate Zone Training?",
+    "Heart rate (HR) zone training is an exercise method that focuses on tracking your heart rate during workouts and maintaining specific HR ranges. Training within these zones helps you manage workout intensity, boosting your cardiovascular health and overall fitness.",
+    "On WHOOP, your HR zones are personalized to your unique physiology, based on your heart rate reserve"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#B8BEC4",
+    "#15191D"
+   ],
+   "interaction": "none (scrollable text; full article continues below the fold)."
+  }
+ ],
+ "_key": "hr_zones_all",
+ "_dir": "home/hr zones all"
+}

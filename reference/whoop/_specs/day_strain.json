@@ -1,0 +1,375 @@
+{
+ "screen": "day_strain",
+ "globalNotes": "Single vertically-scrolling screen titled \"TREND VIEW\". Dark theme throughout: near-black/very-dark navy background (~#0B0F14 to #11151C), with cards on a slightly lighter dark grey (~#1A1F26). Sticky top header bar (back chevron + \"TREND VIEW\" centered) persists across all scroll positions. Primary accent color is WHOOP Strain blue (~#0093E7 / cyan-blue) used for bars, breakdown swatches, and ring graphics. Body/explanatory text is light grey (~#AEB4BB) on dark; headings are white (~#FFFFFF). A persistent circular WHOOP Coach button (gradient purple/blue orb with white \"W/\" logo) floats bottom-right (~bottom-right corner) on every scroll position \u2014 this is an AI/coach element and is EXCLUDED from the build. iOS status bar at very top shows time 09:39, silent-bell icon, cellular bars, wifi, battery 38%. Scroll order = the four image filenames (3913 top \u2192 3916 bottom). Images overlap; merged into one continuous screen below.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS system status bar. Left: time '09:39' in white bold, followed by a small silent/bell-off icon (bell with slash). Right: cellular signal bars (2 of 4 filled), wifi icon, battery glyph showing '38' with battery outline. Transparent over dark background.",
+   "literals": [
+    "09:39",
+    "38"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Header bar",
+   "type": "nav",
+   "description": "Top app header. Left: white back chevron '<' icon. Center: title 'TREND VIEW' in white, uppercase, bold, letter-spaced, ~16pt. No right-side action. Sticky across scroll.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "interaction": "Back chevron navigates back to the previous (Home/overview) screen.",
+   "colors": [
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown",
+   "type": "button",
+   "description": "Full-width rounded pill/card (~#272C34, lighter grey than background). Left: a small dumbbell/strain icon (line-art weightlifting glyph, grey). Center-left label 'DAY STRAIN' in white, uppercase, bold, ~18pt. Right: a downward chevron 'v' (white) indicating it expands to choose a different metric to trend.",
+   "literals": [
+    "DAY STRAIN"
+   ],
+   "interaction": "Tapping opens a metric picker to switch the trended metric (e.g., Recovery, HRV, Sleep, etc.).",
+   "colors": [
+    "#272C34",
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 4,
+   "name": "Average value block",
+   "type": "metric",
+   "description": "Left-aligned. Small grey uppercase label 'AVERAGE' (~12pt, ~#8A9099). Below it the large average value '6.4' in white, very bold, large (~52pt). This is the average Day Strain for the selected period.",
+   "literals": [
+    "AVERAGE",
+    "6.4"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#8A9099",
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 5,
+   "name": "Time-range segmented control",
+   "type": "pill",
+   "description": "Right-aligned rounded segmented control (dark pill ~#1C2128). Three segments: 'W', 'M', '6M'. 'M' is selected (lighter grey filled background ~#3A4049, white text); 'W' and '6M' are unselected (grey text ~#8A9099 on dark). Positioned to the right, vertically aligned with the AVERAGE block.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "interaction": "Tapping a segment switches the trend window: W=week, M=month, 6M=six months. Selected = 'M'.",
+   "colors": [
+    "#3A4049",
+    "#FFFFFF",
+    "#8A9099"
+   ]
+  },
+  {
+   "order": 6,
+   "name": "Date-range navigator",
+   "type": "metric-row",
+   "description": "Below the segmented control, centered. Left grey chevron '<' (paginate to previous month), center white bold text 'JUN 1 - JUN 30, 26', right grey chevron '>' (next month). Represents the displayed month range (year '26' = 2026).",
+   "literals": [
+    "JUN 1 - JUN 30, 26"
+   ],
+   "interaction": "Left/right chevrons page the date range by one period (month). Right chevron appears dimmed (current period).",
+   "colors": [
+    "#FFFFFF",
+    "#6A7079"
+   ]
+  },
+  {
+   "order": 7,
+   "name": "Summary sentence",
+   "type": "text",
+   "description": "Multi-line white sentence, regular weight, ~20pt: 'Your average Strain this month is 6.4. Keep wearing your WHOOP to see how this changes over time.' Left-aligned, spans width.",
+   "literals": [
+    "Your average Strain this month is 6.4. Keep wearing your WHOOP to see how this changes over time."
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 8,
+   "name": "Day Strain trend bar chart",
+   "type": "chart",
+   "description": "Vertical bar chart of daily Day Strain across the month. Y-axis (left, grey labels ~#8A9099): gridlines/labels at 0, 5, 10, 15, 21 (note 21 is the top, the WHOOP strain max; 5 has no drawn gridline label-line emphasis but value shown). Horizontal gridlines are faint grey (~#2A2F36) at 10, 15, 21 levels. X-axis labels (grey, two-line) at: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30' (weekly ticks). Bars are solid Strain-blue (~#0093E7), one per day, only present from ~Jun 15 onward (earlier days empty/no data). A horizontal white DASHED average line runs across at y\u22486.4 with a white rounded label tag 'AVG.' (black text on white pill) at the left end of the dashed line. Approximate bar heights left-to-right in the populated region: ~4.5, ~9.3, ~9.2, ~4.2, ~8.5, ~5.5, ~5.2, ~4.5, ~1.0 (very short), ~10.3 (tallest, near Jun 25), ~5.5, ~4.2, ~4.2.",
+   "literals": [
+    "21",
+    "15",
+    "10",
+    "5",
+    "0",
+    "AVG.",
+    "Jun 2",
+    "Jun 9",
+    "Jun 16",
+    "Jun 23",
+    "Jun 30"
+   ],
+   "interaction": "Tapping a bar likely selects that day and shows its value (standard WHOOP trend behavior).",
+   "colors": [
+    "#0093E7",
+    "#8A9099",
+    "#FFFFFF",
+    "#2A2F36"
+   ]
+  },
+  {
+   "order": 9,
+   "name": "Average disclaimer row",
+   "type": "text",
+   "description": "Below the chart. Left: a small circled 'i' info icon (grey). Text in grey (~#8A9099), regular: 'Average does not include today (Jun 30)'.",
+   "literals": [
+    "Average does not include today (Jun 30)"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#8A9099"
+   ]
+  },
+  {
+   "order": 10,
+   "name": "Strain Breakdown header",
+   "type": "section-header",
+   "description": "Section title. 'STRAIN BREAKDOWN' in white, uppercase, bold, letter-spaced, followed by '(DAYS)' in grey uppercase. Left-aligned.",
+   "literals": [
+    "STRAIN BREAKDOWN",
+    "(DAYS)"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#8A9099"
+   ]
+  },
+  {
+   "order": 11,
+   "name": "Strain breakdown stacked bar",
+   "type": "chart",
+   "description": "A single full-width horizontal stacked/segmented bar representing the proportion of days in each strain category. Mostly one continuous Strain-blue (~#1E7FB5 / #0093E7) bar; a thin lighter-blue segment at the far left (~7% width) separated by a small gap, representing the single 'Moderate' day vs the 13 'Light' days. Rounded ends.",
+   "literals": [],
+   "interaction": "none",
+   "colors": [
+    "#0093E7",
+    "#2E8FC4"
+   ]
+  },
+  {
+   "order": 12,
+   "name": "Breakdown legend row \u2014 All Out",
+   "type": "metric-row",
+   "description": "Legend row. Left: small blue square swatch (~#0093E7). Then count '0x' in white bold. Then category label 'All Out (>18.0)' in grey (~#8A9099), regular. Left-aligned, baseline-aligned.",
+   "literals": [
+    "0x",
+    "All Out (>18.0)"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#0093E7",
+    "#FFFFFF",
+    "#8A9099"
+   ]
+  },
+  {
+   "order": 13,
+   "name": "Breakdown legend row \u2014 Strenuous",
+   "type": "metric-row",
+   "description": "Legend row. Left: blue square swatch. Count '0x' white bold. Label 'Strenuous (14.1-18.0)' grey.",
+   "literals": [
+    "0x",
+    "Strenuous (14.1-18.0)"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#0093E7",
+    "#FFFFFF",
+    "#8A9099"
+   ]
+  },
+  {
+   "order": 14,
+   "name": "Breakdown legend row \u2014 Moderate",
+   "type": "metric-row",
+   "description": "Legend row. Left: blue square swatch. Count '1x' white bold. Label 'Moderate (10.1-14.0)' grey.",
+   "literals": [
+    "1x",
+    "Moderate (10.1-14.0)"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#0093E7",
+    "#FFFFFF",
+    "#8A9099"
+   ]
+  },
+  {
+   "order": 15,
+   "name": "Breakdown legend row \u2014 Light",
+   "type": "metric-row",
+   "description": "Legend row. Left: blue square swatch. Count '13x' white bold. Label 'Light (<10.0)' grey.",
+   "literals": [
+    "13x",
+    "Light (<10.0)"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#0093E7",
+    "#FFFFFF",
+    "#8A9099"
+   ]
+  },
+  {
+   "order": 16,
+   "name": "Learn More header",
+   "type": "section-header",
+   "description": "Section header row. Left: 'LEARN MORE' in grey, uppercase, bold, letter-spaced. Right: 'VIEW ALL' in white bold uppercase followed by a white right-arrow '\u2192' icon.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL"
+   ],
+   "interaction": "'VIEW ALL \u2192' navigates to a full list of educational content.",
+   "colors": [
+    "#8A9099",
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 17,
+   "name": "Learn More content carousel",
+   "type": "list",
+   "description": "Horizontally-scrolling carousel of media cards (rounded ~#1A1F26 cards with image thumbnails). Card 1 (VIDEO): thumbnail of a woman; top-right white pill label 'VIDEO'; overlay graphic of a blue Day Strain ring reading 'DAY STRAIN 17.0'; a white circular play button; caption below 'Understanding Strain with Kristen Holmes' (white) and duration '2 MIN.' (grey). Card 2 (ARTICLE): thumbnail of a hand holding a phone showing a strain ring '15.7'; top-right white pill label 'ARTICLE'; caption 'How Does WHOOP Strain Work?' (white). Card 3 (partially visible, scrolled off right): thumbnail of a man; caption 'Podcast 15... Science of... Dr. Andy W...' (truncated).",
+   "literals": [
+    "VIDEO",
+    "DAY STRAIN",
+    "17.0",
+    "Understanding Strain with Kristen Holmes",
+    "2 MIN.",
+    "ARTICLE",
+    "15.7",
+    "How Does WHOOP Strain Work?",
+    "Podcast 15",
+    "Science of",
+    "Dr. Andy W"
+   ],
+   "interaction": "Each card opens the corresponding video/article/podcast content. Carousel scrolls horizontally.",
+   "colors": [
+    "#1A1F26",
+    "#0093E7",
+    "#FFFFFF",
+    "#8A9099"
+   ]
+  },
+  {
+   "order": 18,
+   "name": "What is Day Strain? explainer card",
+   "type": "card",
+   "description": "Large rounded card (~#16191F) with a white bold heading 'What is Day Strain?' (~24pt) and three grey body paragraphs (~#AEB4BB, ~18pt, regular). Full verbatim text: Paragraph 1: 'Day Strain measures your total Strain accumulated over the course of the entire day. This includes both cardiovascular and muscular Strain.' Paragraph 2: 'Anything that gets your heart rate up can build cardiovascular Strain. This is why you can wake up with a Strain from 0-4. Muscular Strain measures the exertion to your musculoskeletal system from activities like weightlifting. Together these make up your Day Strain.' Paragraph 3: 'Strain gives you valuable insight into how various stressors impact your heart and musculature. The harder your body works, the more Strain you build. By understanding this you can train more effectively, manage your energy, and rest when needed.'",
+   "literals": [
+    "What is Day Strain?",
+    "Day Strain measures your total Strain accumulated over the course of the entire day. This includes both cardiovascular and muscular Strain.",
+    "Anything that gets your heart rate up can build cardiovascular Strain. This is why you can wake up with a Strain from 0-4. Muscular Strain measures the exertion to your musculoskeletal system from activities like weightlifting. Together these make up your Day Strain.",
+    "Strain gives you valuable insight into how various stressors impact your heart and musculature. The harder your body works, the more Strain you build. By understanding this you can train more effectively, manage your energy, and rest when needed."
+   ],
+   "interaction": "none",
+   "colors": [
+    "#16191F",
+    "#FFFFFF",
+    "#AEB4BB"
+   ]
+  },
+  {
+   "order": 19,
+   "name": "Which activities receive automatic muscular strain credit? card",
+   "type": "card",
+   "description": "Large rounded card (~#16191F). White bold heading wrapping two lines: 'Which activities receive automatic muscular strain credit?' (~24pt). Below it a bulleted list of activities (grey ~#AEB4BB, ~18pt, leading round bullets '\u2022'). Full alphabetical list verbatim: Babywearing, Barre, Barre3, Barry's, Bodybuilding, Bouldering, Box Fitness, Canoeing, Cross Country Skiing, F45 Training, Functional Fitness, HIIT, Hot Yoga, Kayaking, Kite Boarding, Manual Labor, Pilates, Powerlifting, Reformer Pilates, Rock Climbing, Rowing, Rucking, Sculpt Yoga, Ski Touring, Skiing, Snow Shoveling, Snowboarding, solidcore, Toddlerwearing, Wakeboarding, Water Skiing, Weightlifting, Wheelchair Pushing, Yoga.",
+   "literals": [
+    "Which activities receive automatic muscular strain credit?",
+    "Babywearing",
+    "Barre",
+    "Barre3",
+    "Barry\u2019s",
+    "Bodybuilding",
+    "Bouldering",
+    "Box Fitness",
+    "Canoeing",
+    "Cross Country Skiing",
+    "F45 Training",
+    "Functional Fitness",
+    "HIIT",
+    "Hot Yoga",
+    "Kayaking",
+    "Kite Boarding",
+    "Manual Labor",
+    "Pilates",
+    "Powerlifting",
+    "Reformer Pilates",
+    "Rock Climbing",
+    "Rowing",
+    "Rucking",
+    "Sculpt Yoga",
+    "Ski Touring",
+    "Skiing",
+    "Snow Shoveling",
+    "Snowboarding",
+    "solidcore",
+    "Toddlerwearing",
+    "Wakeboarding",
+    "Water Skiing",
+    "Weightlifting",
+    "Wheelchair Pushing",
+    "Yoga"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#16191F",
+    "#FFFFFF",
+    "#AEB4BB"
+   ]
+  }
+ ],
+ "charts": [
+  {
+   "name": "Day Strain monthly trend",
+   "kind": "bar",
+   "series": "Single series: daily Day Strain value per day in the month, solid Strain-blue bars (~#0093E7). Plus one horizontal dashed white average reference line.",
+   "xAxis": "Days of month, weekly tick labels: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30'. Bars only populated from ~Jun 15 to Jun 30.",
+   "yAxis": "Day Strain 0\u201321 (WHOOP strain scale max 21). Labeled gridlines at 0, 5, 10, 15, 21. Faint grey horizontal gridlines.",
+   "notes": "White dashed AVG. line at ~6.4 with a white rounded 'AVG.' tag (black text) at its left end. Tallest bar ~10.3 near Jun 25; one very short bar ~1.0. Single Y axis (no dual axis).",
+   "colors": [
+    "#0093E7",
+    "#FFFFFF",
+    "#8A9099",
+    "#2A2F36"
+   ]
+  },
+  {
+   "name": "Strain breakdown distribution",
+   "kind": "zone-bars",
+   "series": "One horizontal segmented bar showing proportion of days per strain category (All Out 0, Strenuous 0, Moderate 1, Light 13). Mostly one blue segment with a thin lighter-blue segment at far left.",
+   "xAxis": "Proportion of days (0\u2013100% of the 14 logged days).",
+   "yAxis": "none (single bar).",
+   "notes": "Categories with thresholds: All Out >18.0 (0x), Strenuous 14.1-18.0 (0x), Moderate 10.1-14.0 (1x), Light <10.0 (13x). Legend below the bar.",
+   "colors": [
+    "#0093E7",
+    "#2E8FC4"
+   ]
+  }
+ ],
+ "excluded": [
+  "WHOOP Coach floating orb button (gradient purple/blue circle with 'W/' logo) fixed at bottom-right on all scroll positions \u2014 AI/coach feature, excluded from build",
+  "Learn More content carousel cards (Understanding Strain video, How Does WHOOP Strain Work? article, Podcast 15 Science of... Dr. Andy W) and the 'VIEW ALL \u2192' link \u2014 these are WHOOP marketing/educational community content; spec'd in layout for fidelity but treat as optional/excluded community content if community features are stripped"
+ ],
+ "_key": "day_strain",
+ "_dir": "home/day strain"
+}

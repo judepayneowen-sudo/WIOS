@@ -1,0 +1,1003 @@
+{
+ "screen": "sleep",
+ "globalNotes": "Single vertically-scrolling screen titled \"TODAY\". Sticky top nav stays fixed: left chevron back-arrow, centered \"TODAY\" (white, bold, uppercase, letter-spaced), right circular outlined \"i\" info button. Background is a very dark near-black blue-grey (#0E1419 to #11161C); cards sit on a slightly lighter raised panel (#1A2026 / #20262C) with rounded corners (~16px radius). Status bar shows 09:33 (later 09:34), silent-mode bell-with-slash icon, cellular/wifi, battery 40 then 39. A floating circular WHOOP logo button (purple/blue gradient ring with white W mark) is pinned bottom-right over all scroll positions \u2014 opens WHOOP Coach (EXCLUDED feature, treat as decorative/omit). Two large groupings: (1) the TODAY sleep-score summary (ring + 4 metric rows + legend), (2) \"Last Night's Sleep\" detail cards (Hours of Sleep hypnogram, Hours vs Needed, Sleep Consistency, Sleep Efficiency, Sleep Stress), then (3) \"Weekly Trends\" \u2014 a stack of weekly history cards each with a chevron to drill in. Accent palette: sleep-blue #7FA8C9 / #8FB0CE for primary sleep bars & ring; greens for \"optimal\"/restorative #3FE0A0-ish; orange #F5A623 for \"poor\"/high-stress; purples for sleep stages (light #8E8BE8, SWS pink #F09EE6, REM violet #B06AE8). Scroll order follows the 10 filenames top to bottom.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Top navigation bar",
+   "type": "nav",
+   "description": "Fixed header. Left: white back chevron (<). Center: 'TODAY' in white, bold, uppercase, ~15px, letter-spaced. Right: circular outlined info icon ('i') ~32px, thin grey ring, grey 'i'. Sits on the dark background, no card.",
+   "literals": [
+    "TODAY"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "Back chevron returns to Home/overview. Info 'i' opens an explainer about the Sleep screen."
+  },
+  {
+   "order": 2,
+   "name": "Sleep Performance ring (big ring)",
+   "type": "bigring",
+   "description": "Large centered circular progress ring. Track is dark grey; the progress arc is sleep-blue (#8FB0CE) sweeping most of the circle (about 86%); a short darker grey segment near the top represents the gap. Inside, stacked and centered: faint grey 'WHOOP' wordmark at top, then very large white '86' with smaller '%' superscript (86 is ~80px heavy/extra-bold, % ~32px), then 'SLEEP PERFORMANCE' in white bold uppercase two lines. Below that a tiny 3-segment pill indicator: two grey segments then one green segment (the green = score category Optimal). A small upward triangle/caret sits just under the ring pointing to the metrics card below.",
+   "literals": [
+    "WHOOP",
+    "86",
+    "%",
+    "SLEEP PERFORMANCE"
+   ],
+   "colors": [
+    "#8FB0CE",
+    "#3A4149",
+    "#FFFFFF",
+    "#3FE0A0"
+   ],
+   "interaction": "Tapping the ring opens the Sleep Performance breakdown / score detail."
+  },
+  {
+   "order": 3,
+   "name": "Sleep score components card",
+   "type": "card",
+   "description": "Rounded card directly under the ring (connected by the caret). Contains 4 metric rows, each: small circular icon on the left, an uppercase white label, a 3-segment horizontal mini progress indicator (segments colored poor/sufficient/optimal), and a large white percentage value on the right. Rows separated by thin hairline dividers.",
+   "literals": [],
+   "colors": [
+    "#20262C",
+    "#FFFFFF"
+   ],
+   "interaction": "Each row likely taps into the corresponding detail card lower on the screen."
+  },
+  {
+   "order": 4,
+   "name": "HOURS VS. NEEDED row",
+   "type": "metric-row",
+   "description": "Crescent-moon icon. Label 'HOURS VS. NEEDED' white bold uppercase. 3-segment mini bar: two grey (sufficient) segments then a green (optimal) segment lit on the right. Value '100%' large white bold, right-aligned.",
+   "literals": [
+    "HOURS VS. NEEDED",
+    "100%"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3FE0A0",
+    "#3A4149"
+   ],
+   "interaction": "Scrolls/links to the 'HOURS VS. NEEDED' detail card."
+  },
+  {
+   "order": 5,
+   "name": "SLEEP CONSISTENCY row",
+   "type": "metric-row",
+   "description": "Double-crescent icon. Label 'SLEEP CONSISTENCY' white bold uppercase. 3-segment mini bar with the FIRST (left) segment lit orange (poor) and the rest grey. Value '69%' large white bold right-aligned.",
+   "literals": [
+    "SLEEP CONSISTENCY",
+    "69%"
+   ],
+   "colors": [
+    "#F5A623",
+    "#3A4149",
+    "#FFFFFF"
+   ],
+   "interaction": "Links to 'SLEEP CONSISTENCY' detail card."
+  },
+  {
+   "order": 6,
+   "name": "SLEEP EFFICIENCY row",
+   "type": "metric-row",
+   "description": "Bed/bar-graph icon. Label 'SLEEP EFFICIENCY' white bold uppercase. 3-segment mini bar: two grey then green (optimal) lit on right. Value '92%' large white bold right-aligned.",
+   "literals": [
+    "SLEEP EFFICIENCY",
+    "92%"
+   ],
+   "colors": [
+    "#3FE0A0",
+    "#3A4149",
+    "#FFFFFF"
+   ],
+   "interaction": "Links to 'SLEEP EFFICIENCY' detail card."
+  },
+  {
+   "order": 7,
+   "name": "HIGH SLEEP STRESS row",
+   "type": "metric-row",
+   "description": "Gauge/speedometer icon. Label 'HIGH SLEEP STRESS' white bold uppercase. 3-segment mini bar: two grey then green (optimal) lit on right. Value '0%' large white bold right-aligned.",
+   "literals": [
+    "HIGH SLEEP STRESS",
+    "0%"
+   ],
+   "colors": [
+    "#3FE0A0",
+    "#3A4149",
+    "#FFFFFF"
+   ],
+   "interaction": "Links to 'SLEEP STRESS' detail card."
+  },
+  {
+   "order": 8,
+   "name": "Score legend pill",
+   "type": "pill",
+   "description": "Rounded dark pill bar spanning the card width below the rows. Three legend items left to right: orange dash + 'Poor', grey dash + 'Sufficient', green dash + 'Optimal'. Text is light grey, sentence case.",
+   "literals": [
+    "Poor",
+    "Sufficient",
+    "Optimal"
+   ],
+   "colors": [
+    "#F5A623",
+    "#8A929A",
+    "#3FE0A0",
+    "#1A2026"
+   ],
+   "interaction": "None (static legend)."
+  },
+  {
+   "order": 9,
+   "name": "Last Night's Sleep section header",
+   "type": "section-header",
+   "description": "Large white title 'Last Night's Sleep' (mixed-case, bold, ~28px). Subtitle beneath: 'Today' in white bold + ' vs. prior 30 days' in grey. On the right: 'EDIT' in white uppercase next to a pencil edit icon.",
+   "literals": [
+    "Last Night's Sleep",
+    "Today",
+    "vs. prior 30 days",
+    "EDIT"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "EDIT / pencil opens sleep editing (adjust sleep/wake times, add naps)."
+  },
+  {
+   "order": 10,
+   "name": "HOURS OF SLEEP card (heart-rate hypnogram)",
+   "type": "card",
+   "description": "Rounded card. Header 'HOURS OF SLEEP' white bold uppercase with a small circular 'i' info icon top-right. Below header: large white '9:16' with a small green up-triangle (improvement vs baseline) and beneath it small grey baseline '7:44'. Main graphic is a heart-rate line graph across the night.",
+   "literals": [
+    "HOURS OF SLEEP",
+    "9:16",
+    "7:44"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3FE0A0",
+    "#8A929A",
+    "#20262C"
+   ],
+   "interaction": "Info 'i' explains hours of sleep metric."
+  },
+  {
+   "order": 11,
+   "name": "Overnight heart-rate line chart",
+   "type": "chart",
+   "description": "Line chart of overnight heart rate. Y-axis (left) labels 90, 70, 50, 30 (bpm), grey. The plotted series is a thin light blue-grey jagged HR line (#9FB4C6) that spikes near both ends (sleep onset ~80-90 and wake ~90) and stays low (~50) through the night. Two white dashed vertical marker lines with white dots at the bottom mark sleep start and end. X-axis endpoints labeled '22:31' (left, bedtime) and '08:40' (right, wake). No top X gridline labels between endpoints.",
+   "literals": [
+    "90",
+    "70",
+    "50",
+    "30",
+    "22:31",
+    "08:40"
+   ],
+   "colors": [
+    "#9FB4C6",
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "Likely scrub/tap to read HR at a time point."
+  },
+  {
+   "order": 12,
+   "name": "Sleep stages breakdown (TYPICAL RANGE / DURATION)",
+   "type": "table",
+   "description": "Below the HR chart, a header row: left 'TYPICAL RANGE' with a small bracket-range icon; right 'DURATION' grey label followed by total '10:09' white bold. Then four sleep-stage rows, each with a white-outlined circle bullet, a stage name, a colored percentage, a horizontal bar showing the stage amount against the typical-range band (a hatched grey track with a lighter dashed window indicating the user's typical range), and the stage duration on the right.",
+   "literals": [
+    "TYPICAL RANGE",
+    "DURATION",
+    "10:09"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "Static breakdown; possibly taps to staging detail."
+  },
+  {
+   "order": 13,
+   "name": "AWAKE stage row",
+   "type": "metric-row",
+   "description": "Circle bullet, 'AWAKE' white bold, '8%' in grey next to it. Duration '0:53' white bold right-aligned. Bar below: a light grey filled segment near the left over a hatched grey track, with a dashed typical-range window box around it.",
+   "literals": [
+    "AWAKE",
+    "8%",
+    "0:53"
+   ],
+   "colors": [
+    "#C8CDD2",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "None / detail."
+  },
+  {
+   "order": 14,
+   "name": "LIGHT stage row",
+   "type": "metric-row",
+   "description": "Circle bullet, 'LIGHT' white bold, '44%' in light purple (#8E8BE8). Duration '4:22' white bold right-aligned. Bar below: a light-purple filled bar (#9B97F0) extending past mid, ending inside a dashed typical-range window over a hatched grey track.",
+   "literals": [
+    "LIGHT",
+    "44%",
+    "4:22"
+   ],
+   "colors": [
+    "#9B97F0",
+    "#FFFFFF"
+   ],
+   "interaction": "None / detail."
+  },
+  {
+   "order": 15,
+   "name": "SWS (DEEP) stage row",
+   "type": "metric-row",
+   "description": "Circle bullet, 'SWS (DEEP)' white bold, '15%' in pink (#F09EE6). Duration '1:32' white bold right-aligned. Bar below: a short pink filled bar (#F4A8E8) on the left, with a dashed typical-range window just to its right over a hatched grey track.",
+   "literals": [
+    "SWS (DEEP)",
+    "15%",
+    "1:32"
+   ],
+   "colors": [
+    "#F4A8E8",
+    "#FFFFFF"
+   ],
+   "interaction": "None / detail."
+  },
+  {
+   "order": 16,
+   "name": "REM stage row",
+   "type": "metric-row",
+   "description": "Circle bullet, 'REM' white bold, '33%' in violet (#B06AE8). Duration '3:22' white bold right-aligned. Bar below: a violet filled bar (#B06AE8) extending ~1/3 with a dashed typical-range window straddling its end over a hatched grey track.",
+   "literals": [
+    "REM",
+    "33%",
+    "3:22"
+   ],
+   "colors": [
+    "#B06AE8",
+    "#FFFFFF"
+   ],
+   "interaction": "None / detail."
+  },
+  {
+   "order": 17,
+   "name": "RESTORATIVE SLEEP row",
+   "type": "metric-row",
+   "description": "Separated by a hairline divider. Left: a small pink/violet split-square icon then 'RESTORATIVE SLEEP' white bold uppercase. Right: '4:54' white bold with a small green up-triangle, and beneath it grey baseline '4:00'. (Restorative = SWS + REM combined.)",
+   "literals": [
+    "RESTORATIVE SLEEP",
+    "4:54",
+    "4:00"
+   ],
+   "colors": [
+    "#F4A8E8",
+    "#B06AE8",
+    "#FFFFFF",
+    "#3FE0A0",
+    "#8A929A"
+   ],
+   "interaction": "None / detail."
+  },
+  {
+   "order": 18,
+   "name": "HOURS VS. NEEDED detail card",
+   "type": "card",
+   "description": "Rounded card. Header 'HOURS VS. NEEDED' white bold uppercase + circular 'i' info top-right. Below: large white '100%' with green up-triangle, then grey baseline '93%'. Then a two-bar comparison: a 'HOURS OF SLEEP' row (label left, '9:16' value right) shown as a blue gradient horizontal bar nearly full; below it a 'SLEEP NEEDED' bar shown as a grey gradient bar with a small white cap and a blue tick, with label 'SLEEP NEEDED' left and '8:31' value right; a small caret points down to a breakdown box.",
+   "literals": [
+    "HOURS VS. NEEDED",
+    "100%",
+    "93%",
+    "HOURS OF SLEEP",
+    "9:16",
+    "SLEEP NEEDED",
+    "8:31"
+   ],
+   "colors": [
+    "#7FA8C9",
+    "#3FE0A0",
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "Info 'i' explains the metric."
+  },
+  {
+   "order": 19,
+   "name": "Sleep Needed breakdown box",
+   "type": "table",
+   "description": "Dark inset rounded box under the Sleep Needed bar with 3 labeled rows, each a small colored square swatch + label (left) and a value (right): grey square 'Healthy Minimum' = '7:47'; blue square 'Recent Strain' = '+0:02'; light-grey square 'Sleep Debt' = '+0:42'. Values white, the '+' additions show how sleep-needed is built up.",
+   "literals": [
+    "Healthy Minimum",
+    "7:47",
+    "Recent Strain",
+    "+0:02",
+    "Sleep Debt",
+    "+0:42"
+   ],
+   "colors": [
+    "#3A4149",
+    "#1E9BF0",
+    "#C8CDD2",
+    "#FFFFFF"
+   ],
+   "interaction": "None (static breakdown)."
+  },
+  {
+   "order": 20,
+   "name": "SLEEP CONSISTENCY detail card",
+   "type": "card",
+   "description": "Rounded card. Header 'SLEEP CONSISTENCY' white bold + 'i' info top-right. Below: large white '69%' with an orange down-triangle (decline), then grey baseline '70%'. To the right of the value area a legend: '- - -' grey dashed sample + 'OPTIMAL BED/WAKETIME' grey uppercase. Contains a bed/wake bar chart.",
+   "literals": [
+    "SLEEP CONSISTENCY",
+    "69%",
+    "70%",
+    "OPTIMAL BED/WAKETIME"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#F5A623",
+    "#8A929A"
+   ],
+   "interaction": "Info 'i' explains consistency."
+  },
+  {
+   "order": 21,
+   "name": "Sleep consistency bed/wake bar chart",
+   "type": "chart",
+   "description": "Floating-bar chart: each day is a vertical bar spanning from bedtime (top) to waketime (bottom). Y-axis (time-of-day) labels top to bottom: 19:00, 23:00, 03:00, 07:00, 11:00 (grey). X-axis days: Fri, Sat, Sun, Mon, Tue. Fri-Mon bars are grey (#7E868E); the latest 'Tue' bar is sleep-blue (#7FA8C9) and highlighted with a black pill label '22:31' above (bedtime) and '8:40' below (waketime). Two dashed white/grey curved lines run across the chart marking the optimal bedtime band (upper dashed curve ~22:00) and optimal waketime band (lower dashed curve ~07:30).",
+   "literals": [
+    "19:00",
+    "23:00",
+    "03:00",
+    "07:00",
+    "11:00",
+    "Fri",
+    "Sat",
+    "Sun",
+    "Mon",
+    "Tue",
+    "22:31",
+    "8:40"
+   ],
+   "colors": [
+    "#7FA8C9",
+    "#7E868E",
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "Tap a bar to see that night's bed/wake times."
+  },
+  {
+   "order": 22,
+   "name": "SLEEP EFFICIENCY detail card",
+   "type": "card",
+   "description": "Rounded card. Header 'SLEEP EFFICIENCY' white bold + 'i' info top-right. Below: large white '92%' with orange down-triangle, then grey baseline '95%'. Then an asleep-vs-awake split bar visualization and a wake-events row.",
+   "literals": [
+    "SLEEP EFFICIENCY",
+    "92%",
+    "95%"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#F5A623",
+    "#8A929A"
+   ],
+   "interaction": "Info 'i' explains efficiency."
+  },
+  {
+   "order": 23,
+   "name": "Asleep / Awake split bars",
+   "type": "chart",
+   "description": "Two stacked horizontal bars. Top: 'ASLEEP' grey label left, '9:16' white bold right; a long sleep-blue (#8FB0CE) bar segmented into ~10 cells with a small hatched cap at the very left. Bottom: a thin grey track row with a light-grey filled cell at the far left then hatched segments across, labeled 'AWAKE' grey left and '0:52' white bold right. A hairline divider separates this from the wake-events row.",
+   "literals": [
+    "ASLEEP",
+    "9:16",
+    "AWAKE",
+    "0:52"
+   ],
+   "colors": [
+    "#8FB0CE",
+    "#C8CDD2",
+    "#3A4149",
+    "#FFFFFF"
+   ],
+   "interaction": "None."
+  },
+  {
+   "order": 24,
+   "name": "WAKE EVENTS row",
+   "type": "metric-row",
+   "description": "Small light-grey square swatch + 'WAKE EVENTS' white bold uppercase on the left; large white '13' right-aligned.",
+   "literals": [
+    "WAKE EVENTS",
+    "13"
+   ],
+   "colors": [
+    "#C8CDD2",
+    "#FFFFFF"
+   ],
+   "interaction": "None."
+  },
+  {
+   "order": 25,
+   "name": "SLEEP STRESS detail card",
+   "type": "card",
+   "description": "Rounded card. Header 'SLEEP STRESS' white bold + 'i' info top-right. Below: large white '0%' with a small green down-triangle, then grey baseline '6%'. A small white crescent-moon icon floats over the chart (marks the sleep period). Contains an overnight stress line chart plus High/Medium/Low duration breakdown bars.",
+   "literals": [
+    "SLEEP STRESS",
+    "0%",
+    "6%"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3FE0A0",
+    "#8A929A"
+   ],
+   "interaction": "Info 'i' explains sleep stress."
+  },
+  {
+   "order": 26,
+   "name": "Overnight sleep-stress line chart",
+   "type": "chart",
+   "description": "Line chart of overnight stress. Y-axis labels 3.0, 2.0, 1.0, 0.0 (grey). The series is a line that is GREEN (#3FE0A0) where stress is elevated (spiky at the start ~21:30 reaching ~1.7, and again rising at the end near wake) and BLUE (#5FB4D8) where stress is low (the long flat ~0.3 middle of the night) \u2014 a green-to-blue gradient along the line. A horizontal light-blue capped reference line sits at 3.0 spanning the shaded sleep window; the sleep window is a faintly shaded rectangle. A white dashed vertical line with a white dot at the right marks 'now'/wake. X-axis labels: '21:31' (left), '01:00', '05:00', '09:25' (right).",
+   "literals": [
+    "3.0",
+    "2.0",
+    "1.0",
+    "0.0",
+    "21:31",
+    "01:00",
+    "05:00",
+    "09:25"
+   ],
+   "colors": [
+    "#3FE0A0",
+    "#5FB4D8",
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "Scrub to read stress value at a time."
+  },
+  {
+   "order": 27,
+   "name": "Sleep-stress High/Medium/Low breakdown",
+   "type": "table",
+   "description": "Three rows under the chart, each: uppercase label + colored percentage on the left, a horizontal bar (filled colored portion over a hatched grey track) in the middle/under, and a duration on the right. Row 1: 'HIGH' white bold + '0%' orange; bar empty (fully hatched grey); '0:00'. Row 2: 'MEDIUM' white bold + '3%' green; tiny green filled cap at left of hatched track; '0:20'. Row 3: 'LOW' white bold + '97%' blue; nearly-full sleep-blue bar; '9:49'.",
+   "literals": [
+    "HIGH",
+    "0%",
+    "0:00",
+    "MEDIUM",
+    "3%",
+    "0:20",
+    "LOW",
+    "97%",
+    "9:49"
+   ],
+   "colors": [
+    "#F5A623",
+    "#3FE0A0",
+    "#7FA8C9",
+    "#FFFFFF",
+    "#3A4149"
+   ],
+   "interaction": "None."
+  },
+  {
+   "order": 28,
+   "name": "Weekly Trends section header",
+   "type": "section-header",
+   "description": "Large white title 'Weekly Trends' (mixed-case, bold, ~28px), left-aligned, introducing the stack of weekly history cards below.",
+   "literals": [
+    "Weekly Trends"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "None."
+  },
+  {
+   "order": 29,
+   "name": "SLEEP PERFORMANCE weekly card",
+   "type": "chart",
+   "description": "Rounded card. Header 'SLEEP PERFORMANCE' white bold uppercase + right chevron '>'. Vertical bar chart, one bar per day, all sleep-blue (#8FB0CE). Each bar has its value labeled above in blue. Values left to right: 76%, 84%, 90%, 82%, 76%, 87%, 86%. X-axis day labels with dates: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30. The last column (Tue 30) is highlighted with a lighter vertical band behind it and its date is white/bold while others are grey. Faint horizontal gridlines.",
+   "literals": [
+    "SLEEP PERFORMANCE",
+    "76%",
+    "84%",
+    "90%",
+    "82%",
+    "76%",
+    "87%",
+    "86%",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#8FB0CE",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "Chevron '>' opens the full Sleep Performance trend history."
+  },
+  {
+   "order": 30,
+   "name": "HOURS VS. NEEDED (HOURS) weekly card",
+   "type": "chart",
+   "description": "Rounded card. Header 'HOURS VS. NEEDED (HOURS)' white bold uppercase + right chevron '>'. Legend row: blue ring + 'HOURS OF SLEEP', green ring + 'SLEEP NEEDED'. Dual line chart over the same 7 days. Blue line = Hours of Sleep (grey/blue with blue open-circle markers); green line = Sleep Needed (green with green open-circle markers). Each marker value annotated. Hours of Sleep values: 7:12, 7:23, 8:06, 6:26, 7:42, 7:10, 9:16. Sleep Needed values: 7:54, 8:10, 8:10, 8:03, 8:38, 8:16, 8:31. X-axis: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30; Tue 30 column highlighted with lighter band.",
+   "literals": [
+    "HOURS VS. NEEDED (HOURS)",
+    "HOURS OF SLEEP",
+    "SLEEP NEEDED",
+    "7:12",
+    "7:23",
+    "8:06",
+    "6:26",
+    "7:42",
+    "7:10",
+    "9:16",
+    "7:54",
+    "8:10",
+    "8:10",
+    "8:03",
+    "8:38",
+    "8:16",
+    "8:31",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#7FA8C9",
+    "#3FE0A0",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "Chevron '>' opens the full Hours vs Needed trend history."
+  },
+  {
+   "order": 31,
+   "name": "HOURS VS. NEEDED (%) weekly card",
+   "type": "chart",
+   "description": "Rounded card. Header 'HOURS VS. NEEDED (%)' white bold uppercase + right chevron '>'. Vertical bar chart, all sleep-blue bars, value labeled above each in blue. Values: 91%, 91%, 99%, 80%, 89%, 87%, 100%. X-axis: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30; Tue 30 highlighted with lighter band. Faint gridlines.",
+   "literals": [
+    "HOURS VS. NEEDED (%)",
+    "91%",
+    "91%",
+    "99%",
+    "80%",
+    "89%",
+    "87%",
+    "100%",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#8FB0CE",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "Chevron '>' opens the full Hours vs Needed (%) trend history."
+  },
+  {
+   "order": 32,
+   "name": "RESTORATIVE SLEEP (HOURS) weekly card",
+   "type": "chart",
+   "description": "Rounded card. Header 'RESTORATIVE SLEEP (HOURS)' white bold uppercase + right chevron '>'. Legend: pink square + 'DEEP SLEEP', violet square + 'REM SLEEP'. Stacked vertical bar chart per day: lower segment violet/purple (REM, #B06AE8) and upper segment pink (Deep, #F09EE6); a thin divider marks the deep/REM boundary. Total restorative value labeled above each bar in white. Values: 4:01, 3:44, 4:28, 3:59, 3:44, 3:55, 4:54. X-axis: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30; Tue 30 highlighted and its day label white/bold (note: Tue label shown without date '30' in this crop but column is the highlighted latest).",
+   "literals": [
+    "RESTORATIVE SLEEP (HOURS)",
+    "DEEP SLEEP",
+    "REM SLEEP",
+    "4:01",
+    "3:44",
+    "4:28",
+    "3:59",
+    "3:44",
+    "3:55",
+    "4:54",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#F09EE6",
+    "#B06AE8",
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "Chevron '>' opens the full Restorative Sleep trend history."
+  },
+  {
+   "order": 33,
+   "name": "SLEEP CONSISTENCY weekly card",
+   "type": "chart",
+   "description": "Rounded card. Header 'SLEEP CONSISTENCY' white bold uppercase + right chevron '>'. Vertical bar chart, all sleep-blue bars, value labeled above each in blue. Values: 75%, 71%, 78%, 80%, 83%, 81%, 69%. X-axis: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30; Tue 30 column highlighted with lighter band and white/bold date. Faint gridlines.",
+   "literals": [
+    "SLEEP CONSISTENCY",
+    "75%",
+    "71%",
+    "78%",
+    "80%",
+    "83%",
+    "81%",
+    "69%",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#8FB0CE",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "Chevron '>' opens the full Sleep Consistency trend history."
+  },
+  {
+   "order": 34,
+   "name": "TIME IN BED weekly card",
+   "type": "chart",
+   "description": "Rounded card. Header 'TIME IN BED' white bold uppercase + right chevron '>'. Floating-bar chart per day: each sleep-blue bar spans from bedtime (top, labeled above in blue) to waketime (bottom, labeled below in blue). Bedtimes top labels: 00:47, 23:44, 23:09, 00:52, 00:01, 01:04, 22:31. Waketimes bottom labels: 08:31, 07:24, 07:31, 07:40, 08:17, 08:26, 08:40. X-axis: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30; last (Tue 30) bar highlighted with lighter band.",
+   "literals": [
+    "TIME IN BED",
+    "00:47",
+    "23:44",
+    "23:09",
+    "00:52",
+    "00:01",
+    "01:04",
+    "22:31",
+    "08:31",
+    "07:24",
+    "07:31",
+    "07:40",
+    "08:17",
+    "08:26",
+    "08:40",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#8FB0CE",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "Chevron '>' opens the full Time in Bed trend history."
+  },
+  {
+   "order": 35,
+   "name": "SLEEP EFFICIENCY weekly card",
+   "type": "chart",
+   "description": "Rounded card. Header 'SLEEP EFFICIENCY' white bold uppercase + right chevron '>'. Line chart with blue open-circle markers connected by a grey-blue line over the 7 days. Each point value labeled in blue. Values: 93%, 97%, 97%, 95%, 94%, 98%, 92%. X-axis: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30; Tue 30 column highlighted with lighter vertical band and white/bold date. Faint horizontal gridlines.",
+   "literals": [
+    "SLEEP EFFICIENCY",
+    "93%",
+    "97%",
+    "97%",
+    "95%",
+    "94%",
+    "98%",
+    "92%",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#7FA8C9",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "Chevron '>' opens the full Sleep Efficiency trend history."
+  },
+  {
+   "order": 36,
+   "name": "SLEEP DEBT weekly card",
+   "type": "chart",
+   "description": "Rounded card. Header 'SLEEP DEBT' white bold uppercase + right chevron '>'. Vertical bar chart, all sleep-blue bars, value labeled above each in blue (hh:mm of debt). Values: 0:27, 0:30, 0:03, 0:48, 0:36, 0:42, 0:00. X-axis: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30; Tue 30 column highlighted with lighter band (its bar is essentially zero so only the '0:00' label shows). Faint gridlines.",
+   "literals": [
+    "SLEEP DEBT",
+    "0:27",
+    "0:30",
+    "0:03",
+    "0:48",
+    "0:36",
+    "0:42",
+    "0:00",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#8FB0CE",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "Chevron '>' opens the full Sleep Debt trend history."
+  },
+  {
+   "order": 37,
+   "name": "SLEEP STRESS weekly card",
+   "type": "chart",
+   "description": "Rounded card (bottom of screen). Header 'SLEEP STRESS' white bold uppercase + right chevron '>'. Legend: orange square + 'HIGH', green square + 'MEDIUM', blue square + 'LOW'. Stacked vertical bar chart per day: blue bottom (LOW), green middle (MEDIUM), orange top (HIGH). The HIGH duration is labeled above each bar in orange. Top labels (HIGH durations): 1:44, 0:00, 0:00, 0:20, 2:05, 0:00, 0:00. Bars vary: Wed has large orange+green; Thu/Fri/Mon are nearly all blue; Sat has green+small orange; Sun has large green+orange; Tue (highlighted) is mostly blue with tiny green cap. X-axis: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30; Tue 30 highlighted with lighter band and white/bold date.",
+   "literals": [
+    "SLEEP STRESS",
+    "HIGH",
+    "MEDIUM",
+    "LOW",
+    "1:44",
+    "0:00",
+    "0:00",
+    "0:20",
+    "2:05",
+    "0:00",
+    "0:00",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#F5A623",
+    "#3FE0A0",
+    "#7FA8C9",
+    "#8A929A",
+    "#FFFFFF"
+   ],
+   "interaction": "Chevron '>' opens the full Sleep Stress trend history."
+  }
+ ],
+ "charts": [
+  {
+   "name": "Overnight heart-rate hypnogram (HOURS OF SLEEP card)",
+   "kind": "line",
+   "series": "Single overnight HR line, thin light blue-grey (#9FB4C6), jagged with spikes at sleep onset and wake.",
+   "xAxis": "Time of night; endpoints labeled 22:31 (bedtime) and 08:40 (wake); no intermediate labels.",
+   "yAxis": "Heart rate bpm; labels 90, 70, 50, 30 (single left axis).",
+   "notes": "Two white dashed vertical markers with white dots flag sleep start (22:31) and end (08:40). Body of night sits ~50 bpm; onset/wake spike to ~80-90.",
+   "colors": [
+    "#9FB4C6",
+    "#FFFFFF",
+    "#8A929A"
+   ]
+  },
+  {
+   "name": "Sleep consistency bed/wake bars (detail)",
+   "kind": "zone-bars",
+   "series": "Per-day floating bars (top=bedtime, bottom=waketime). Fri-Mon grey (#7E868E); Tue sleep-blue (#7FA8C9, selected). Two dashed reference curves = optimal bedtime band (upper) and optimal waketime band (lower).",
+   "xAxis": "Days: Fri, Sat, Sun, Mon, Tue.",
+   "yAxis": "Time of day (inverted, evening at top): 19:00, 23:00, 03:00, 07:00, 11:00.",
+   "notes": "Selected Tue bar annotated with black pill labels 22:31 (top) and 8:40 (bottom). Legend: '- - - OPTIMAL BED/WAKETIME'.",
+   "colors": [
+    "#7FA8C9",
+    "#7E868E",
+    "#FFFFFF"
+   ]
+  },
+  {
+   "name": "Overnight sleep-stress line (SLEEP STRESS detail)",
+   "kind": "line",
+   "series": "Single stress line with green segments (#3FE0A0) where elevated and blue segments (#5FB4D8) where low. Horizontal light-blue capped reference line at 3.0 across the shaded sleep window.",
+   "xAxis": "Time: 21:31, 01:00, 05:00, 09:25.",
+   "yAxis": "Stress 0-3: labels 0.0, 1.0, 2.0, 3.0.",
+   "notes": "Faint shaded sleep-window rectangle; white crescent-moon icon above; white dashed vertical 'now' line with dot at right (09:25). Stress spikes ~1.7 at onset and rises again near wake; flat ~0.3 mid-night.",
+   "colors": [
+    "#3FE0A0",
+    "#5FB4D8",
+    "#FFFFFF"
+   ]
+  },
+  {
+   "name": "Sleep Performance weekly bars",
+   "kind": "bar",
+   "series": "One sleep-blue (#8FB0CE) bar per day, value labeled above in blue.",
+   "xAxis": "Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Percent (implicit 0-100, no axis labels), faint gridlines.",
+   "notes": "Values 76, 84, 90, 82, 76, 87, 86 (%).",
+   "colors": [
+    "#8FB0CE"
+   ]
+  },
+  {
+   "name": "Hours vs Needed (Hours) weekly dual line",
+   "kind": "line",
+   "series": "Two lines: Hours of Sleep (blue, #7FA8C9, open-circle markers) and Sleep Needed (green, #3FE0A0, open-circle markers).",
+   "xAxis": "Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Hours (hh:mm), no explicit axis labels; values annotated at each marker.",
+   "notes": "Hours of Sleep: 7:12, 7:23, 8:06, 6:26, 7:42, 7:10, 9:16. Sleep Needed: 7:54, 8:10, 8:10, 8:03, 8:38, 8:16, 8:31. Legend: blue 'HOURS OF SLEEP', green 'SLEEP NEEDED'.",
+   "colors": [
+    "#7FA8C9",
+    "#3FE0A0"
+   ]
+  },
+  {
+   "name": "Hours vs Needed (%) weekly bars",
+   "kind": "bar",
+   "series": "One sleep-blue (#8FB0CE) bar per day, value labeled above.",
+   "xAxis": "Wed 24 ... Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Percent, faint gridlines.",
+   "notes": "Values 91, 91, 99, 80, 89, 87, 100 (%).",
+   "colors": [
+    "#8FB0CE"
+   ]
+  },
+  {
+   "name": "Restorative Sleep (Hours) weekly stacked bars",
+   "kind": "bar",
+   "series": "Stacked bars: REM (violet #B06AE8, lower) + Deep (pink #F09EE6, upper). Total labeled above in white.",
+   "xAxis": "Wed 24 ... Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Hours, no explicit labels.",
+   "notes": "Totals 4:01, 3:44, 4:28, 3:59, 3:44, 3:55, 4:54. Legend: pink 'DEEP SLEEP', violet 'REM SLEEP'.",
+   "colors": [
+    "#F09EE6",
+    "#B06AE8"
+   ]
+  },
+  {
+   "name": "Sleep Consistency weekly bars",
+   "kind": "bar",
+   "series": "One sleep-blue (#8FB0CE) bar per day, value above.",
+   "xAxis": "Wed 24 ... Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Percent, faint gridlines.",
+   "notes": "Values 75, 71, 78, 80, 83, 81, 69 (%).",
+   "colors": [
+    "#8FB0CE"
+   ]
+  },
+  {
+   "name": "Time in Bed weekly floating bars",
+   "kind": "zone-bars",
+   "series": "Per-day sleep-blue (#8FB0CE) bar from bedtime (top label) to waketime (bottom label).",
+   "xAxis": "Wed 24 ... Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Time of day (implicit), no axis labels; bedtime/waketime annotated per bar.",
+   "notes": "Bedtimes: 00:47, 23:44, 23:09, 00:52, 00:01, 01:04, 22:31. Waketimes: 08:31, 07:24, 07:31, 07:40, 08:17, 08:26, 08:40.",
+   "colors": [
+    "#8FB0CE"
+   ]
+  },
+  {
+   "name": "Sleep Efficiency weekly line",
+   "kind": "line",
+   "series": "Single line, grey-blue with blue open-circle markers (#7FA8C9), value labeled at each point.",
+   "xAxis": "Wed 24 ... Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Percent, faint gridlines.",
+   "notes": "Values 93, 97, 97, 95, 94, 98, 92 (%).",
+   "colors": [
+    "#7FA8C9"
+   ]
+  },
+  {
+   "name": "Sleep Debt weekly bars",
+   "kind": "bar",
+   "series": "One sleep-blue (#8FB0CE) bar per day, value (hh:mm) above.",
+   "xAxis": "Wed 24 ... Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Hours of debt, faint gridlines.",
+   "notes": "Values 0:27, 0:30, 0:03, 0:48, 0:36, 0:42, 0:00.",
+   "colors": [
+    "#8FB0CE"
+   ]
+  },
+  {
+   "name": "Sleep Stress weekly stacked bars",
+   "kind": "bar",
+   "series": "Stacked: LOW (blue #7FA8C9, bottom) + MEDIUM (green #3FE0A0, middle) + HIGH (orange #F5A623, top). HIGH duration labeled above each bar in orange.",
+   "xAxis": "Wed 24 ... Tue 30 (Tue 30 highlighted).",
+   "yAxis": "Duration (hours), no explicit labels.",
+   "notes": "HIGH labels: 1:44, 0:00, 0:00, 0:20, 2:05, 0:00, 0:00. Legend: orange 'HIGH', green 'MEDIUM', blue 'LOW'.",
+   "colors": [
+    "#F5A623",
+    "#3FE0A0",
+    "#7FA8C9"
+   ]
+  }
+ ],
+ "excluded": [
+  "Floating WHOOP Coach button (purple/blue gradient ring with white W mark, pinned bottom-right across all scroll positions) \u2014 opens the WHOOP Coach AI assistant, which is an excluded AI/coach feature."
+ ],
+ "_key": "sleep",
+ "_dir": "home/sleep"
+}

@@ -1,0 +1,580 @@
+{
+ "screen": "home",
+ "globalNotes": "Dark theme app (background ~#0B0F14 near-black, cards ~#1A1F26/#222831). All section headers are uppercase, light-grey, bold, letter-spaced. The three top circular rings (Sleep blue / Recovery green / Strain grey-white) become a STICKY MINI-HEADER row when scrolling: as the user scrolls past the big rings, a compact row of three small ring icons with labels SLEEP / RECOVERY / STRAIN pins to the top under the status bar (seen in images 2-5). Status bar shows 09:32, silent-bell icon, cellular 2-bars, wifi, battery dropping 42\u219241\u219241\u219240 across scroll captures (same moment, battery overlay re-rendered). Bottom tab bar is a floating pill, always visible: Home (house, active/white), Health (heart-pulse), Community (people), More (hamburger), plus a circular WHOOP coach orb at far right with blue/purple gradient ring. Scroll order is images 3870\u21923871\u21923872\u21923873\u21923874.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: time 09:32 with a silent-mode bell-with-slash icon. Right: cellular signal (2 of 4 bars), wifi full, battery pill showing numeric 42 inside.",
+   "literals": [
+    "09:32",
+    "42",
+    "41",
+    "40"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Top utility row",
+   "type": "nav",
+   "description": "Row below status bar. Far left: circular profile/avatar icon (person glyph, white outline circle). Next to it a pill with an orange flame icon and number 14 (streak counter). Center: a date navigator pill \u2014 left chevron, TODAY label (white bold, uppercase), right chevron, all inside a rounded grey capsule. Far right: red text 11% next to a battery-strap/device icon (rounded vertical band) with a small green status dot at top-right (band battery + connection status).",
+   "literals": [
+    "14",
+    "TODAY",
+    "11%"
+   ],
+   "interaction": "Profile icon -> profile/account. Flame pill -> streak detail. Chevrons -> previous/next day; TODAY -> day picker. Device icon -> band/device status screen."
+  },
+  {
+   "order": 3,
+   "name": "WHOOP wordmark",
+   "type": "text",
+   "description": "Centered WHOOP logo wordmark in thin light-grey letters with the signature stylized 'W' and dashes.",
+   "literals": [
+    "WHOOP"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 4,
+   "name": "Three primary rings (Sleep / Recovery / Strain)",
+   "type": "bigring",
+   "description": "Row of three large circular progress rings. LEFT ring: value '86%' (white, bold) with small '%' superscript; ring arc is light blue (#7FA8C9) about 86% filled on a dark track; label below 'SLEEP' with a right chevron. CENTER ring: '67%' white bold with small '%'; ring arc bright green (#16EC06 / #2EE63B) ~67% filled; label below 'RECOVERY' with right chevron. RIGHT ring: '0.1' white bold (no % \u2014 strain scale 0-21); ring arc is a thin light-blue tick near top on a dark grey track (almost empty); label below 'STRAIN' with right chevron.",
+   "literals": [
+    "86%",
+    "SLEEP",
+    "67%",
+    "RECOVERY",
+    "0.1",
+    "STRAIN"
+   ],
+   "colors": [
+    "#7FA8C9",
+    "#22DD2B",
+    "#FFFFFF"
+   ],
+   "interaction": "Each ring/label taps into its detail screen: Sleep detail, Recovery detail, Strain detail."
+  },
+  {
+   "order": 5,
+   "name": "Week One Highlights promo card",
+   "type": "promo",
+   "description": "Large rounded card with a gradient border (orange top-left fading to magenta/purple right). Title 'Unlocked: Week One Highlights' (white, bold). Body two lines: 'Review your first week with WHOOP and uncover personalized insights.' (grey). CTA link 'LAUNCH MY HIGHLIGHTS' in magenta/pink uppercase with a magenta right-arrow. Top-right corner: a small badge with a white checkmark and number '1' below it. Right side: illustration of an open gift/box emitting a purple/magenta glow with the WHOOP 'W' on a card.",
+   "literals": [
+    "Unlocked: Week One Highlights",
+    "Review your first week with WHOOP and uncover personalized insights.",
+    "LAUNCH MY HIGHLIGHTS",
+    "1"
+   ],
+   "colors": [
+    "#E0529C",
+    "#FF7A45",
+    "#FFFFFF"
+   ],
+   "interaction": "LAUNCH MY HIGHLIGHTS / card tap -> Week One Highlights flow."
+  },
+  {
+   "order": 6,
+   "name": "Health Monitor card",
+   "type": "card",
+   "description": "Left half-width card. Header 'HEALTH MONITOR' (white bold uppercase) with right chevron. Below: a green rounded square with white checkmark, then green text 'WITHIN RANGE' and grey subtext '5/5 Metrics'.",
+   "literals": [
+    "HEALTH MONITOR",
+    "WITHIN RANGE",
+    "5/5 Metrics"
+   ],
+   "colors": [
+    "#1E8E5A",
+    "#2ED573"
+   ],
+   "interaction": "Tap -> Health Monitor detail (vitals)."
+  },
+  {
+   "order": 7,
+   "name": "Stress Monitor card",
+   "type": "card",
+   "description": "Right half-width card. Header 'STRESS MONITOR' (white bold uppercase) with right chevron. Below: a blue rounded square showing '0.8', then blue text 'LOW' and grey subtext '09:25' (last-updated time).",
+   "literals": [
+    "STRESS MONITOR",
+    "0.8",
+    "LOW",
+    "09:25"
+   ],
+   "colors": [
+    "#4A90D9",
+    "#6BA8E0"
+   ],
+   "interaction": "Tap -> Stress Monitor detail."
+  },
+  {
+   "order": 8,
+   "name": "My Day section header",
+   "type": "section-header",
+   "description": "Left-aligned title 'My Day' (white, large, semi-bold, mixed-case). Right: a white rounded-square button with a black plus '+' icon.",
+   "literals": [
+    "My Day",
+    "+"
+   ],
+   "interaction": "Plus button -> add activity/journal/entry menu."
+  },
+  {
+   "order": 9,
+   "name": "Your Daily Outlook row",
+   "type": "button",
+   "description": "Full-width rounded grey row. Left: a sun/sunrise outline icon. Center-left text 'Your Daily Outlook' (white). Right: chevron.",
+   "literals": [
+    "Your Daily Outlook"
+   ],
+   "interaction": "Tap -> Daily Outlook detail."
+  },
+  {
+   "order": 10,
+   "name": "Today's Activities card",
+   "type": "card",
+   "description": "Rounded card. Header 'TODAY'S ACTIVITIES' (light-grey bold uppercase) with a diagonal expand/fullscreen arrows icon at top-right. Contains a sleep activity row: a light-blue rounded tile with a white crescent-moon icon and '9:16' (duration), then 'SLEEP' (white bold). Right side: '[Mon] 22:31' on top and '8:40' below (start/end times), with a thin vertical light-blue accent bar at the far right edge.",
+   "literals": [
+    "TODAY'S ACTIVITIES",
+    "9:16",
+    "SLEEP",
+    "[Mon] 22:31",
+    "8:40"
+   ],
+   "colors": [
+    "#8FB8D9"
+   ],
+   "interaction": "Expand icon -> activities list/full view. Sleep row -> sleep detail. "
+  },
+  {
+   "order": 11,
+   "name": "Add / Start Activity buttons",
+   "type": "button",
+   "description": "Two side-by-side outlined rounded buttons inside the Today's Activities card. Left: '+ ADD ACTIVITY' (plus icon + white uppercase). Right: 'START ACTIVITY' (stopwatch icon + white uppercase).",
+   "literals": [
+    "ADD ACTIVITY",
+    "START ACTIVITY"
+   ],
+   "interaction": "ADD ACTIVITY -> log a past activity. START ACTIVITY -> begin a live activity/workout."
+  },
+  {
+   "order": 12,
+   "name": "Tonight's Sleep card",
+   "type": "card",
+   "description": "Rounded card. Header 'TONIGHT'S SLEEP' (white bold uppercase) with right chevron. Two columns separated by a dashed line: LEFT \u2014 a sunset (sun-with-down-arrow) icon, '23:30' big white, label 'RECOMMENDED BEDTIME' (grey, two lines). RIGHT \u2014 a sunrise (sun-with-up-arrow) icon, '07:30' big white, label 'ALARM OFF' in orange/amber. Below spanning full width: a button 'SET ALARM' with a band/strap icon and white uppercase text.",
+   "literals": [
+    "TONIGHT'S SLEEP",
+    "23:30",
+    "RECOMMENDED BEDTIME",
+    "07:30",
+    "ALARM OFF",
+    "SET ALARM"
+   ],
+   "colors": [
+    "#E8A33D",
+    "#FFFFFF"
+   ],
+   "interaction": "Card/chevron -> sleep planner. SET ALARM -> alarm configuration."
+  },
+  {
+   "order": 13,
+   "name": "Set Up Your Journal card",
+   "type": "promo",
+   "description": "Large rounded card, centered content. Illustration of a grey journal/notebook with the WHOOP 'W' emboss and a magenta/purple bookmark ribbon. Title 'Set Up Your Journal' (white, semi-bold, centered). Body two lines centered: 'Customize your daily routine and fill out your first entry.' (grey). CTA pill button 'LET'S GO' with a pink/magenta gradient outline and pink uppercase text, centered.",
+   "literals": [
+    "Set Up Your Journal",
+    "Customize your daily routine and fill out your first entry.",
+    "LET'S GO"
+   ],
+   "colors": [
+    "#E0529C",
+    "#F08AB5"
+   ],
+   "interaction": "LET'S GO -> journal setup flow."
+  },
+  {
+   "order": 14,
+   "name": "My Plan section header",
+   "type": "section-header",
+   "description": "Left-aligned title 'My Plan' (white, large, semi-bold).",
+   "literals": [
+    "My Plan"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 15,
+   "name": "Build Your Best Self plan card",
+   "type": "promo",
+   "description": "Rounded grey card. Title 'Build Your Best Self' (white, semi-bold). Body two lines: 'Set goals, track progress, and turn small actions into long-term wins.' (grey). CTA link 'EXPLORE PLANS' in blue (#4A90D9) uppercase with a blue right-arrow. Right side: three overlapping circular plan icons with green dashed progress rings \u2014 a heart, a crescent-moon (sleep), and a person lifting/strength figure.",
+   "literals": [
+    "Build Your Best Self",
+    "Set goals, track progress, and turn small actions into long-term wins.",
+    "EXPLORE PLANS"
+   ],
+   "colors": [
+    "#4A90D9",
+    "#2ED573"
+   ],
+   "interaction": "EXPLORE PLANS / card -> plans catalog."
+  },
+  {
+   "order": 16,
+   "name": "My Dashboard section header",
+   "type": "section-header",
+   "description": "Left-aligned title 'My Dashboard' (white, large, semi-bold). Right: 'CUSTOMIZE' (light-grey uppercase) with a pencil/edit icon.",
+   "literals": [
+    "My Dashboard",
+    "CUSTOMIZE"
+   ],
+   "interaction": "CUSTOMIZE -> reorder/edit dashboard metric tiles."
+  },
+  {
+   "order": 17,
+   "name": "Heart Rate Variability metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: HRV icon (jagged pulse/zigzag line). Label 'HEART RATE VARIABILITY' (white bold uppercase). Right: big value '90' (white bold) with a small green up-triangle trend arrow; below it smaller grey baseline '75'. Unit is ms (implied, not shown).",
+   "literals": [
+    "HEART RATE VARIABILITY",
+    "90",
+    "75"
+   ],
+   "colors": [
+    "#2ED573",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> HRV detail/trend."
+  },
+  {
+   "order": 18,
+   "name": "Resting Heart Rate metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: heart-with-down-arrow icon. Label 'RESTING HEART RATE'. Right: big value '50' with a small green DOWN-triangle trend arrow (lower RHR is good = green); below smaller grey baseline '56'.",
+   "literals": [
+    "RESTING HEART RATE",
+    "50",
+    "56"
+   ],
+   "colors": [
+    "#2ED573",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> RHR detail/trend."
+  },
+  {
+   "order": 19,
+   "name": "Steps metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: running-shoe/footstep icon. Label 'STEPS'. Right: big value '262' with a small orange/amber down-triangle trend arrow; below smaller grey baseline '6,094'.",
+   "literals": [
+    "STEPS",
+    "262",
+    "6,094"
+   ],
+   "colors": [
+    "#E8A33D",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> steps detail/trend."
+  },
+  {
+   "order": 20,
+   "name": "HR Zones 1-3 (Weekly) metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: heart icon. Label 'HR ZONES 1-3 (WEEKLY)'. Right: big value '0:14' (h:mm) with orange/amber down-triangle arrow; below smaller grey baseline '0:54'.",
+   "literals": [
+    "HR ZONES 1-3 (WEEKLY)",
+    "0:14",
+    "0:54"
+   ],
+   "colors": [
+    "#E8A33D",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> HR zones detail."
+  },
+  {
+   "order": 21,
+   "name": "HR Zones 4-5 (Weekly) metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: heart icon. Label 'HR ZONES 4-5 (WEEKLY)'. Right: big value '0:00' with a small grey neutral DOT (no trend) ; below smaller grey baseline '0:00'.",
+   "literals": [
+    "HR ZONES 4-5 (WEEKLY)",
+    "0:00",
+    "0:00"
+   ],
+   "colors": [
+    "#9AA0A6",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> HR zones detail."
+  },
+  {
+   "order": 22,
+   "name": "Strength Activity Time metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: dumbbell icon. Label 'STRENGTH ACTIVITY TIME'. Right: big value '0:00' with grey neutral dot; below smaller grey baseline '0:00'.",
+   "literals": [
+    "STRENGTH ACTIVITY TIME",
+    "0:00",
+    "0:00"
+   ],
+   "colors": [
+    "#9AA0A6",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> strength activity detail."
+  },
+  {
+   "order": 23,
+   "name": "VO2 Max row",
+   "type": "button",
+   "description": "Full-width rounded grey row. Left: lungs icon with an up-arrow. Label 'VO2 MAX' (the 2 is subscript). Right: chevron only (no value shown \u2014 drill-in).",
+   "literals": [
+    "VO2 MAX"
+   ],
+   "interaction": "Tap -> VO2 Max detail / Advanced Labs."
+  },
+  {
+   "order": 24,
+   "name": "Calories metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: flame/calorie icon. Label 'CALORIES'. Right: big value '1,012' with a small grey down-triangle/caret; below smaller grey baseline '2,030'.",
+   "literals": [
+    "CALORIES",
+    "1,012",
+    "2,030"
+   ],
+   "colors": [
+    "#9AA0A6",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> calories detail/trend."
+  },
+  {
+   "order": 25,
+   "name": "Stress Monitor chart card",
+   "type": "chart",
+   "description": "Rounded card. Header 'STRESS MONITOR' (white bold uppercase) with right chevron. Subheader left: 'Last updated 09:25' (grey). Top-right: 'LOW' (blue) and big '0.8' (white). Line chart of stress over the night/morning. See chart spec.",
+   "literals": [
+    "STRESS MONITOR",
+    "Last updated 09:25",
+    "LOW",
+    "0.8",
+    "3.0",
+    "2.0",
+    "1.0",
+    "0.0",
+    "21:32",
+    "02:00",
+    "05:00",
+    "09:25"
+   ],
+   "colors": [
+    "#5BC8E0",
+    "#4A90D9"
+   ],
+   "interaction": "Header chevron -> Stress Monitor full detail."
+  },
+  {
+   "order": 26,
+   "name": "Strain & Recovery chart card",
+   "type": "chart",
+   "description": "Rounded card. Header 'STRAIN & RECOVERY' (light-grey bold uppercase) with a circled 'i' info icon top-right. Dual-axis 7-day combo chart (line for strain + dotted recovery markers). The selected day (Tue 30) is highlighted with a vertical grey band. See chart spec.",
+   "literals": [
+    "STRAIN & RECOVERY",
+    "21",
+    "14",
+    "7",
+    "0",
+    "100%",
+    "66%",
+    "33%",
+    "0%",
+    "97%",
+    "94%",
+    "81%",
+    "67%",
+    "40%",
+    "25%",
+    "10.6",
+    "5.6",
+    "4.7",
+    "4.3",
+    "4.3",
+    "0.9",
+    "0.1",
+    "Wed 24",
+    "Thu 25",
+    "Fri 26",
+    "Sat 27",
+    "Sun 28",
+    "Mon 29",
+    "Tue 30"
+   ],
+   "colors": [
+    "#4A90D9",
+    "#22DD2B",
+    "#E8C23D",
+    "#E03B3B",
+    "#9AA0A6"
+   ],
+   "interaction": "Info icon -> explanation. Points -> day detail."
+  },
+  {
+   "order": 27,
+   "name": "Day Strain metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: strain/lifting-figure icon. Label 'DAY STRAIN'. Right: big value '0.1' with orange/amber down-triangle arrow; below smaller grey baseline '6.4'.",
+   "literals": [
+    "DAY STRAIN",
+    "0.1",
+    "6.4"
+   ],
+   "colors": [
+    "#E8A33D",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> strain detail."
+  },
+  {
+   "order": 28,
+   "name": "Average Heart Rate metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: heart outline icon. Label 'AVERAGE HEART RATE'. Right: big value '51' with a small grey down-triangle/caret; below smaller grey baseline '68'.",
+   "literals": [
+    "AVERAGE HEART RATE",
+    "51",
+    "68"
+   ],
+   "colors": [
+    "#9AA0A6",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> heart rate detail."
+  },
+  {
+   "order": 29,
+   "name": "Hours of Sleep metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: crescent-moon icon. Label 'HOURS OF SLEEP'. Right: big value '9:16' with a small green UP-triangle trend arrow; below smaller grey baseline '7:40'.",
+   "literals": [
+    "HOURS OF SLEEP",
+    "9:16",
+    "7:40"
+   ],
+   "colors": [
+    "#2ED573",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> sleep detail."
+  },
+  {
+   "order": 30,
+   "name": "HR Zones All (Weekly) metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: heart-with-clock icon. Label 'HR ZONES ALL (WEEKLY)'. Right: big value '0:31' with orange/amber down-triangle arrow; below smaller grey baseline '2:34'.",
+   "literals": [
+    "HR ZONES ALL (WEEKLY)",
+    "0:31",
+    "2:34"
+   ],
+   "colors": [
+    "#E8A33D",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> HR zones detail."
+  },
+  {
+   "order": 31,
+   "name": "Respiratory Rate metric row",
+   "type": "metric-row",
+   "description": "Full-width rounded grey row. Left: lungs icon. Label 'RESPIRATORY RATE'. Right: big value '15.4' with a small green DOWN-triangle trend arrow (lower resp = good); below smaller grey baseline '15.7'.",
+   "literals": [
+    "RESPIRATORY RATE",
+    "15.4",
+    "15.7"
+   ],
+   "colors": [
+    "#2ED573",
+    "#FFFFFF"
+   ],
+   "interaction": "Tap -> respiratory rate detail."
+  },
+  {
+   "order": 32,
+   "name": "Discover More section header",
+   "type": "section-header",
+   "description": "Left-aligned title 'Discover More' (white, large, semi-bold).",
+   "literals": [
+    "Discover More"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 33,
+   "name": "Advanced Labs promo (partial, below fold)",
+   "type": "promo",
+   "description": "Partially visible card at the very bottom under the tab bar. Faint text includes 'Test with Advanced Labs' and a CTA 'GO TO ADVANCED LABS' with a right-arrow. Cut off by the bottom tab bar; only top edge visible.",
+   "literals": [
+    "Test with Advanced Labs",
+    "GO TO ADVANCED LABS"
+   ],
+   "interaction": "Tap -> Advanced Labs."
+  },
+  {
+   "order": 34,
+   "name": "Bottom tab bar",
+   "type": "nav",
+   "description": "Floating rounded pill nav fixed at bottom. Tabs left-to-right: Home (house icon with chart line, active = white), Health (heart-pulse icon, grey), Community (people/group icon, grey), More (hamburger lines, grey). Far right outside the pill: a circular WHOOP Coach orb with a blue-to-purple gradient ring and the 'W' glyph.",
+   "literals": [
+    "Home",
+    "Health",
+    "Community",
+    "More"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#9AA0A6",
+    "#5A7FE0"
+   ],
+   "interaction": "Home/Health/Community/More switch tabs. Orb -> WHOOP Coach (excluded)."
+  }
+ ],
+ "charts": [
+  {
+   "name": "Stress Monitor line chart",
+   "kind": "line",
+   "series": "Single continuous stress line. Color is a teal/cyan-to-blue gradient: spikes render teal-green (#5BC8E0) at the start and end, the long flat low overnight portion is light blue (#5A9BD4). A flat horizontal light-blue line sits at y=3.0 across the top (the sleep-period max/cap reference). A shaded slightly-lighter rectangular band fills the region between the start of sleep and ~end, under that top line (the sleep window).",
+   "xAxis": "Time, left to right: '21:32', '02:00', '05:00', '09:25'. Range from 21:32 (prior evening) to 09:25 (now).",
+   "yAxis": "Stress score 0.0 to 3.0, gridlines at 0.0, 1.0, 2.0, 3.0.",
+   "notes": "A white crescent-moon icon sits above the chart near top-center marking the sleep period. A vertical white DASHED line at the far right (~09:25) marks 'now' with a small dot at its base on the x-axis. Early-evening shows volatile spikes peaking ~1.7; long flat low band ~0.3-0.5 through the night; sharp rise back up to ~1.4 at the right edge near now. Current value annotated top-right: 'LOW 0.8'.",
+   "colors": [
+    "#5BC8E0",
+    "#5A9BD4"
+   ]
+  },
+  {
+   "name": "Strain & Recovery 7-day dual-axis chart",
+   "kind": "line",
+   "series": "Two series over 7 days. (1) STRAIN line \u2014 blue (#4A90D9) connecting blue ring markers, each annotated with its strain value in blue text below the marker. (2) RECOVERY \u2014 colored ring markers (not a continuous colored line; connected by a faint grey line) where ring color encodes recovery zone: green (#22DD2B) for high (97%,94%,81%,67%), yellow/amber (#E8C23D) for medium (40%), red (#E03B3B) for low (25%,25%). Each recovery marker annotated with its % in the matching color above the marker.",
+   "xAxis": "Days: 'Wed 24', 'Thu 25', 'Fri 26', 'Sat 27', 'Sun 28', 'Mon 29', 'Tue 30'. Tue 30 (rightmost) is the selected/current day.",
+   "yAxis": "DUAL AXIS. Left axis (blue) = Strain 0-21 with gridline labels 0, 7, 14, 21. Right axis (multi-color) = Recovery % with labels 0% (red), 33% (red), 66% (yellow), 100% (green).",
+   "notes": "Selected day Tue 30 highlighted by a vertical translucent grey band behind its markers. Strain values per day (blue, below markers): Wed=4.7, Thu=0.9, Fri=10.6, Sat=5.6, Sun=4.3, Mon=4.3, Tue=0.1. Recovery values per day (above markers, color = zone): Wed=25% (red), Thu (not labeled visibly / off), Fri=94% (green) note Fri's recovery marker shows 94%, Wed area also shows 97% \u2014 mapping: Thu=97% green, Fri=94% green, Sat=40% yellow, Sun=25% red, Mon=81% green, Tue=67% green; Wed=25% red. Recovery markers are open/hollow rings in the zone color; strain markers are open blue rings.",
+   "colors": [
+    "#4A90D9",
+    "#22DD2B",
+    "#E8C23D",
+    "#E03B3B",
+    "#9AA0A6"
+   ]
+  }
+ ],
+ "excluded": [
+  "WHOOP Coach orb (bottom-right circular gradient button) \u2014 AI assistant, excluded",
+  "Community tab in bottom nav \u2014 social feature, not to be built (tab stub may remain but no content spec)",
+  "Any 'Ask WHOOP Coach' AI prompts if present in detail screens"
+ ],
+ "_key": "home",
+ "_dir": "home"
+}

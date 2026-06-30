@@ -1,0 +1,493 @@
+{
+ "screen": "strain",
+ "globalNotes": "Dark theme throughout (near-black background ~#0E1419 at top fading to ~#0A0E12 lower). Sticky top nav bar (\"TODAY\" + back chevron + info circle) stays fixed while content scrolls; status bar (09:34 / 09:35, signal, wifi, battery 39%) is iOS system, not app. A floating circular WHOOP \"W\" logo button (purple/blue gradient ring) is pinned bottom-right over all scroll positions \u2014 this is the AI/Coach launcher and is EXCLUDED. Scroll order top-to-bottom: big Strain ring -> metric rows card (HR Zones 1-3, HR Zones 4-5, Strength Activity Time, Steps) -> \"Today vs last 30 days\" legend pill -> recovery/strain guidance promo card -> \"Weekly Trends\" section header -> STRAIN weekly bar chart -> HR ZONES 1-3 weekly chart -> HR ZONES 4-5 weekly chart -> STEPS weekly chart -> CALORIES weekly chart -> STRENGTH ACTIVITY TIME weekly chart. All weekly charts share x-axis Wed24/Thu25/Fri26/Sat27/Sun28/Mon29/Tue30, with Tue30 (today) highlighted by a translucent vertical column band and bold white label. Section header fonts are condensed bold uppercase (WHOOP DIN-style). Today is Tue 30.",
+ "excluded": [
+  "Floating circular WHOOP 'W' gradient logo button pinned bottom-right (AI/Coach 'Ask WHOOP Coach' launcher) \u2014 present in all 5 scroll positions",
+  "'EXPLORE YOUR STRAIN INSIGHTS ->' link inside the guidance promo card routes into a coach/insights flow \u2014 link itself can render but the coach destination is excluded"
+ ],
+ "layout": [
+  {
+   "order": 1,
+   "name": "Top nav bar",
+   "type": "nav",
+   "description": "Fixed header. Left: back chevron '<' (white, thin). Center: title 'TODAY' in white condensed bold uppercase, letter-spaced, ~16px. Right: circular 'i' info icon outlined in grey/white, ~28px diameter. Bar background matches page ~#0E1419, no divider.",
+   "literals": [
+    "TODAY",
+    "i"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#0E1419"
+   ],
+   "interaction": "Back chevron pops to previous screen; 'i' opens an info/explainer sheet about the strain screen. 'TODAY' likely opens a date picker / day switcher."
+  },
+  {
+   "order": 2,
+   "name": "Day Strain ring (big)",
+   "type": "bigring",
+   "description": "Large circular progress ring centered near top. Ring track is dark grey (#2A2E33) with subtle segment notches/gaps; a thin BLUE tick marker sits at the very top (12 o'clock, ~#4AA3DF) marking start/now, and a small WHITE tick sits at lower-left (~7-8 o'clock) marking an optimal-strain target. The ring is mostly unfilled (strain only 0.1). Inside, stacked and centered: faint grey 'WHOOP' wordmark (~#5A6068, letter-spaced) at top of inner area, then a very large white '0.1' (~96px, extra-bold), then 'STRAIN' in white condensed bold uppercase (~16px) below it. A small upward triangle/caret pointer sits just below the ring pointing down into the metrics card (connects ring to card).",
+   "literals": [
+    "WHOOP",
+    "0.1",
+    "STRAIN"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#2A2E33",
+    "#4AA3DF",
+    "#5A6068"
+   ],
+   "interaction": "Static display of current Day Strain; tapping ring/area may open strain detail. Blue tick = current/now marker; white tick = strain target marker."
+  },
+  {
+   "order": 3,
+   "name": "Metrics card (4 rows)",
+   "type": "card",
+   "description": "Rounded-corner dark card (~#1B2026) containing four metric rows separated by thin hairline dividers. Each row: left icon (grey line-art) + label (white condensed bold uppercase, ~15px) on the left; right side has a large white value (~26px bold) with a tiny colored trend caret to its right, and a smaller grey baseline value beneath the big value (right-aligned).",
+   "literals": [
+    "HEART RATE ZONES 1-3",
+    "0:00",
+    "0:07",
+    "HEART RATE ZONES 4-5",
+    "0:00",
+    "0:00",
+    "STRENGTH ACTIVITY TIME",
+    "0:00",
+    "0:00",
+    "STEPS",
+    "262",
+    "6,094"
+   ],
+   "colors": [
+    "#1B2026",
+    "#FFFFFF",
+    "#8A9099",
+    "#E8943A"
+   ],
+   "interaction": "Each row tappable -> drills into that metric's detail/weekly trend."
+  },
+  {
+   "order": 4,
+   "name": "Row: HEART RATE ZONES 1-3",
+   "type": "metric-row",
+   "description": "Icon: heart with horizontal line through it (grey outline). Label 'HEART RATE ZONES 1-3'. Big value '0:00' (white). Trend caret: small DOWN triangle, ORANGE (~#E8943A) pointing down, to the right of the value. Baseline below: '0:07' (grey, smaller) = last-30-day average. Down orange caret means today is below baseline.",
+   "literals": [
+    "HEART RATE ZONES 1-3",
+    "0:00",
+    "0:07"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#E8943A",
+    "#8A9099"
+   ],
+   "interaction": "Tap -> HR Zones 1-3 detail / weekly chart."
+  },
+  {
+   "order": 5,
+   "name": "Row: HEART RATE ZONES 4-5",
+   "type": "metric-row",
+   "description": "Icon: heart outline (grey). Label 'HEART RATE ZONES 4-5'. Big value '0:00' (white). Trend indicator: small grey DOT (no arrow \u2014 equal to / no change vs baseline). Baseline below: '0:00' (grey).",
+   "literals": [
+    "HEART RATE ZONES 4-5",
+    "0:00",
+    "0:00"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "Tap -> HR Zones 4-5 detail / weekly chart."
+  },
+  {
+   "order": 6,
+   "name": "Row: STRENGTH ACTIVITY TIME",
+   "type": "metric-row",
+   "description": "Icon: dumbbell (grey line-art). Label 'STRENGTH ACTIVITY TIME'. Big value '0:00' (white). Trend indicator: small grey DOT (no change). Baseline below: '0:00' (grey).",
+   "literals": [
+    "STRENGTH ACTIVITY TIME",
+    "0:00",
+    "0:00"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "Tap -> Strength Activity Time detail / weekly chart."
+  },
+  {
+   "order": 7,
+   "name": "Row: STEPS",
+   "type": "metric-row",
+   "description": "Icon: running shoe / footstep motion (grey line-art). Label 'STEPS'. Big value '262' (white bold). Trend caret: small DOWN triangle ORANGE (~#E8943A) to the right. Baseline below: '6,094' (grey, smaller) = last-30-day average. Down orange caret = today below baseline.",
+   "literals": [
+    "STEPS",
+    "262",
+    "6,094"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#E8943A",
+    "#8A9099"
+   ],
+   "interaction": "Tap -> Steps detail / weekly chart."
+  },
+  {
+   "order": 8,
+   "name": "Comparison legend pill",
+   "type": "pill",
+   "description": "Full-width rounded dark pill (~#0A0D11, darker than card). Left: a green UP triangle (~#5FC97E) and an orange DOWN triangle (~#E8943A) stacked/paired as a legend glyph. Then text: 'Today' in white bold, followed by 'vs. last 30 days' in grey. Explains the trend carets above (green up = above 30-day baseline, orange down = below).",
+   "literals": [
+    "Today",
+    "vs. last 30 days"
+   ],
+   "colors": [
+    "#5FC97E",
+    "#E8943A",
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "None (legend/label only)."
+  },
+  {
+   "order": 9,
+   "name": "Strain guidance promo card",
+   "type": "promo",
+   "description": "Rounded card with a thin gradient border (teal-to-purple ~#3FB6C9 -> #7B61FF). Body text in white (~17px regular, multi-line): 'Your body is signaling it's ready to perform today. Aim for moderate Day Strain between 10.0 and 14.0 today to optimize your training and workouts.' Below the body, a link row: 'EXPLORE YOUR STRAIN INSIGHTS' in purple condensed bold uppercase (~#7B61FF) with a purple right-arrow '->'.",
+   "literals": [
+    "Your body is signaling it's ready to perform today. Aim for moderate Day Strain between 10.0 and 14.0 today to optimize your training and workouts.",
+    "EXPLORE YOUR STRAIN INSIGHTS"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#7B61FF",
+    "#3FB6C9"
+   ],
+   "interaction": "'EXPLORE YOUR STRAIN INSIGHTS ->' navigates to a strain insights / coach flow (destination excluded)."
+  },
+  {
+   "order": 10,
+   "name": "Weekly Trends section header",
+   "type": "section-header",
+   "description": "Large white title 'Weekly Trends' in mixed-case bold (NOT uppercase, ~28px, sans bold). Left-aligned, sits above the stack of weekly charts.",
+   "literals": [
+    "Weekly Trends"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "None."
+  },
+  {
+   "order": 11,
+   "name": "STRAIN weekly chart card",
+   "type": "chart",
+   "description": "Rounded dark card. Header row: 'STRAIN' (white condensed bold uppercase, left) + right chevron '>' (grey). Vertical bar chart, 7 bars. Bars blue (~#2E9BE6) with the day's strain value labeled in blue above each bar. Faint horizontal gridlines. X-axis day labels below each bar. Today (Tue 30) column has a translucent grey vertical highlight band behind it and bold white day label.",
+   "literals": [
+    "STRAIN",
+    "4.7",
+    "0.9",
+    "10.6",
+    "5.6",
+    "4.3",
+    "4.3",
+    "0.1",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#2E9BE6",
+    "#FFFFFF",
+    "#8A9099",
+    "#1B2026"
+   ],
+   "interaction": "Tap card / '>' -> Strain weekly trend detail."
+  },
+  {
+   "order": 12,
+   "name": "HR ZONES 1-3 weekly chart card",
+   "type": "chart",
+   "description": "Rounded dark card. Header: 'HR ZONES 1-3' (white condensed bold uppercase) + right chevron '>'. Legend row (right side): three square swatches with labels \u2014 'ZONE 1' grey square (~#A8AEB5), 'ZONE 2' blue square (~#3FA0E0), 'ZONE 3' green square (~#5FC97E). Stacked vertical bar chart of time-in-zone per day. Only Fri 26 has a visible bar (~0:14 total): a grey Zone-1 segment with a thin blue Zone-2 cap on top, value '0:14' labeled above in white. All other days show '0:00' at the baseline. Faint gridlines; today (Tue 30) translucent highlight column. X-axis Wed24..Tue30.",
+   "literals": [
+    "HR ZONES 1-3",
+    "ZONE 1",
+    "ZONE 2",
+    "ZONE 3",
+    "0:14",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#A8AEB5",
+    "#3FA0E0",
+    "#5FC97E",
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "Tap card / '>' -> HR Zones 1-3 weekly detail."
+  },
+  {
+   "order": 13,
+   "name": "HR ZONES 4-5 weekly chart card",
+   "type": "chart",
+   "description": "Rounded dark card. Header: 'HR ZONES 4-5' (white condensed bold uppercase) + right chevron '>'. Legend row (right): 'ZONE 4' amber/orange square (~#F4A93C), 'ZONE 5' red-orange square (~#F0552A). Vertical stacked bar chart but ALL seven days are 0:00 (no bars, all values at baseline). Faint gridlines; today (Tue 30) translucent highlight column. X-axis Wed24..Tue30. Each day labeled '0:00'.",
+   "literals": [
+    "HR ZONES 4-5",
+    "ZONE 4",
+    "ZONE 5",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#F4A93C",
+    "#F0552A",
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "Tap card / '>' -> HR Zones 4-5 weekly detail."
+  },
+  {
+   "order": 14,
+   "name": "STEPS weekly chart card",
+   "type": "chart",
+   "description": "Rounded dark card. Header: 'STEPS' (white condensed bold uppercase) + right chevron '>'. Vertical bar chart, 7 bars, blue (~#2E9BE6), each labeled above with step count in blue. Values: Wed 7,202; Thu 2,028; Fri 8,928 (tallest); Sat 5,132; Sun 2,217; Mon 3,098; Tue 262 (today, tiny bar). Faint gridlines; today (Tue 30) translucent highlight column with bold white label. X-axis Wed24..Tue30.",
+   "literals": [
+    "STEPS",
+    "7,202",
+    "2,028",
+    "8,928",
+    "5,132",
+    "2,217",
+    "3,098",
+    "262",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#2E9BE6",
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "Tap card / '>' -> Steps weekly detail."
+  },
+  {
+   "order": 15,
+   "name": "CALORIES weekly chart card",
+   "type": "chart",
+   "description": "Rounded dark card. Header: 'CALORIES' (white condensed bold uppercase) + right chevron '>'. Vertical bar chart, 7 bars, blue (~#2E9BE6), each labeled above with calorie value in blue. Values: Wed 2,146; Thu 2,063; Fri 2,568 (tallest); Sat 1,845; Sun 2,009; Mon 1,826; Tue 1,012 (today, shorter). Faint gridlines; today (Tue 30) translucent highlight column with bold white label. X-axis Wed24..Tue30.",
+   "literals": [
+    "CALORIES",
+    "2,146",
+    "2,063",
+    "2,568",
+    "1,845",
+    "2,009",
+    "1,826",
+    "1,012",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#2E9BE6",
+    "#FFFFFF",
+    "#8A9099"
+   ],
+   "interaction": "Tap card / '>' -> Calories weekly detail."
+  },
+  {
+   "order": 16,
+   "name": "STRENGTH ACTIVITY TIME weekly chart card",
+   "type": "chart",
+   "description": "Rounded dark card (bottom of screen). Header: 'STRENGTH ACTIVITY TIME' (white condensed bold uppercase) + right chevron '>'. Vertical bar chart but ALL seven days are 0:00 (no bars; values sit at baseline). Faint gridlines; today (Tue 30) translucent highlight column with bold white label. X-axis Wed24..Tue30. Each day labeled '0:00'.",
+   "literals": [
+    "STRENGTH ACTIVITY TIME",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "0:00",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9099",
+    "#1B2026"
+   ],
+   "interaction": "Tap card / '>' -> Strength Activity Time weekly detail."
+  }
+ ],
+ "charts": [
+  {
+   "name": "Day Strain ring",
+   "kind": "gauge",
+   "series": "Single radial progress arc for Day Strain (current value 0.1 of a 0-21 scale). Track grey #2A2E33; minimal blue fill at top.",
+   "xAxis": "n/a",
+   "yAxis": "Strain 0-21 (radial)",
+   "colors": [
+    "#4AA3DF",
+    "#2A2E33",
+    "#FFFFFF"
+   ],
+   "notes": "Blue tick marker at 12 o'clock = now/current position; white tick at ~7-8 o'clock = optimal/target strain marker. Center value '0.1', label 'STRAIN', faint 'WHOOP' wordmark above value. Ring nearly empty."
+  },
+  {
+   "name": "STRAIN weekly",
+   "kind": "bar",
+   "series": "One blue series (#2E9BE6) = Day Strain per day, value labels above each bar in blue.",
+   "xAxis": "Days: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30",
+   "yAxis": "Strain (implicit 0-21), no numeric y-axis labels, faint horizontal gridlines only",
+   "colors": [
+    "#2E9BE6"
+   ],
+   "notes": "Values: 4.7, 0.9, 10.6, 5.6, 4.3, 4.3, 0.1. Fri 26 tallest (10.6). Today Tue 30 (0.1) under translucent highlight column, bold white label."
+  },
+  {
+   "name": "HR ZONES 1-3 weekly",
+   "kind": "zone-bars",
+   "series": "Stacked time-in-zone bars: Zone 1 grey #A8AEB5, Zone 2 blue #3FA0E0, Zone 3 green #5FC97E.",
+   "xAxis": "Days: Wed 24..Tue 30",
+   "yAxis": "Time (h:mm), no numeric labels, faint gridlines",
+   "colors": [
+    "#A8AEB5",
+    "#3FA0E0",
+    "#5FC97E"
+   ],
+   "notes": "Only Fri 26 has a bar (~0:14: grey Zone-1 body + thin blue Zone-2 cap), labeled '0:14' white above. All other days 0:00. Legend swatches top-right. Today Tue 30 translucent highlight column."
+  },
+  {
+   "name": "HR ZONES 4-5 weekly",
+   "kind": "zone-bars",
+   "series": "Stacked time-in-zone bars: Zone 4 amber #F4A93C, Zone 5 red-orange #F0552A.",
+   "xAxis": "Days: Wed 24..Tue 30",
+   "yAxis": "Time (h:mm), no numeric labels, faint gridlines",
+   "colors": [
+    "#F4A93C",
+    "#F0552A"
+   ],
+   "notes": "All days 0:00 (no bars). Legend swatches top-right. Today Tue 30 translucent highlight column."
+  },
+  {
+   "name": "STEPS weekly",
+   "kind": "bar",
+   "series": "One blue series (#2E9BE6) = steps per day, value labels above each bar in blue.",
+   "xAxis": "Days: Wed 24..Tue 30",
+   "yAxis": "Steps count, no numeric axis labels, faint gridlines",
+   "colors": [
+    "#2E9BE6"
+   ],
+   "notes": "Values: 7,202; 2,028; 8,928; 5,132; 2,217; 3,098; 262. Fri 26 tallest (8,928). Today Tue 30 (262) tiny bar under highlight column, bold white label."
+  },
+  {
+   "name": "CALORIES weekly",
+   "kind": "bar",
+   "series": "One blue series (#2E9BE6) = calories per day, value labels above each bar in blue.",
+   "xAxis": "Days: Wed 24..Tue 30",
+   "yAxis": "Calories, no numeric axis labels, faint gridlines",
+   "colors": [
+    "#2E9BE6"
+   ],
+   "notes": "Values: 2,146; 2,063; 2,568; 1,845; 2,009; 1,826; 1,012. Fri 26 tallest (2,568). Today Tue 30 (1,012) shorter bar under highlight column, bold white label."
+  },
+  {
+   "name": "STRENGTH ACTIVITY TIME weekly",
+   "kind": "bar",
+   "series": "One series = strength activity time per day; all zero so no visible bars.",
+   "xAxis": "Days: Wed 24..Tue 30",
+   "yAxis": "Time (h:mm), no numeric labels, faint gridlines",
+   "colors": [
+    "#2E9BE6"
+   ],
+   "notes": "All days 0:00. Today Tue 30 translucent highlight column, bold white label."
+  }
+ ],
+ "_key": "strain",
+ "_dir": "home/strain"
+}

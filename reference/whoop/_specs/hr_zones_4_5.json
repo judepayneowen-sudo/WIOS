@@ -1,0 +1,251 @@
+{
+ "screen": "hr_zones_4_5",
+ "globalNotes": "Dark theme throughout (near-black background ~#0B0F12 at top fading to pure black ~#000000 lower). This is a WHOOP \"Trend View\" detail screen for the Heart Rate Zones 4-5 metric. Vertically scrollable; this single screenshot captures the full visible screen from status bar to a partially-cut \"ADD ACTIVITY\" bottom bar. Status bar at very top shows iOS system: time \"09:38\" with a muted/silent bell icon, cellular signal bars (2 of 4 filled), wifi icon, battery \"38\" with charging indication. A floating circular WHOOP logo button (the W mark inside a blue/purple gradient ring) sits bottom-right, overlapping the bottom bar (this is the WHOOP Coach/AI launcher - EXCLUDED). Coordinates in literals are approximate from a 1290x2796 source.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS system status bar. Left: time '09:38' in white bold, with a silenced-bell (notifications off) icon immediately right of it. Right cluster: cellular signal bars (2 of 4 lit), wifi glyph, battery pill showing '38' with white fill and a charging look. White icons on dark background.",
+   "literals": [
+    "09:38",
+    "38"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#0B0F12"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Screen header / nav bar",
+   "type": "nav",
+   "description": "Top app nav. Left: a back chevron '<' (white, thin stroke). Center: title 'TREND VIEW' in white, uppercase, letter-spaced, semibold, ~16px. No right-side action.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Back chevron returns to the previous (overview/home) screen."
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown",
+   "type": "button",
+   "description": "Full-width rounded rectangle pill/card, slightly lighter grey than background (~#2A2F33), ~70px tall, rounded ~12px corners. Left: an outlined heart icon (thin white stroke). Center-left: label 'HEART RATE ZONES 4-5' in white, uppercase, bold, letter-spaced, ~20px. Right: a downward chevron 'v' (white) indicating a dropdown to switch which metric/trend is shown.",
+   "literals": [
+    "HEART RATE ZONES 4-5"
+   ],
+   "colors": [
+    "#2A2F33",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens a dropdown/picker to select a different trend metric (e.g. HRV, RHR, Strain, etc.)."
+  },
+  {
+   "order": 4,
+   "name": "Summary value block (left)",
+   "type": "metric-row",
+   "description": "Left-aligned summary. Top line: label 'AVG. WEEKLY TOTAL' in muted grey (~#8A9094), uppercase, letter-spaced, ~13px. Below it the big value '0:00' in very large white bold (~64px), with a small superscript-baseline unit 'hr' in muted grey right of it. No trend arrow present (value is zero).",
+   "literals": [
+    "AVG. WEEKLY TOTAL",
+    "0:00",
+    "hr"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9094"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 5,
+   "name": "Time-range segmented control (W / M / 6M)",
+   "type": "pill",
+   "description": "Right-aligned rounded segmented control, dark pill background (~#1C2024) with three segments: 'W', 'M', '6M'. The middle segment 'M' is selected, shown with a lighter raised grey fill (~#3A4044) and white text; 'W' and '6M' are muted grey text on the dark track. Each ~white/grey uppercase, ~16px.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#3A4044",
+    "#1C2024",
+    "#FFFFFF",
+    "#8A9094"
+   ],
+   "interaction": "Selecting W/M/6M switches the chart aggregation window (Week / Month / 6 Months). Currently 'M' (month) active."
+  },
+  {
+   "order": 6,
+   "name": "Date-range stepper",
+   "type": "metric-row",
+   "description": "Below the segmented control, right side. A left chevron '<' (muted grey), centered date-range label 'JUN 3 - JUN 30, 26' in white bold uppercase (~18px), and a right chevron '>' (muted grey). The left chevron appears slightly dimmer; right chevron present.",
+   "literals": [
+    "JUN 3 - JUN 30, 26",
+    "<",
+    ">"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9094"
+   ],
+   "interaction": "Chevrons page the date window backward/forward by one month (matching the 'M' selection)."
+  },
+  {
+   "order": 7,
+   "name": "Narrative summary text",
+   "type": "text",
+   "description": "Multi-line descriptive sentence in white, regular weight, ~26px, left-aligned, spanning full width. Full verbatim text: 'You spent 0:00 in zones 4-5 in the last 7 days. This is below your weekly average from the last four weeks (0:00).'",
+   "literals": [
+    "You spent 0:00 in zones 4-5 in the last 7 days. This is below your weekly average from the last four weeks (0:00)."
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 8,
+   "name": "Trend chart (zone-time over weeks)",
+   "type": "chart",
+   "description": "A line/bar trend chart area on pure-black background. Y-axis gridlines with labels (top to bottom): '0:30', '0:22', '0:15', '0:07' in muted grey, each with a faint horizontal gridline (~#1A1E22) spanning the width. Below the lowest data gridline sits a dashed horizontal AVERAGE baseline (white dashed line) flagged at the far left by a small white rounded tag reading 'AVG.' in black bold text. X-axis labels below the dashed line, evenly spaced: 'Jun 3 - 9', 'Jun 10 - 16', 'Jun 17 - 23', 'Jun 24 - 30' in muted grey (~#8A9094). No visible plotted bars/points because all values are 0:00 \u2014 the series sits flat on the baseline.",
+   "literals": [
+    "0:30",
+    "0:22",
+    "0:15",
+    "0:07",
+    "AVG.",
+    "Jun 3 - 9",
+    "Jun 10 - 16",
+    "Jun 17 - 23",
+    "Jun 24 - 30"
+   ],
+   "colors": [
+    "#8A9094",
+    "#FFFFFF",
+    "#1A1E22",
+    "#000000"
+   ],
+   "interaction": "Tapping/scrubbing a data point would surface that week's zone-time value (no points active here since all zero)."
+  },
+  {
+   "order": 9,
+   "name": "Data-source footnote",
+   "type": "text",
+   "description": "Below the chart, an info row: a circled lowercase 'i' info icon (muted grey) followed by grey text 'Zone time is derived from logged activities'. ~24px, regular weight, left-aligned.",
+   "literals": [
+    "Zone time is derived from logged activities"
+   ],
+   "colors": [
+    "#8A9094"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 10,
+   "name": "HR Zones Breakdown section header",
+   "type": "section-header",
+   "description": "Header line: 'HR ZONES BREAKDOWN' in white bold uppercase letter-spaced (~22px), followed inline by '(AVG. WEEKLY TOTAL)' in muted grey, uppercase, smaller (~17px).",
+   "literals": [
+    "HR ZONES BREAKDOWN",
+    "(AVG. WEEKLY TOTAL)"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9094"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 11,
+   "name": "Stacked zone bar",
+   "type": "chart",
+   "description": "A single full-width horizontal stacked bar (~12px tall, rounded ends) representing the breakdown of zones 4-5. Appears entirely filled with a light orange/amber color (~#F4A84A) \u2014 since both sub-values are 0:00 this is the placeholder/empty-state full-width amber bar.",
+   "literals": [],
+   "colors": [
+    "#F4A84A"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 12,
+   "name": "Zone 4 legend row",
+   "type": "metric-row",
+   "description": "Legend row: a small square color swatch in amber/orange (~#F4A84A), then value '0:00' in white bold (~26px), then label 'Zone 4' in white regular. Left-aligned.",
+   "literals": [
+    "0:00",
+    "Zone 4"
+   ],
+   "colors": [
+    "#F4A84A",
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 13,
+   "name": "Zone 5 legend row",
+   "type": "metric-row",
+   "description": "Legend row: a small square color swatch in a deeper/darker orange (~#E8702A), then value '0:00' in white bold (~26px), then label 'Zone 5' in white regular. Left-aligned, directly below Zone 4.",
+   "literals": [
+    "0:00",
+    "Zone 5"
+   ],
+   "colors": [
+    "#E8702A",
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 14,
+   "name": "Add Activity bottom bar (partially cut off)",
+   "type": "button",
+   "description": "Bottom docked bar (only top portion visible, cut off by screen edge), rounded-top, slightly lighter dark grey (~#1E2226). Left: a '+' plus icon (white) with label 'ADD ACTIVITY' in white bold uppercase letter-spaced (~22px). Right: a forward chevron '>' (white).",
+   "literals": [
+    "ADD ACTIVITY",
+    "+",
+    ">"
+   ],
+   "colors": [
+    "#1E2226",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens the manual activity-logging flow (so zone time can be attributed)."
+  }
+ ],
+ "charts": [
+  {
+   "name": "Zone 4-5 weekly trend chart",
+   "kind": "line",
+   "series": "Single series of weekly time-in-zones-4-5; flat at zero here so no visible line/markers. Would render in WHOOP's strain/zone palette (amber/orange).",
+   "xAxis": "Weeks within the selected month, 4 buckets: 'Jun 3 - 9', 'Jun 10 - 16', 'Jun 17 - 23', 'Jun 24 - 30'",
+   "yAxis": "Time (h:mm) ticks: 0:07, 0:15, 0:22, 0:30 (bottom to top)",
+   "colors": [
+    "#F4A84A",
+    "#FFFFFF"
+   ],
+   "notes": "Horizontal white DASHED line = AVG. baseline, labeled by a white pill tag 'AVG.' at far left. Faint horizontal gridlines at each y-tick. All data zero so series rests on the average/zero baseline; no on-point annotations or selected markers shown."
+  },
+  {
+   "name": "HR Zones Breakdown stacked bar",
+   "kind": "zone-bars",
+   "series": "Horizontal stacked bar splitting avg weekly total between Zone 4 (amber #F4A84A, 0:00) and Zone 5 (deep orange #E8702A, 0:00). Empty state renders as a single full-width amber bar.",
+   "xAxis": "n/a (single proportional bar)",
+   "yAxis": "n/a",
+   "colors": [
+    "#F4A84A",
+    "#E8702A"
+   ],
+   "notes": "Legend below: 'Zone 4' = amber 0:00, 'Zone 5' = deep orange 0:00."
+  }
+ ],
+ "excluded": [
+  "Floating circular WHOOP logo button (W mark in a blue/purple gradient ring) at bottom-right overlapping the Add Activity bar - this is the WHOOP Coach / AI assistant launcher, excluded per community/AI exclusion rule."
+ ],
+ "_key": "hr_zones_4_5",
+ "_dir": "home/hr zones 4-5"
+}

@@ -1,0 +1,238 @@
+{
+ "screen": "alarm (Sleep Planner)",
+ "globalNotes": "Dark theme throughout. Top section background is a dark blue-grey gradient (~#2A323B at top fading to near-black #0E1114 in the middle). The lower \"Time in Bed\" area is near-black (#0A0C0E). The bottom ALARM panel sits on a slightly lighter slate card (~#39434D) with rounded top corners, anchored to the bottom of the screen. Status bar at very top: time \"09:36\" left with a muted/silent bell icon (notifications-off) beside it; right side shows cellular signal bars, wifi icon, and battery glyph reading \"39\". This is a modal/full-screen sheet (has an X close button top-left). Screen is a single non-scrolling layout (one screenshot covers the whole view).",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: '09:36' in white bold, with a small muted bell (notifications-silenced) icon immediately to its right. Right: cellular signal bars, wifi glyph, battery outline with '39' inside it. White/light-grey icons on dark background.",
+   "literals": [
+    "09:36",
+    "39"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Header bar",
+   "type": "nav",
+   "description": "Top navigation row. Left: white 'X' close icon (thin stroke). Center: title 'SLEEP PLANNER' in white, uppercase, letter-spaced, semibold ~17px; immediately right of the title a small circular '?' help icon (grey outline circle with grey question mark). Right: a circular outlined button containing a calendar-with-clock (sleep schedule) icon, white thin stroke.",
+   "literals": [
+    "SLEEP PLANNER",
+    "?"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "X closes the modal/sheet; '?' opens help/info about Sleep Planner; calendar icon opens the sleep schedule view."
+  },
+  {
+   "order": 3,
+   "name": "SCHEDULE badge",
+   "type": "pill",
+   "description": "Small pill/badge below the right calendar icon, right-aligned. Text 'SCHEDULE' in white uppercase bold ~11px on a gradient background running orange -> pink -> magenta -> purple (left to right). Rounded corners.",
+   "literals": [
+    "SCHEDULE"
+   ],
+   "colors": [
+    "#F5A623",
+    "#E0457B",
+    "#9B30C9",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping likely opens the schedule/auto-schedule feature."
+  },
+  {
+   "order": 4,
+   "name": "WHOOP logo mark",
+   "type": "text",
+   "description": "Centered circular outline icon containing the WHOOP 'W' wordmark logomark (stylized w/peaks). Thin white circle outline, white logo. Decorative branding element.",
+   "literals": [],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 5,
+   "name": "Recommendation headline",
+   "type": "text",
+   "description": "Centered two-line headline in white, regular/medium weight ~26px, with the numbers in the same weight. Reads: 'Go to bed at 23:30 today to achieve a 76% Sleep Consistency tomorrow.' Center-aligned, spanning nearly full width.",
+   "literals": [
+    "Go to bed at 23:30 today to achieve a 76% Sleep Consistency tomorrow."
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 6,
+   "name": "Goal selector label",
+   "type": "text",
+   "description": "Centered small uppercase grey label 'TOMORROW I WANT TO', letter-spaced ~13px, sits above the goal pill button.",
+   "literals": [
+    "TOMORROW I WANT TO"
+   ],
+   "colors": [
+    "#8A929B"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 7,
+   "name": "Goal pill button",
+   "type": "button",
+   "description": "Centered rounded-rectangle (fully pill) outlined button with thin white border, transparent fill. Text 'IMPROVE MY SLEEP' centered in white uppercase semibold ~15px.",
+   "literals": [
+    "IMPROVE MY SLEEP"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens a selector to change the sleep goal (e.g. Peak / Perform / Get By / Improve My Sleep), which changes the suggested bedtime and optimal window."
+  },
+  {
+   "order": 8,
+   "name": "Divider line",
+   "type": "divider",
+   "description": "Thin faint horizontal rule spanning full width, separating the upper recommendation section from the lower Time-in-Bed visualization. Color ~#2A2F35.",
+   "literals": [],
+   "colors": [
+    "#2A2F35"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 9,
+   "name": "Suggested time to bed (left endpoint)",
+   "type": "metric",
+   "description": "Left-aligned column near left third. Large white time '23:30' bold ~44px. Below it grey uppercase label on two lines 'SUGGESTED TIME TO BED', letter-spaced ~13px, center-aligned under the time.",
+   "literals": [
+    "23:30",
+    "SUGGESTED TIME TO BED"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "none (display); represents the left edge of the time-in-bed bar"
+  },
+  {
+   "order": 10,
+   "name": "Your wake time (right endpoint)",
+   "type": "metric",
+   "description": "Right-aligned column near right third. Large white time '07:30' bold ~44px. Below it grey uppercase label 'YOUR WAKE TIME', letter-spaced ~13px, center-aligned under the time.",
+   "literals": [
+    "07:30",
+    "YOUR WAKE TIME"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "none (display); represents the right edge of the time-in-bed bar"
+  },
+  {
+   "order": 11,
+   "name": "Time in Bed bar (hatched range bar with dropdown stems)",
+   "type": "chart",
+   "description": "Horizontal range visualization. Two thin vertical dotted/dashed white stems drop down from the 23:30 (left) and 07:30 (right) values to the bar, marking the bedtime and wake endpoints. The bar itself is a horizontal grey diagonally-hatched/striped band (dark grey #2E343A with lighter diagonal stripes) running between the two endpoints. Centered on the bar is a white-outlined pill containing '8:00' (the time-in-bed duration) in white bold. Above the pill, centered, a small white uppercase label 'TIME IN BED' (~13px, letter-spaced). The hatched band has solid white vertical end-caps at both the left and right ends.",
+   "literals": [
+    "TIME IN BED",
+    "8:00"
+   ],
+   "colors": [
+    "#2E343A",
+    "#FFFFFF"
+   ],
+   "interaction": "The endpoints/bar are draggable to adjust bedtime and wake time, updating the duration and the 23:30/07:30 values."
+  },
+  {
+   "order": 12,
+   "name": "Optimal window bracket",
+   "type": "chart",
+   "description": "Below the Time-in-Bed bar: a wide blue dashed bracket (downward U / brace shape) spanning wider than the hatched bar, drawn in a light blue (~#5B7FA6 / steel blue) dashed line. Centered on the bracket the label 'OPTIMAL' in the same blue, uppercase letter-spaced ~13px. Below the bracket, centered, the range '00:00 - 08:25' in the same muted blue ~15px. This shows the optimal sleep window which is wider than the suggested 8h window.",
+   "literals": [
+    "OPTIMAL",
+    "00:00 - 08:25"
+   ],
+   "colors": [
+    "#5B7FA6"
+   ],
+   "interaction": "none (informational range)"
+  },
+  {
+   "order": 13,
+   "name": "ALARM panel header row",
+   "type": "section-header",
+   "description": "Bottom anchored slate card (lighter than background, ~#39434D, rounded top corners). Header row: left a small white wrist-band/strap icon (watch on wrist outline). Center: 'ALARM' in white uppercase bold ~17px, letter-spaced, centered. Right: an iOS-style toggle switch in the OFF state (knob to the left, track grey ~#6B7178, no green fill).",
+   "literals": [
+    "ALARM"
+   ],
+   "colors": [
+    "#39434D",
+    "#FFFFFF",
+    "#6B7178"
+   ],
+   "interaction": "Toggle enables/disables the haptic alarm on the band. Currently OFF."
+  },
+  {
+   "order": 14,
+   "name": "ALARM SET TO card (left)",
+   "type": "card",
+   "description": "Bottom-left rounded rectangle card on a slightly darker slate fill (~#2C343C) with subtle border. Top line grey uppercase label 'ALARM SET TO' (~13px, letter-spaced, centered). Below it white bold value 'OFF' (~20px, centered).",
+   "literals": [
+    "ALARM SET TO",
+    "OFF"
+   ],
+   "colors": [
+    "#2C343C",
+    "#8A929B",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens the alarm time picker / setting (currently OFF)."
+  },
+  {
+   "order": 15,
+   "name": "WAKE TIME SET TO card (right)",
+   "type": "card",
+   "description": "Bottom-right rounded rectangle card on a slightly darker slate fill (~#2C343C). Top line grey uppercase label 'WAKE TIME SET TO' (~13px, letter-spaced, centered). Below it white bold value '07:30' (~20px, centered).",
+   "literals": [
+    "WAKE TIME SET TO",
+    "07:30"
+   ],
+   "colors": [
+    "#2C343C",
+    "#8A929B",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens the wake-time picker to change the target wake time (currently 07:30)."
+  }
+ ],
+ "charts": [
+  {
+   "name": "Time in Bed range bar",
+   "kind": "zone-bars",
+   "series": "Single horizontal hatched/striped band (dark grey #2E343A with lighter diagonal stripes) representing the planned time-in-bed window between bedtime (left) and wake (right). White solid vertical end-caps at both ends; thin white dashed vertical stems connect the band ends up to the 23:30 and 07:30 time labels.",
+   "xAxis": "Time of day; left endpoint anchored at 23:30 (suggested bedtime), right endpoint at 07:30 (wake time). No tick labels along the axis itself.",
+   "yAxis": "none (single horizontal track)",
+   "notes": "Centered white-outlined pill annotation '8:00' = duration in bed, with 'TIME IN BED' label above. Below sits a separate blue dashed OPTIMAL bracket spanning a wider range labeled 'OPTIMAL' with sub-range '00:00 - 08:25'. Colors: band grey #2E343A; endcaps/stems white; OPTIMAL bracket+text steel blue ~#5B7FA6.",
+   "colors": [
+    "#2E343A",
+    "#FFFFFF",
+    "#5B7FA6"
+   ]
+  }
+ ],
+ "excluded": [
+  "SCHEDULE gradient badge is a WHOOP auto-scheduling/coaching feature surfaced visually but it is a core sleep-planner control, not a community/AI element, so it is kept in layout \u2014 no community, social feed, or 'Ask WHOOP Coach' AI elements are present on this screen to exclude."
+ ],
+ "_key": "alarm",
+ "_dir": "home/alarm"
+}

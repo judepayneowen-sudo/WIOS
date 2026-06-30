@@ -1,0 +1,223 @@
+{
+ "screen": "rhr (Resting Heart Rate \u2014 Trend View)",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: time '09:37' in white bold, followed by a small muted bell-with-slash (silent/DND) icon. Right: cellular signal bars (2 of 4 filled), wifi icon, battery glyph showing '39' inside the battery outline. Dark background ~#14181C.",
+   "literals": [
+    "09:37",
+    "39"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9098"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Top navigation bar",
+   "type": "nav",
+   "description": "Header row. Left: white chevron-left back arrow ('<'). Centered title 'TREND VIEW' in white, uppercase, letter-spaced, semibold ~17px. No right-side element.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Back arrow taps back to the previous (metric overview) screen."
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown",
+   "type": "button",
+   "description": "Full-width rounded pill/card, slightly lighter grey ~#3A4047. Left: a heart outline with a small down-arrow icon (RHR glyph, muted white). Label 'RESTING HEART RATE' in white uppercase bold ~18px, left-aligned after icon. Far right: a white downward chevron indicating a dropdown.",
+   "literals": [
+    "RESTING HEART RATE"
+   ],
+   "colors": [
+    "#3A4047",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens a dropdown to switch the displayed metric (e.g. HRV, RHR, etc.)."
+  },
+  {
+   "order": 4,
+   "name": "Average value block",
+   "type": "metric-row",
+   "description": "Left-aligned. Small grey uppercase label 'AVERAGE' (~#8A9098, letter-spaced). Below it, very large white bold number '56' (~64px) with smaller white 'bpm' unit baseline-aligned to its right. No trend arrow or baseline comparison shown here.",
+   "literals": [
+    "AVERAGE",
+    "56",
+    "bpm"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9098"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 5,
+   "name": "Time-range segmented control",
+   "type": "pill",
+   "description": "Rounded segmented toggle on the right side, dark track ~#22272C with three segments: 'W', 'M', '6M'. The middle 'M' segment is selected (highlighted lighter grey ~#4A5057 with white bold text); 'W' and '6M' are muted grey text. Uppercase bold.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#4A5057",
+    "#FFFFFF",
+    "#8A9098"
+   ],
+   "interaction": "Tapping W / M / 6M switches the chart aggregation window (week / month / 6 months)."
+  },
+  {
+   "order": 6,
+   "name": "Date range stepper",
+   "type": "metric-row",
+   "description": "Below the segmented control, centered/right area. Left muted grey chevron-left ('<'), centered white text 'JUN 1 - JUN 30, 26' (uppercase, semibold), right muted grey chevron-right ('>'). Right chevron appears slightly dimmer (current period).",
+   "literals": [
+    "JUN 1 - JUN 30, 26"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#5A6068"
+   ],
+   "interaction": "Left/right chevrons step to the previous/next month period; chart and average update."
+  },
+  {
+   "order": 7,
+   "name": "Explanatory paragraph",
+   "type": "text",
+   "description": "Full-width white body text, ~17px regular, left-aligned, three lines: 'Your average RHR this month is 56. Wear your WHOOP to bed each night to track your sleep and monitor your RHR over time.'",
+   "literals": [
+    "Your average RHR this month is 56. Wear your WHOOP to bed each night to track your sleep and monitor your RHR over time."
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 8,
+   "name": "Typical range legend",
+   "type": "text",
+   "description": "Right-aligned legend above the chart: a small grey filled square swatch followed by 'TYPICAL RANGE' in muted grey uppercase letter-spaced bold ~13px.",
+   "literals": [
+    "TYPICAL RANGE"
+   ],
+   "colors": [
+    "#8A9098",
+    "#3A4047"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 9,
+   "name": "RHR trend line chart",
+   "type": "chart",
+   "description": "Line chart of resting heart rate over the month. Y-axis (left) labeled with grey numbers top-to-bottom: 81, 67, 53, 39 (faint horizontal gridlines at each). A shaded horizontal band (the TYPICAL RANGE) spans roughly from y=53 up to ~y=60 across the full width, filled translucent grey ~#2A3036. The plotted series is a light blue (#5AA9E6) line; only the right ~40% of the chart has data (line begins mid-chart around Jun 19), with sharp zig-zag peaks reaching up to ~67 and dips down to ~53; a tall final peak near Jun 28 (~67) then drops to the last point. The final/most-recent data point is marked with a hollow blue circle and an on-point value annotation '50' in white bold just above-left of the marker. X-axis labels (grey, two-line) evenly spaced: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30'.",
+   "literals": [
+    "81",
+    "67",
+    "53",
+    "39",
+    "50",
+    "Jun 2",
+    "Jun 9",
+    "Jun 16",
+    "Jun 23",
+    "Jun 30",
+    "TYPICAL RANGE"
+   ],
+   "colors": [
+    "#5AA9E6",
+    "#2A3036",
+    "#8A9098",
+    "#FFFFFF"
+   ],
+   "interaction": "Scrubbing/tapping a point selects that day and shows its value annotation (selected point currently the last point '50')."
+  },
+  {
+   "order": 10,
+   "name": "Learn More header row",
+   "type": "section-header",
+   "description": "Row with left muted-grey uppercase 'LEARN MORE' (~#8A9098, letter-spaced bold) and right white 'VIEW ALL' uppercase bold followed by a white right-arrow icon '->'.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL"
+   ],
+   "colors": [
+    "#8A9098",
+    "#FFFFFF"
+   ],
+   "interaction": "'VIEW ALL' navigates to the full library of RHR learn-more content."
+  },
+  {
+   "order": 11,
+   "name": "Learn More content carousel",
+   "type": "card",
+   "description": "Horizontally scrollable row of media cards. Card 1 (VIDEO): photo of a smiling woman in a white sweater; top-right black 'VIDEO' tag (white text); overlaid top-left a mini WHOOP RHR badge showing heart icon, '56 bpm' white bold and a small green pill '52 - 58'; a circular white play button overlays the lower-left; caption below 'What is RHR?' in white. Card 2 (ARTICLE): dark card with scattered white heart-outline icons and one green heart-with-down-arrow; top-right black 'ARTICLE' tag; caption 'RHR: What's Normal and How to Improve It' white. Card 3 (partially visible, ARTICLE/photo of a smiling person): caption begins 'What is a G... Resting He... Age and G...' (truncated 'What is a Good Resting Heart Rate by Age and Gender' implied).",
+   "literals": [
+    "VIDEO",
+    "56 bpm",
+    "52 - 58",
+    "What is RHR?",
+    "ARTICLE",
+    "RHR: What's Normal and How to Improve It",
+    "What is a G",
+    "Resting He",
+    "Age and G"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#1FC77A",
+    "#000000"
+   ],
+   "interaction": "Tapping a card opens that video/article; the row scrolls horizontally."
+  },
+  {
+   "order": 12,
+   "name": "'What is Resting Heart Rate?' info card",
+   "type": "card",
+   "description": "Large rounded dark card ~#1C2126. Heading 'What is Resting Heart Rate?' in white bold ~26px. Body in muted light-grey ~#C0C5CB, regular ~17px, three paragraphs: Para1 'Resting heart rate (RHR) is the average number of times your heart beats per minute while in a complete state of rest. It is measured towards the end of your sleep cycle when your body is in its most restful state, Slow Wave Sleep.' Para2 'In general, a lower RHR indicates better fitness. A low resting heart rate is an indication of a strong heart muscle that can pump more blood with every beat, so it doesn't have to beat as frequently.' Para3 'Short-term increases in RHR can signal fatigue or illness, while long-term decreases indicate improved cardiovascular health.'",
+   "literals": [
+    "What is Resting Heart Rate?",
+    "Resting heart rate (RHR) is the average number of times your heart beats per minute while in a complete state of rest. It is measured towards the end of your sleep cycle when your body is in its most restful state, Slow Wave Sleep.",
+    "In general, a lower RHR indicates better fitness. A low resting heart rate is an indication of a strong heart muscle that can pump more blood with every beat, so it doesn't have to beat as frequently.",
+    "Short-term increases in RHR can signal fatigue or illness, while long-term decreases indicate improved cardiovascular health."
+   ],
+   "colors": [
+    "#1C2126",
+    "#FFFFFF",
+    "#C0C5CB"
+   ],
+   "interaction": "none (static informational card)"
+  }
+ ],
+ "charts": [
+  {
+   "name": "RHR monthly trend",
+   "kind": "line",
+   "xAxis": "Days of month, labeled Jun 2 / Jun 9 / Jun 16 / Jun 23 / Jun 30 (weekly ticks across Jun 1\u2013Jun 30, 26)",
+   "yAxis": "Resting heart rate (bpm), single left axis, gridlines/labels at 39, 53, 67, 81",
+   "series": "One series: daily RHR as a light-blue (#5AA9E6) zig-zag line; data only present from ~Jun 19 onward. Last point marked with hollow blue circle.",
+   "colors": [
+    "#5AA9E6",
+    "#2A3036"
+   ],
+   "notes": "Shaded translucent-grey horizontal band = TYPICAL RANGE (~53 to ~60 bpm). On-point annotation '50' (white bold) on the final/selected most-recent point. Range high peaks ~67, low ~50. No dual axis."
+  }
+ ],
+ "excluded": [
+  "Floating WHOOP Coach / AI assistant button: a circular gradient (blue/purple) button with the WHOOP 'W' logo, fixed bottom-right corner over both scroll positions \u2014 this is the AI coach entry point and is excluded from the build."
+ ],
+ "globalNotes": "Two screenshots are vertical scroll positions of one 'TREND VIEW' screen for the Resting Heart Rate metric. The header ('TREND VIEW' + back arrow) is sticky/persistent across both. Image 1 covers top \u2192 the RHR line chart and the start of the LEARN MORE carousel; image 2 overlaps at LEARN MORE and continues to the 'What is Resting Heart Rate?' info card and bottom padding. Overall dark theme (~#14181C background). The floating circular WHOOP-logo AI-coach button is pinned bottom-right in both (excluded). The LEARN MORE carousel and the info card appear in both images \u2014 merge, do not double-count.",
+ "_key": "rhr",
+ "_dir": "home/rhr"
+}

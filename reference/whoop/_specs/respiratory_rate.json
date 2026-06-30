@@ -1,0 +1,261 @@
+{
+ "screen": "respiratory_rate",
+ "globalNotes": "Single vertically-scrolling 'TREND VIEW' detail screen for the Respiratory Rate metric. Dark theme: page background near-black dark navy/charcoal (~#0E1418 top fading to ~#0A0E12 near the chart/bottom). Header 'TREND VIEW' (back chevron + centered title) is sticky across both scroll positions. Status bar present (09:40 then 09:41, silent bell-slash icon, 2 cellular bars, wifi, battery 38%). Image1 = top (header \u2192 metric dropdown \u2192 average/segmented control/date stepper \u2192 paragraph \u2192 chart \u2192 start of LEARN MORE carousel). Image2 = scrolled down (chart x-axis tail, LEARN MORE carousel of article cards, then large 'What is Respiratory Rate?' explainer card). Accent color throughout the chart/series is light sky-blue ~#5BB8E8. A floating WHOOP 'W' assistant button (excluded) sits bottom-right in both shots. Overlap between the two images: the LEARN MORE header, the three article cards, and the chart's bottom x-axis appear in both \u2014 merge, do not double-count.\"",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: time '09:40' (image1) / '09:41' (image2) in white bold, followed by a small bell-with-slash (silent mode) icon. Right: cellular signal (2 of 4 bars filled), wifi glyph, battery pill showing '38' with white fill. White/light-grey icons on dark background.",
+   "literals": [
+    "09:40",
+    "09:41",
+    "38"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#0E1418"
+   ],
+   "interaction": "none (system)"
+  },
+  {
+   "order": 2,
+   "name": "Header bar (TREND VIEW)",
+   "type": "nav",
+   "description": "Top navigation. Left-aligned back chevron '<' (thin white stroke, ~size 28). Centered title 'TREND VIEW' in white, uppercase, letter-spaced, semibold, ~16px. No right-side action. Sits on page background, no divider.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#0E1418"
+   ],
+   "interaction": "Back chevron pops the navigation stack, returning to the previous (overview/home or sleep detail) screen."
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown pill",
+   "type": "pill",
+   "description": "Full-width rounded rectangle pill, lighter grey fill (~#3A444C / semi-translucent grey, slightly lighter than page). Left: a lungs/respiratory icon (line-art, light grey ~#AEB6BC). Then bold white uppercase label 'RESPIRATORY RATE' (~18px, letter-spaced). Far right: a downward chevron 'v' (white, ~size 22) indicating a dropdown to switch which metric this trend view shows. Vertical padding generous (~tall pill). Corner radius ~14.",
+   "literals": [
+    "RESPIRATORY RATE"
+   ],
+   "colors": [
+    "#3A444C",
+    "#FFFFFF",
+    "#AEB6BC"
+   ],
+   "interaction": "Tapping opens a dropdown/menu to switch the trend view to another metric (HRV, RHR, Skin Temp, SpO2, etc.)."
+  },
+  {
+   "order": 4,
+   "name": "Average value block",
+   "type": "metric-row",
+   "description": "Left-aligned summary. Small grey uppercase label 'AVERAGE' (~13px, letter-spaced, ~#8A9298) on top. Below it a very large white number '15.7' (bold, ~56px) with a smaller lowercase unit 'rpm' (~22px, grey-white ~#C8CDD0) baseline-aligned to the right of the number.",
+   "literals": [
+    "AVERAGE",
+    "15.7",
+    "rpm"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A9298",
+    "#C8CDD0"
+   ],
+   "interaction": "none (static summary; reflects selected time range)"
+  },
+  {
+   "order": 5,
+   "name": "Time-range segmented control (W / M / 6M)",
+   "type": "button",
+   "description": "Right-aligned segmented toggle on a dark rounded container (~#1E262B). Three segments: 'W', 'M', '6M'. The middle 'M' is selected \u2014 shown on a lighter raised grey pill (~#4A535A) with white bold text; 'W' and '6M' are unselected, dimmer grey text (~#9098A0). Rounded corners ~10.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#4A535A",
+    "#1E262B",
+    "#FFFFFF",
+    "#9098A0"
+   ],
+   "interaction": "Selecting W / M / 6M changes the chart and average to weekly / monthly / 6-month aggregation. 'M' currently active."
+  },
+  {
+   "order": 6,
+   "name": "Date-range stepper",
+   "type": "metric-row",
+   "description": "Below the segmented control, right side. A left chevron '<' (dim grey), centered bold white date range 'JUN 1 - JUN 30, 26' (uppercase, ~16px), and a right chevron '>' (dim grey). Right chevron slightly dimmer/disabled-looking (current month). Lets the user page between months.",
+   "literals": [
+    "JUN 1 - JUN 30, 26",
+    "<",
+    ">"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#6B7278"
+   ],
+   "interaction": "Left chevron goes to the previous month's trend; right chevron to the next month (disabled at current month)."
+  },
+  {
+   "order": 7,
+   "name": "Descriptive paragraph",
+   "type": "text",
+   "description": "Full-width body text, left-aligned, white/light-grey (~#E4E7E9), ~22px, regular weight, ~3 lines. Verbatim: 'Your average respiratory rate this month is 15.7. Wear your WHOOP to bed each night to track how your respiratory rate changes over time.'",
+   "literals": [
+    "Your average respiratory rate this month is 15.7. Wear your WHOOP to bed each night to track how your respiratory rate changes over time."
+   ],
+   "colors": [
+    "#E4E7E9"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 8,
+   "name": "Chart legend (TYPICAL RANGE)",
+   "type": "text",
+   "description": "Right-aligned legend above the chart. A small grey square swatch (~#6E767C, semi-transparent grey) followed by white bold uppercase label 'TYPICAL RANGE' (~14px, letter-spaced). Indicates the shaded horizontal band on the chart that marks the user's typical respiratory-rate range.",
+   "literals": [
+    "TYPICAL RANGE"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#6E767C"
+   ],
+   "interaction": "none (legend)"
+  },
+  {
+   "order": 9,
+   "name": "Respiratory rate trend line chart",
+   "type": "chart",
+   "description": "Line chart occupying most of the screen. Y-AXIS (left): labeled gridline values top-to-bottom '20.0', '18.0', '16.0', '14.0', '12.0' (grey ~#8A9298, ~14px), each with a faint horizontal gridline (~#262C30) spanning the width. Range 12.0-20.0 rpm. X-AXIS (bottom): five date ticks 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30' (grey, two-line each: month over day). SHADED REGION: a horizontal 'TYPICAL RANGE' band centered around ~15.3-15.7 (a thin grey translucent strip roughly between the 16.0 line and just below, ~#2E363C semi-transparent) running full width. PLOTTED SERIES: a single light sky-blue line (~#5BB8E8) appearing only in the right ~40% of the chart (data starts around Jun 18-19); the earlier part of the month has no line drawn. The line rises sharply from ~15 up to a peak ~16.4 near Jun 19, then there is a visible CHECKMARK-shaped selection/cursor mark (a bold sky-blue check '\u2713' glyph overlaid around Jun 18-19, ~16.0), resumes as the line continues right: dips, rises to a local peak ~16.3 around Jun 22-23, undulates down and along ~15.5-15.6, and ends at the right edge with an OPEN CIRCLE marker (hollow sky-blue ring) at the final point. ON-POINT ANNOTATION: '15.4' in sky-blue bold (~22px) labels the final point near the right, just above/left of the end circle. Two faint darker vertical bands (translucent ~#1A2024) sit behind the data around Jun 18-21, likely highlighting the active/selected window.",
+   "literals": [
+    "20.0",
+    "18.0",
+    "16.0",
+    "14.0",
+    "12.0",
+    "Jun 2",
+    "Jun 9",
+    "Jun 16",
+    "Jun 23",
+    "Jun 30",
+    "15.4"
+   ],
+   "colors": [
+    "#5BB8E8",
+    "#8A9298",
+    "#262C30",
+    "#2E363C"
+   ],
+   "interaction": "Scrubbing/tapping a point on the line shows that day's respiratory-rate value (the sky-blue on-point annotation '15.4' is the currently-selected/most-recent point)."
+  },
+  {
+   "order": 10,
+   "name": "LEARN MORE section header",
+   "type": "section-header",
+   "description": "Row with left grey uppercase bold label 'LEARN MORE' (~#8A9298, ~16px, letter-spaced). Right side: 'VIEW ALL' in white bold uppercase (~16px) followed by a white right-arrow '\u2192'.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL"
+   ],
+   "colors": [
+    "#8A9298",
+    "#FFFFFF"
+   ],
+   "interaction": "'VIEW ALL \u2192' navigates to a full list of respiratory-rate articles/content."
+  },
+  {
+   "order": 11,
+   "name": "Article carousel - card 1 (Understanding Respiratory Rate)",
+   "type": "card",
+   "description": "First tile in a horizontally-scrolling carousel. Rounded card. Background photo: a person lying in bed (desaturated blue-grey tint), with a small inset WHOOP UI chip showing a lungs icon, 'Respirator...' label and a value '12.5 / 13.2' style readout. Top-right pill badge 'ARTICLE' (white bold uppercase on dark ~#1A1F23 rounded chip). Below the image, white bold title (2-3 lines, truncated): 'Understanding Respiratory Rate: What it Is, What's N...' .",
+   "literals": [
+    "ARTICLE",
+    "Understanding Respiratory Rate: What it Is, What's N...",
+    "Respirator",
+    "12.5",
+    "13.2"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#1A1F23"
+   ],
+   "interaction": "Tapping opens the 'Understanding Respiratory Rate' article."
+  },
+  {
+   "order": 12,
+   "name": "Article carousel - card 2 (What Does an Infection Do...)",
+   "type": "card",
+   "description": "Second carousel tile. Background photo: a woman sleeping on her side in bed on grey pillows, with a WHOOP band visible on her wrist. Top-right pill badge 'ARTICLE' (white bold on dark chip). Below image, white bold title (2 lines): 'What Does an Infection Do to Your Respiratory Rate?'.",
+   "literals": [
+    "ARTICLE",
+    "What Does an Infection Do to Your Respiratory Rate?"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#1A1F23"
+   ],
+   "interaction": "Tapping opens the 'What Does an Infection Do to Your Respiratory Rate?' article."
+  },
+  {
+   "order": 13,
+   "name": "Article carousel - card 3 (What is Respiratory Rate? video)",
+   "type": "card",
+   "description": "Third carousel tile, partially off the right edge. Background photo: a smiling person in white against a dark scene, with an overlaid WHOOP UI card showing a lungs icon, '16.1 rpm' (white bold) and a small green status bar reading '< 16.7' (green check + green capsule ~#3DD17F). A circular black PLAY button '\u25b6' is centered over the image (video content). Title below (truncated): 'What is Re...Rate?' (full: 'What is Respiratory Rate?').",
+   "literals": [
+    "16.1",
+    "rpm",
+    "< 16.7",
+    "What is Re... Rate?",
+    "\u25b6"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3DD17F",
+    "#1A1F23"
+   ],
+   "interaction": "Tapping plays the 'What is Respiratory Rate?' video."
+  },
+  {
+   "order": 14,
+   "name": "What is Respiratory Rate? explainer card",
+   "type": "card",
+   "description": "Large full-width rounded card (~#14191D fill, corner radius ~18) near the bottom (visible in image2). Heading in white bold (~26px): 'What is Respiratory Rate?'. Body text in lighter grey (~#C8CDD0, ~22px regular) in three paragraphs, verbatim: Paragraph 1: 'Respiratory rate (RR) measures how many breaths you take per minute while asleep.' Paragraph 2: 'It reflects your median respiratory rate over the course of the night, and is calculated from the cyclical pattern in your heart rate as you breathe in and out.' Paragraph 3: 'RR is typically stable from night to night, meaning that any drastic changes are likely meaningful. These may be due to illness, fatigue, allergies or changes in altitude. Abnormally high or low RR can sometimes be a sign of underlying health issues.'",
+   "literals": [
+    "What is Respiratory Rate?",
+    "Respiratory rate (RR) measures how many breaths you take per minute while asleep.",
+    "It reflects your median respiratory rate over the course of the night, and is calculated from the cyclical pattern in your heart rate as you breathe in and out.",
+    "RR is typically stable from night to night, meaning that any drastic changes are likely meaningful. These may be due to illness, fatigue, allergies or changes in altitude. Abnormally high or low RR can sometimes be a sign of underlying health issues."
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#C8CDD0",
+    "#14191D"
+   ],
+   "interaction": "none (static informational card)"
+  }
+ ],
+ "charts": [
+  {
+   "name": "Respiratory rate monthly trend",
+   "kind": "line",
+   "series": "Single series: daily/aggregated respiratory rate (rpm), drawn as a light sky-blue (~#5BB8E8) line. Data only present in the right ~40% of the plot (approx Jun 18 onward); left portion empty. End point marked with a hollow sky-blue ring; a sky-blue checkmark-style selection cursor sits around Jun 18-19.",
+   "xAxis": "Date, five ticks: Jun 2, Jun 9, Jun 16, Jun 23, Jun 30 (range Jun 1 - Jun 30, 2026, monthly view).",
+   "yAxis": "Respiratory rate (rpm). Gridlines/labels at 12.0, 14.0, 16.0, 18.0, 20.0. Single axis (no dual axis).",
+   "notes": "Shaded horizontal 'TYPICAL RANGE' band (~#2E363C translucent grey) spans full width around ~15.3-15.7. Two faint darker vertical bands behind data ~Jun18-21 indicate the active window. On-point annotation '15.4' (sky-blue bold) labels the final/selected point near the right edge. Average shown above chart: 15.7 rpm. Line peaks ~16.4 (~Jun 19) and ~16.3 (~Jun 22-23), settling ~15.4-15.6.",
+   "colors": [
+    "#5BB8E8",
+    "#2E363C",
+    "#8A9298"
+   ]
+  }
+ ],
+ "excluded": [
+  "Floating circular WHOOP 'W' assistant button (bottom-right, gradient blue ring with stylized W mark) present in both screenshots \u2014 AI/coach assistant entry point, excluded from build.",
+  "The play-button video-coach avatar overlay on article card 3 (WHOOP-branded talking-head video) is borderline coach/brand content; the article tiles themselves are kept as content links but the WHOOP avatar/assistant branding is excluded."
+ ],
+ "_key": "respiratory_rate",
+ "_dir": "home/respiratory rate"
+}

@@ -1,0 +1,225 @@
+{
+ "screen": "calories",
+ "globalNotes": "Dark theme throughout (near-black background ~#0A0C0F at top fading to pure ~#000000 in chart area). This is a \"TREND VIEW\" detail screen for the CALORIES metric. The two images are vertical scroll positions of ONE continuous screen: image 1 = top (status bar through start of LEARN MORE cards), image 2 = scrolled down (header re-pinned, info line, LEARN MORE cards full, \"What are Calories?\" explainer card). The header (\"< TREND VIEW\") is a sticky/pinned top bar present in both images. A floating circular WHOOP coach button (gradient ring with W logo) sits bottom-right in image 2 \u2014 EXCLUDED as an AI/coach element. Status bar text and icons are white. Standard iOS status bar at top: time 09:38/09:39, silent-mode bell icon, cellular bars, wifi, battery 38%.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: time '09:38' (image1) / '09:39' (image2) in white bold, followed by a small silent-mode bell-with-slash icon. Right: cellular signal bars, wifi glyph, and a battery pill showing '38' with a low/grey fill. White on dark background.",
+   "literals": [
+    "09:38",
+    "09:39",
+    "38"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#0A0C0F"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Header bar (TREND VIEW)",
+   "type": "nav",
+   "description": "Sticky top navigation bar. Left: white chevron back arrow '<'. Center: title 'TREND VIEW' in white, uppercase, letter-spaced, bold ~16px. No right-side action. Present in both scroll positions.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Back chevron navigates back to the previous (overview/home) screen."
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown (CALORIES)",
+   "type": "button",
+   "description": "Full-width rounded pill/card, slightly lighter grey than background (~#2A2E33). Left: a flame/fire outline icon (grey ~#9AA0A6). Center-left: label 'CALORIES' in white, uppercase, bold, letter-spaced ~18px. Right: a downward chevron 'v' in white indicating it's a dropdown. Rounded corners ~14px, generous vertical padding.",
+   "literals": [
+    "CALORIES"
+   ],
+   "colors": [
+    "#2A2E33",
+    "#FFFFFF",
+    "#9AA0A6"
+   ],
+   "interaction": "Tapping opens a dropdown to switch which metric/trend is shown (e.g. switch from Calories to another metric)."
+  },
+  {
+   "order": 4,
+   "name": "AVERAGE value block",
+   "type": "metric-row",
+   "description": "Left-aligned. Small grey uppercase label 'AVERAGE' (~#9AA0A6, ~13px, letter-spaced) on top. Below it the big value: '2,030' in very large bold white (~56px) followed immediately by smaller white/grey 'Cals' unit (~22px, lighter weight). Sits to the left of the W/M/6M time-range toggle.",
+   "literals": [
+    "AVERAGE",
+    "2,030",
+    "Cals"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#9AA0A6"
+   ],
+   "interaction": "none (static readout)"
+  },
+  {
+   "order": 5,
+   "name": "Time-range toggle (W / M / 6M)",
+   "type": "pill",
+   "description": "Segmented control on the right side, dark rounded container (~#1C1F24) with three segments: 'W', 'M', '6M'. The middle 'M' segment is SELECTED \u2014 shown with a lighter grey raised fill (~#3A3E44) and brighter white text; 'W' and '6M' are dimmer grey text (~#9AA0A6). Uppercase, bold.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#3A3E44",
+    "#1C1F24",
+    "#FFFFFF",
+    "#9AA0A6"
+   ],
+   "interaction": "Tapping W / M / 6M switches the chart and average to Week / Month / 6-Month range. Currently M (month) is active."
+  },
+  {
+   "order": 6,
+   "name": "Date-range stepper",
+   "type": "metric-row",
+   "description": "Row under the toggle. Left: a dim grey left-chevron '<'. Center: 'JUN 1 - JUN 30, 26' in white, uppercase, bold, letter-spaced. Right: a brighter white right-chevron '>'. Represents the currently displayed month range (June 2026).",
+   "literals": [
+    "JUN 1 - JUN 30, 26",
+    "<",
+    ">"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#9AA0A6"
+   ],
+   "interaction": "Left/right chevrons step to previous/next month period; chart and average update accordingly."
+  },
+  {
+   "order": 7,
+   "name": "Explanatory summary text",
+   "type": "text",
+   "description": "Multi-line white sentence, left-aligned, ~20px regular weight, generous line height: 'You have burned an average of 2,030 calories this month. Wear your WHOOP consistently to see how this changes over time.'",
+   "literals": [
+    "You have burned an average of 2,030 calories this month. Wear your WHOOP consistently to see how this changes over time."
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 8,
+   "name": "Calories bar chart",
+   "type": "chart",
+   "description": "Vertical bar chart on pure black background. Y-axis (left) labels in grey: '3,000', '1,000', '0' as horizontal gridlines (faint grey lines across), with an implied '2,000' line covered by the AVG marker. A horizontal dashed white line runs across at ~2,030 (the average) with a white rounded label tag 'AVG.' (black text on white pill) at the far left edge sitting on that line; the partially-clipped '2' of '2,000' is visible just left of the AVG tag. Bars are bright WHOOP blue (~#3BA9E8 / cyan-blue), one per day. Bars only appear for the right ~half of the chart (data starts mid-month, around Jun 16). Notable bar heights: a tall peak bar (~2,850, the tallest, just after Jun 16) and a second tall bar (~2,600 near Jun 25/26); several bars cluster around/just above the 2,030 average line; two short bars near ~950-1,000 (one around Jun 16, one at the far right ~Jun 30) and one mid bar ~1,200. X-axis labels in grey, two-line, evenly spaced: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30'.",
+   "literals": [
+    "3,000",
+    "1,000",
+    "0",
+    "AVG.",
+    "Jun 2",
+    "Jun 9",
+    "Jun 16",
+    "Jun 23",
+    "Jun 30"
+   ],
+   "colors": [
+    "#3BA9E8",
+    "#FFFFFF",
+    "#9AA0A6",
+    "#000000"
+   ],
+   "interaction": "Tapping/long-pressing a bar likely shows that day's calorie value (selected-point readout). Default view shows no selected bar."
+  },
+  {
+   "order": 9,
+   "name": "Average disclaimer line",
+   "type": "text",
+   "description": "Row below chart. Left: a small grey circled 'i' info icon. Right of it: grey text 'Average does not include today (Jun 30)'. ~14px, regular.",
+   "literals": [
+    "Average does not include today (Jun 30)"
+   ],
+   "colors": [
+    "#9AA0A6"
+   ],
+   "interaction": "none (informational)"
+  },
+  {
+   "order": 10,
+   "name": "LEARN MORE section header",
+   "type": "section-header",
+   "description": "Row. Left: 'LEARN MORE' grey uppercase letter-spaced bold (~#9AA0A6, ~16px). Right: 'VIEW ALL' in white bold uppercase followed by a white right-arrow '->'.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL"
+   ],
+   "colors": [
+    "#9AA0A6",
+    "#FFFFFF"
+   ],
+   "interaction": "'VIEW ALL' / arrow navigates to a full list of learn-more content (articles/podcasts)."
+  },
+  {
+   "order": 11,
+   "name": "Learn-more content carousel",
+   "type": "list",
+   "description": "Horizontally scrollable row of media cards. Card 1 (ARTICLE): photo of a runner crouching at a track wearing a WHOOP band; a small grey/translucent pill label 'ARTICLE' top-right of the image; caption below in white bold two lines 'The Science of Calorie Tracking'. Card 2 (PODCAST): photo of an athlete in a sprint-start / box position; pill label 'PODCAST' top-right; caption white bold 'Understanding the Science of Tracking Calories'. Card 3 (partially off right edge): photo of a smiling woman; caption (clipped) 'Dr. Hazel W... Talks Nutri... Habit Form...' with a duration label '39 MIN.' in grey below. Cards have rounded corners, dark card background.",
+   "literals": [
+    "ARTICLE",
+    "The Science of Calorie Tracking",
+    "PODCAST",
+    "Understanding the Science of Tracking Calories",
+    "Dr. Hazel W",
+    "Talks Nutri",
+    "Habit Form",
+    "39 MIN."
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#9AA0A6"
+   ],
+   "interaction": "Tapping a card opens that article/podcast content. Row scrolls horizontally to reveal more cards."
+  },
+  {
+   "order": 12,
+   "name": "What are Calories? explainer card",
+   "type": "card",
+   "description": "Large rounded card, dark grey fill slightly lighter than background (~#16191D). Title 'What are Calories?' in white, semibold, ~26px. Body in light-grey (~#C2C6CB) regular ~20px, three paragraphs:\nParagraph 1: 'Calories measure the number of calories that you burn per day. This is calculated based on an estimate of your Basal Metabolic Rate (BMR) and your heart rate throughout the day.'\nParagraph 2: 'Your BMR is estimated from the height, weight and gender in your profile. Generally, the more active you are, the more calories you will burn.'\nParagraph 3: 'If you consume more calories than you burn you will gain weight (muscle or fat), if you consume less than you burn you will lose weight, and if you match the two you will maintain your current weight.'",
+   "literals": [
+    "What are Calories?",
+    "Calories measure the number of calories that you burn per day. This is calculated based on an estimate of your Basal Metabolic Rate (BMR) and your heart rate throughout the day.",
+    "Your BMR is estimated from the height, weight and gender in your profile. Generally, the more active you are, the more calories you will burn.",
+    "If you consume more calories than you burn you will gain weight (muscle or fat), if you consume less than you burn you will lose weight, and if you match the two you will maintain your current weight."
+   ],
+   "colors": [
+    "#16191D",
+    "#FFFFFF",
+    "#C2C6CB"
+   ],
+   "interaction": "none (static explainer)"
+  }
+ ],
+ "charts": [
+  {
+   "name": "Calories monthly bar chart",
+   "kind": "bar",
+   "series": "Single series: daily calories burned, bright WHOOP blue bars (~#3BA9E8). One vertical bar per day across the month.",
+   "xAxis": "Days of June, labeled every ~7 days: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30' (two-line labels). Bars only populated from roughly Jun 16 onward (left portion empty).",
+   "yAxis": "Calories. Gridlines/labels at '0', '1,000', '3,000' (and an implied 2,000 line obscured by the AVG marker). Range 0 to ~3,000+. Single axis (no dual axis).",
+   "notes": "Horizontal dashed WHITE average line at ~2,030 with a white rounded 'AVG.' tag (black text) at the left edge sitting on the line; a clipped '2' (of 2,000) peeks left of the tag. Tallest bar ~2,850 (just after Jun 16); a second tall bar ~2,600 (near Jun 25/26); a cluster of bars around/just above the average; short bars ~950-1,000 (near Jun 16 and at far right ~Jun 30) and one ~1,200. No bar is shown selected/highlighted by default; no on-point value annotations visible in default state.",
+   "colors": [
+    "#3BA9E8",
+    "#FFFFFF",
+    "#9AA0A6"
+   ]
+  }
+ ],
+ "excluded": [
+  "Floating WHOOP Coach button (gradient-ring circular button with W logo, bottom-right of image 2) \u2014 AI/coach element, skip",
+  "Learn-more carousel cards (ARTICLE 'The Science of Calorie Tracking', PODCAST 'Understanding the Science of Tracking Calories', and the Dr. Hazel podcast) are WHOOP editorial/coach-style content \u2014 included in layout for completeness but are content-feed items; if community/AI content is to be excluded, treat these media cards as excluded too"
+ ],
+ "_key": "calories",
+ "_dir": "home/calories"
+}

@@ -1,0 +1,448 @@
+{
+ "screen": "stress_monitor",
+ "globalNotes": "Dark theme throughout (near-black background ~#0E1418 to #161C20, cards slightly lighter ~#1A2228). Sticky top nav bar (STRESS MONITOR + back chevron + gear) persists across all three scroll positions. Single continuous vertical scroll screen. Scroll order: IMG_3895 (top: nav, day-selector, gauge, intraday chart, descriptive text, top of TOTAL DAY card) -> IMG_3896 (middle: tail of chart, descriptive text, full TOTAL DAY card, top of NON ACTIVITY card) -> IMG_3897 (bottom: full NON ACTIVITY card, full SLEEP card, start of SESSIONS row). A circular floating WHOOP logo button ('/\\/' glyph in a blue-rimmed dark circle) sits bottom-right, overlapping content, on all scroll positions (likely the WHOOP Coach launcher -> EXCLUDED). Status bar shows 09:35, silent/notifications-off bell icon, cellular, wifi, battery 39%. All section headers are uppercase, white, bold, with a small line-icon to the left. 'VS. TYPICAL TUESDAY' is grey. Trend % pills are small rounded grey chips with a triangle arrow.",
+ "excluded": [
+  "Floating circular WHOOP Coach / AI button (blue-rimmed dark circle with '/\\/' WHOOP logo glyph) anchored bottom-right, overlapping content on every scroll position"
+ ],
+ "layout": [
+  {
+   "order": 1,
+   "name": "Top nav bar",
+   "type": "nav",
+   "description": "Sticky header. Left: white back chevron '<'. Center: title 'STRESS MONITOR' in bold white uppercase, letter-spaced, ~17-18px. Right: white gear/settings outline icon. Sits below the iOS status bar (09:35, bell-with-slash mute icon, cellular bars, wifi, battery '39' at ~39%). Background matches page dark.",
+   "literals": [
+    "STRESS MONITOR",
+    "09:35",
+    "39"
+   ],
+   "interaction": "Back chevron pops to previous screen (Home). Gear opens Stress Monitor settings.",
+   "colors": [
+    "#FFFFFF",
+    "#0E1418"
+   ]
+  },
+  {
+   "order": 2,
+   "name": "Day selector",
+   "type": "pill",
+   "description": "Centered horizontal date stepper below nav. Left chevron '<' (white/active), center label 'TODAY' bold white uppercase letter-spaced, right chevron '>' (dimmed grey, indicating no future day). ",
+   "literals": [
+    "TODAY"
+   ],
+   "interaction": "Left chevron navigates to previous day; right chevron forward (disabled on today).",
+   "colors": [
+    "#FFFFFF",
+    "#6B7378"
+   ]
+  },
+  {
+   "order": 3,
+   "name": "Stress gauge (semicircular speedometer)",
+   "type": "gauge",
+   "description": "Large 180-degree arc gauge, opening downward. Arc sweeps left-to-right through a color gradient: blue (#3E8BD6) at far left -> teal/green (#3FE0A0) at top -> yellow/amber (#E0A23C) at far right. A white needle/tick points from center to the lower-left (~low region). Center big value '0.4' in very large bold white (~64px). Below value: 'LOW' in blue (#4A9FE0) bold uppercase. Below that: timestamp '09:35' in grey. Arc endpoints labeled: '0.0' under left end, '3.0' under right end (grey). A circled 'i' info icon (grey outline) floats to the upper-right of the gauge.",
+   "literals": [
+    "0.4",
+    "LOW",
+    "09:35",
+    "0.0",
+    "3.0"
+   ],
+   "interaction": "Info 'i' icon opens an explainer about the stress score scale.",
+   "colors": [
+    "#3E8BD6",
+    "#3FE0A0",
+    "#E0A23C",
+    "#FFFFFF",
+    "#4A9FE0"
+   ]
+  },
+  {
+   "order": 4,
+   "name": "Intraday stress line chart",
+   "type": "chart",
+   "description": "Full-width line chart of stress over the day. Y-axis (left) labeled 0.0, 1.0, 2.0, 3.0 (grey, gridlines faint). X-axis labeled '09:35', '18:00', '02:00', '09:35' (grey) spanning ~24h from this morning to now. Line series is color-coded by stress level: green (#5FE0A0) during higher daytime stress (left ~half, oscillating ~1.0-2.0 with spikes), transitioning to blue (#5AC8E8) for the low overnight/calm portion (right ~half, flat ~0.3-0.5). A shaded sleep region (semi-transparent lighter rectangle) covers the overnight span on the right, capped by a horizontal blue line at the top (~3.0 level) and a crescent-moon icon above it marking the sleep window. A dashed vertical white line at the far right marks 'now' (09:35) ending in a small white dot on the x-axis. A magnifier/zoom button (circle with '+' in a rounded dark square) floats over the right side of the chart for zoom.",
+   "literals": [
+    "3.0",
+    "2.0",
+    "1.0",
+    "0.0",
+    "09:35",
+    "18:00",
+    "02:00",
+    "09:35"
+   ],
+   "interaction": "Magnifier button zooms/expands the chart; chart likely scrubable to inspect points.",
+   "colors": [
+    "#5FE0A0",
+    "#5AC8E8",
+    "#FFFFFF",
+    "#3E5560"
+   ]
+  },
+  {
+   "order": 5,
+   "name": "Descriptive summary text",
+   "type": "text",
+   "description": "Multi-line white sentence below the chart, ~22px regular weight, left-aligned: 'Your body is signaling low stress. This indicates your cardiovascular system is stable, calm, and near its resting state.'",
+   "literals": [
+    "Your body is signaling low stress. This indicates your cardiovascular system is stable, calm, and near its resting state."
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 6,
+   "name": "TOTAL DAY card header",
+   "type": "section-header",
+   "description": "Card (rounded, slightly lighter dark panel). Header row: a small gauge/speedometer line-icon then 'TOTAL DAY' bold white uppercase. Below it subtitle: 'TUE, JUN 30 STRESS' in white bold + 'VS. TYPICAL TUESDAY' in grey, same line.",
+   "literals": [
+    "TOTAL DAY",
+    "TUE, JUN 30 STRESS",
+    "VS. TYPICAL TUESDAY"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#7A8288"
+   ]
+  },
+  {
+   "order": 7,
+   "name": "TOTAL DAY comparison bars (dual stacked bars)",
+   "type": "chart",
+   "description": "Two horizontal stacked bars stacked vertically. TOP bar = today's distribution: a long light-blue (#6FAEE6) segment (LOW) filling ~95%, then a short bright-green (#3FE0A0) segment (MEDIUM) at the right end; no amber visible (HIGH=0). BOTTOM bar = typical/baseline distribution: a muted blue-grey (#5A7A95) LOW segment (~45%), a green (#3FA070) MEDIUM segment (~45%), and an amber/brown (#9A7A2E) HIGH segment (~10%) at the right. The two bars visually compare today vs typical proportions.",
+   "literals": [],
+   "interaction": "none",
+   "colors": [
+    "#6FAEE6",
+    "#3FE0A0",
+    "#5A7A95",
+    "#3FA070",
+    "#9A7A2E"
+   ]
+  },
+  {
+   "order": 8,
+   "name": "TOTAL DAY metric trio (LOW / MEDIUM / HIGH)",
+   "type": "metric-row",
+   "description": "Three columns of duration + trend + label. Col1: big value '10:19' (white bold ~28px), grey chip with up-triangle '131%', label 'LOW' with small blue (#5AA0E0) square swatch. Col2: '0:38', grey chip with down-triangle '87%', 'MEDIUM' with green (#3FE0A0) swatch. Col3: '0:00', grey chip with down-triangle '100%', 'HIGH' with amber (#E0A23C) swatch. Up-triangle = higher than typical, down-triangle = lower than typical (both shown in white inside grey chips, not colored red/green).",
+   "literals": [
+    "10:19",
+    "131%",
+    "LOW",
+    "0:38",
+    "87%",
+    "MEDIUM",
+    "0:00",
+    "100%",
+    "HIGH"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#5AA0E0",
+    "#3FE0A0",
+    "#E0A23C",
+    "#2A3238"
+   ]
+  },
+  {
+   "order": 9,
+   "name": "TOTAL DAY description",
+   "type": "text",
+   "description": "Grey regular text: 'Stress experienced throughout the day including sleep and activities.'",
+   "literals": [
+    "Stress experienced throughout the day including sleep and activities."
+   ],
+   "interaction": "none",
+   "colors": [
+    "#8A9298"
+   ]
+  },
+  {
+   "order": 10,
+   "name": "TOTAL DAY 'SEE TRENDS' link",
+   "type": "button",
+   "description": "Bottom-left of card: 'SEE TRENDS' white bold uppercase letter-spaced, followed by a white right-arrow '->'.",
+   "literals": [
+    "SEE TRENDS"
+   ],
+   "interaction": "Navigates to the Stress trends view for Total Day.",
+   "colors": [
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 11,
+   "name": "NON ACTIVITY card header",
+   "type": "section-header",
+   "description": "Second card. Header: a small person/standing-figure line-icon then 'NON ACTIVITY' bold white uppercase. Subtitle 'TUE, JUN 30 STRESS' white bold + 'VS. TYPICAL TUESDAY' grey.",
+   "literals": [
+    "NON ACTIVITY",
+    "TUE, JUN 30 STRESS",
+    "VS. TYPICAL TUESDAY"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#7A8288"
+   ]
+  },
+  {
+   "order": 12,
+   "name": "NON ACTIVITY comparison bars (dual stacked)",
+   "type": "chart",
+   "description": "TOP bar (today): light-blue (#6FAEE6) LOW segment ~58%, then bright-green (#3FE0A0) MEDIUM segment ~42% to the end; no amber. BOTTOM bar (typical): muted blue-grey LOW ~20%, green MEDIUM ~55%, amber/brown HIGH ~15% at right.",
+   "literals": [],
+   "interaction": "none",
+   "colors": [
+    "#6FAEE6",
+    "#3FE0A0",
+    "#5A7A95",
+    "#3FA070",
+    "#9A7A2E"
+   ]
+  },
+  {
+   "order": 13,
+   "name": "NON ACTIVITY metric trio",
+   "type": "metric-row",
+   "description": "Col1: '0:29', grey chip up-triangle '172%' (note: IMG_3896 reads 172%; IMG_3897 of same card reads 171% \u2014 value ~171-172%), label 'LOW' blue swatch. Col2: '0:18' (IMG_3896) / '0:19' (IMG_3897) \u2014 value updated between captures ~0:18-0:19, grey chip down-triangle '35%', 'MEDIUM' green swatch. Col3: '0:00', grey chip down-triangle '100%', 'HIGH' amber swatch.",
+   "literals": [
+    "0:29",
+    "172%",
+    "171%",
+    "LOW",
+    "0:18",
+    "0:19",
+    "35%",
+    "MEDIUM",
+    "0:00",
+    "100%",
+    "HIGH"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#5AA0E0",
+    "#3FE0A0",
+    "#E0A23C"
+   ]
+  },
+  {
+   "order": 14,
+   "name": "NON ACTIVITY description",
+   "type": "text",
+   "description": "Grey text: 'Stress experienced outside of Strain activities and sleep.'",
+   "literals": [
+    "Stress experienced outside of Strain activities and sleep."
+   ],
+   "interaction": "none",
+   "colors": [
+    "#8A9298"
+   ]
+  },
+  {
+   "order": 15,
+   "name": "NON ACTIVITY 'SEE TRENDS' link",
+   "type": "button",
+   "description": "'SEE TRENDS' white bold uppercase + right-arrow '->', bottom-left of card.",
+   "literals": [
+    "SEE TRENDS"
+   ],
+   "interaction": "Navigates to Stress trends view for Non Activity.",
+   "colors": [
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 16,
+   "name": "SLEEP card header",
+   "type": "section-header",
+   "description": "Third card. Header: a small crescent-moon line-icon then 'SLEEP' bold white uppercase. Subtitle 'TUE, JUN 30 STRESS' white bold + 'VS. TYPICAL TUESDAY' grey.",
+   "literals": [
+    "SLEEP",
+    "TUE, JUN 30 STRESS",
+    "VS. TYPICAL TUESDAY"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#7A8288"
+   ]
+  },
+  {
+   "order": 17,
+   "name": "SLEEP comparison bars (dual stacked)",
+   "type": "chart",
+   "description": "TOP bar (today): light-blue (#6FAEE6) LOW segment filling ~95%, tiny bright-green (#3FE0A0) MEDIUM segment at the very right; no amber. BOTTOM bar (typical): muted blue-grey LOW ~70%, green MEDIUM ~22%, amber/brown HIGH ~8% at right.",
+   "literals": [],
+   "interaction": "none",
+   "colors": [
+    "#6FAEE6",
+    "#3FE0A0",
+    "#5A7A95",
+    "#3FA070",
+    "#9A7A2E"
+   ]
+  },
+  {
+   "order": 18,
+   "name": "SLEEP metric trio",
+   "type": "metric-row",
+   "description": "Col1: '9:49', grey chip up-triangle '34%', 'LOW' blue swatch. Col2: '0:20', grey chip down-triangle '86%', 'MEDIUM' green swatch. Col3: '0:00', grey chip down-triangle '100%', 'HIGH' amber swatch.",
+   "literals": [
+    "9:49",
+    "34%",
+    "LOW",
+    "0:20",
+    "86%",
+    "MEDIUM",
+    "0:00",
+    "100%",
+    "HIGH"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#5AA0E0",
+    "#3FE0A0",
+    "#E0A23C"
+   ]
+  },
+  {
+   "order": 19,
+   "name": "SLEEP description",
+   "type": "text",
+   "description": "Grey text: 'Stress experienced during sleep.'",
+   "literals": [
+    "Stress experienced during sleep."
+   ],
+   "interaction": "none",
+   "colors": [
+    "#8A9298"
+   ]
+  },
+  {
+   "order": 20,
+   "name": "SLEEP 'SEE TRENDS' link",
+   "type": "button",
+   "description": "'SEE TRENDS' white bold uppercase + right-arrow '->', bottom-left of card.",
+   "literals": [
+    "SEE TRENDS"
+   ],
+   "interaction": "Navigates to Stress trends view for Sleep.",
+   "colors": [
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 21,
+   "name": "SESSIONS section header",
+   "type": "section-header",
+   "description": "Grey uppercase label 'SESSIONS' above a horizontal row of tiles.",
+   "literals": [
+    "SESSIONS"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#8A9298"
+   ]
+  },
+  {
+   "order": 22,
+   "name": "SESSIONS tiles (horizontal cards)",
+   "type": "card",
+   "description": "Horizontally-scrolling row of rounded image tiles (guided breathing/relaxation or activation sessions). Tile 1: photo of a calm lake/mountains at dusk (blue tones), a small circular icon (curved-arrow / relax glyph) bottom-left and a partially-visible white bold label 'INCREASE' at bottom. Tile 2: red/pink marble-swirl image, small circular gauge icon bottom-left and 'INCREASE' label at bottom (label cut off by screen bottom). Tiles appear to be 'Increase'/'Decrease' stress sessions. Only the top portion of these tiles is visible at this scroll position.",
+   "literals": [
+    "INCREASE",
+    "INCREASE"
+   ],
+   "interaction": "Tapping a tile opens that guided stress session (e.g. increase/decrease stress / breathing).",
+   "colors": [
+    "#FFFFFF",
+    "#7AA0C0",
+    "#C85A6A"
+   ]
+  }
+ ],
+ "charts": [
+  {
+   "name": "Stress gauge",
+   "kind": "gauge",
+   "series": "Single needle value 0.4 on a 0.0-3.0 semicircular arc",
+   "xAxis": "n/a",
+   "yAxis": "Arc scale 0.0 (left) to 3.0 (right)",
+   "colors": [
+    "#3E8BD6 blue (low end)",
+    "#3FE0A0 teal/green (mid/top)",
+    "#E0A23C amber (high end)",
+    "#FFFFFF needle"
+   ],
+   "notes": "Needle points lower-left into low zone; center value 0.4; sub-label 'LOW' blue; timestamp 09:35; endpoint labels 0.0 and 3.0; circled-i info icon top-right."
+  },
+  {
+   "name": "Intraday stress line chart",
+   "kind": "line",
+   "series": "Single stress line, color shifts green (#5FE0A0) for active/higher-stress daytime then blue (#5AC8E8) for calm overnight",
+   "xAxis": "Time: 09:35, 18:00, 02:00, 09:35 (~24h, left=morning to right=now)",
+   "yAxis": "Stress 0.0, 1.0, 2.0, 3.0 (left)",
+   "colors": [
+    "#5FE0A0 green",
+    "#5AC8E8 blue",
+    "#FFFFFF dashed now-line",
+    "#3E5560 sleep shade"
+   ],
+   "notes": "Overnight sleep window shaded with a translucent rectangle capped by a blue line at ~3.0 and a crescent-moon icon above; dashed vertical white 'now' line at far right ending in a dot at x=09:35; magnifier/zoom button overlay on right."
+  },
+  {
+   "name": "TOTAL DAY today-vs-typical bars",
+   "kind": "zone-bars",
+   "series": "Two stacked horizontal bars (top=today, bottom=typical) split into LOW/MEDIUM/HIGH",
+   "xAxis": "Proportion of day (0-100%)",
+   "yAxis": "n/a",
+   "colors": [
+    "#6FAEE6 low(today)",
+    "#3FE0A0 med(today)",
+    "#5A7A95 low(typical)",
+    "#3FA070 med(typical)",
+    "#9A7A2E high(typical)"
+   ],
+   "notes": "Today: ~95% LOW + small MEDIUM, no HIGH. Typical: ~45/45/10 LOW/MED/HIGH. Values below: LOW 10:19 (+131%), MEDIUM 0:38 (-87%), HIGH 0:00 (-100%)."
+  },
+  {
+   "name": "NON ACTIVITY today-vs-typical bars",
+   "kind": "zone-bars",
+   "series": "Two stacked horizontal bars (top=today, bottom=typical)",
+   "xAxis": "Proportion (0-100%)",
+   "yAxis": "n/a",
+   "colors": [
+    "#6FAEE6",
+    "#3FE0A0",
+    "#5A7A95",
+    "#3FA070",
+    "#9A7A2E"
+   ],
+   "notes": "Today: ~58% LOW + ~42% MEDIUM, no HIGH. Typical: ~20/55/15 + remainder. Values: LOW 0:29 (+171-172%), MEDIUM 0:18-0:19 (-35%), HIGH 0:00 (-100%)."
+  },
+  {
+   "name": "SLEEP today-vs-typical bars",
+   "kind": "zone-bars",
+   "series": "Two stacked horizontal bars (top=today, bottom=typical)",
+   "xAxis": "Proportion (0-100%)",
+   "yAxis": "n/a",
+   "colors": [
+    "#6FAEE6",
+    "#3FE0A0",
+    "#5A7A95",
+    "#3FA070",
+    "#9A7A2E"
+   ],
+   "notes": "Today: ~95% LOW + tiny MEDIUM, no HIGH. Typical: ~70/22/8 LOW/MED/HIGH. Values: LOW 9:49 (+34%), MEDIUM 0:20 (-86%), HIGH 0:00 (-100%)."
+  }
+ ],
+ "_key": "stress_monitor",
+ "_dir": "home/stress monitor"
+}

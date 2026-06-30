@@ -1,0 +1,190 @@
+{
+ "screen": "health_monitor",
+ "globalNotes": "Dark theme throughout (near-black background ~#0E1417 with subtle gradient, slightly lighter at top). Status bar at very top shows time and system icons. Single screen, no scrolling beyond what's shown (content ends with the share button and descriptive text; large empty space below the SKIN TEMP card before the share button). Cards use a dark grey fill (~#252B2E / #2A3033) with rounded corners (~16px radius). Two-column grid for the metric cards. All status/range pills are green. Section/card titles are uppercase, letter-spaced, grey, small, semibold. Big metric values are large bold white. Units are smaller grey/white next to the value.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: time '09:35' in white bold, followed by a small bell-with-slash (notifications silenced) icon. Right: cellular signal bars, wifi icon, battery glyph showing '39' with battery outline. White/light-grey icons on dark background.",
+   "literals": [
+    "09:35",
+    "39"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#0E1417"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Top nav bar",
+   "type": "nav",
+   "description": "Navigation header. Left: a back chevron '<' (white, thin stroke). Center: screen title 'HEALTH MONITOR' in uppercase white, letter-spaced, semibold, ~17px. No right-side element.",
+   "literals": [
+    "HEALTH MONITOR"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Back chevron navigates to the previous screen (Home)."
+  },
+  {
+   "order": 3,
+   "name": "Heart Rate hero section",
+   "type": "chart",
+   "description": "Top hero block on a faint grid-paper background (subtle grey gridlines forming small squares spanning the full width). Label 'HEART RATE' uppercase white semibold top-left. Below it a small filled blue heart icon (~#2EA4F2). Below that the big value '54' in very large bold white (~64px) with unit 'BPM' uppercase grey beneath it. Below the value: 'Zone 0' in light grey (~16px). At the very bottom of this block sits a 5-segment zone indicator: five short horizontal segments/ticks (grey, the leftmost slightly lighter) representing HR zones 0-5. To the right side spanning the block is a horizontal HR-zone progress line: a bright blue line (~#2EA4F2) running left-to-right with a white filled circle marker at the far right end (current HR position). A vertical dashed grey line marks the right edge / max boundary near the circle.",
+   "literals": [
+    "HEART RATE",
+    "54",
+    "BPM",
+    "Zone 0"
+   ],
+   "colors": [
+    "#2EA4F2",
+    "#FFFFFF",
+    "#9AA3A8"
+   ],
+   "interaction": "Likely static live readout; no obvious navigation."
+  },
+  {
+   "order": 4,
+   "name": "Respiratory Rate card",
+   "type": "card",
+   "description": "Left card, row 1. Top: a lungs outline icon (grey) followed by title 'RESPIRATORY RATE' uppercase grey semibold small. Big value '15.4' bold white (~44px) with unit 'rpm' grey lowercase to its right. Below: a green status pill with a check mark and text 'within 15.4 - 15.9'. Pill has dark-green translucent fill (~#143A2A) with green text/check (~#3FD98A).",
+   "literals": [
+    "RESPIRATORY RATE",
+    "15.4",
+    "rpm",
+    "within 15.4 - 15.9"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3FD98A",
+    "#143A2A",
+    "#9AA3A8"
+   ],
+   "interaction": "Tapping likely opens Respiratory Rate detail."
+  },
+  {
+   "order": 5,
+   "name": "Blood Oxygen (SpO2) card",
+   "type": "card",
+   "description": "Right card, row 1. Top: a droplet-with-small-circle icon (grey) followed by title 'BLOOD OXYGEN (SPO\u2082)' uppercase grey semibold small (the '2' is subscript). Big value '97' bold white (~44px) with unit '%' grey to its right. Below: green check pill 'within 95% - 100%'.",
+   "literals": [
+    "BLOOD OXYGEN (SPO2)",
+    "97",
+    "%",
+    "within 95% - 100%"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3FD98A",
+    "#143A2A",
+    "#9AA3A8"
+   ],
+   "interaction": "Tapping likely opens Blood Oxygen detail."
+  },
+  {
+   "order": 6,
+   "name": "RHR card",
+   "type": "card",
+   "description": "Left card, row 2. Top: a heart-with-downward-arrow icon (grey) followed by title 'RHR' uppercase grey semibold small. Big value '50' bold white (~44px) with unit 'bpm' grey lowercase to its right. Below: green check pill 'low < 51'.",
+   "literals": [
+    "RHR",
+    "50",
+    "bpm",
+    "low < 51"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3FD98A",
+    "#143A2A",
+    "#9AA3A8"
+   ],
+   "interaction": "Tapping likely opens Resting Heart Rate detail."
+  },
+  {
+   "order": 7,
+   "name": "HRV card",
+   "type": "card",
+   "description": "Right card, row 2. Top: a heartbeat/ECG-pulse icon (grey) followed by title 'HRV' uppercase grey semibold small. Big value '90' bold white (~44px) with unit 'ms' grey lowercase to its right. Below: green check pill 'within 43 - 94'.",
+   "literals": [
+    "HRV",
+    "90",
+    "ms",
+    "within 43 - 94"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3FD98A",
+    "#143A2A",
+    "#9AA3A8"
+   ],
+   "interaction": "Tapping likely opens HRV detail."
+  },
+  {
+   "order": 8,
+   "name": "Skin Temp card",
+   "type": "card",
+   "description": "Left card, row 3 (single card, no right-side pair). Top: a thermometer icon (grey) followed by two-line title 'SKIN TEMP (FROM BASELINE)' uppercase grey semibold small (wraps to two lines: 'SKIN TEMP' then '(FROM BASELINE)'). Big value '-0.8' bold white (~44px) with unit '\u00b0C' grey to its right. Below: green check pill 'low < -0.2'.",
+   "literals": [
+    "SKIN TEMP",
+    "(FROM BASELINE)",
+    "-0.8",
+    "\u00b0C",
+    "low < -0.2"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#3FD98A",
+    "#143A2A",
+    "#9AA3A8"
+   ],
+   "interaction": "Tapping likely opens Skin Temperature detail."
+  },
+  {
+   "order": 9,
+   "name": "Share Your Health Report button",
+   "type": "button",
+   "description": "Full-width rounded button with dark grey fill (~#2A3033), slightly lighter than background. Left: an upload/share icon (box with up-arrow, grey outline). Text 'SHARE YOUR HEALTH REPORT' uppercase white bold, left-aligned next to the icon. Generous vertical padding.",
+   "literals": [
+    "SHARE YOUR HEALTH REPORT"
+   ],
+   "colors": [
+    "#2A3033",
+    "#FFFFFF"
+   ],
+   "interaction": "Generates/opens a printable health report to share."
+  },
+  {
+   "order": 10,
+   "name": "Report description text",
+   "type": "text",
+   "description": "Two-line explanatory paragraph below the share button, left-aligned, light grey (~#C4CBCF), regular weight, ~18px. Full text: 'Printable report for sharing with your doctor, physician, trainer, or anyone of your choosing.'",
+   "literals": [
+    "Printable report for sharing with your doctor, physician, trainer, or anyone of your choosing."
+   ],
+   "colors": [
+    "#C4CBCF"
+   ],
+   "interaction": "none"
+  }
+ ],
+ "charts": [
+  {
+   "name": "Heart Rate zone line indicator",
+   "kind": "gauge",
+   "series": "Single bright-blue horizontal line (~#2EA4F2) running left-to-right across the hero block, terminating in a white filled circle marker at the right end representing the current HR position within the zone range.",
+   "xAxis": "Implicit HR-zone progression (left = low, right = high); a vertical dashed grey line near the right marks the zone/max boundary.",
+   "yAxis": "none",
+   "notes": "Below the line is a 5-segment tick row (five short grey horizontal segments) representing HR Zones 0-5; current label reads 'Zone 0'. Current value '54 BPM' shown above. White circle is the selected/current point marker. Background is a faint grid-paper pattern."
+  }
+ ],
+ "excluded": [
+  "Bottom-right floating WHOOP Coach AI orb button (circular gradient blue/purple badge with the WHOOP 'W' logo, ~#5B6CF0 to #8A5BF0 gradient) \u2014 AI assistant, excluded per instructions."
+ ],
+ "_key": "health_monitor",
+ "_dir": "home/health monitor"
+}

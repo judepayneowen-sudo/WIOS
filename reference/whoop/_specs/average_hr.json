@@ -1,0 +1,216 @@
+{
+ "screen": "average_hr",
+ "globalNotes": "Dark theme throughout (near-black background ~#0B0F12 fading to ~#0E1418 in chart). Single vertically-scrolling screen captured across two scroll positions; the chart, x-axis (Jun 2/9/16/23/30), the \"Average does not include today (Jun 30)\" info row, the LEARN MORE header, and the video card all appear in BOTH images and are the SAME elements (do not double-count). Sticky top: status bar + \"TREND VIEW\" nav header with back chevron stays fixed. Primary accent is a bright blue (~#1FA8F2) used for the HR line series and the selected-value '51'. Header title and metric dropdown text are uppercase white. A floating WHOOP coach orb sits bottom-right on top of all content (EXCLUDED). Status bar shows 09:39 (first image) / 09:40 (second), silent-mode bell icon, cellular, wifi, battery 38%.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: time '09:39' (white, bold) with a crossed-out bell (silent mode) icon immediately right. Right cluster: cellular signal bars, wifi glyph, battery pill showing '38' with white fill. Top-aligned, full width.",
+   "literals": [
+    "09:39",
+    "38"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#0B0F12"
+   ]
+  },
+  {
+   "order": 2,
+   "name": "Nav header",
+   "type": "nav",
+   "description": "Centered uppercase title 'TREND VIEW' in white, semi-bold, letter-spaced. Left: back chevron '<' (white, thin stroke) for returning to previous screen. No right-side action.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "interaction": "Back chevron pops navigation to the previous (metric detail / home) screen",
+   "colors": [
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown",
+   "type": "pill",
+   "description": "Full-width rounded rectangle (~#2A3036 grey, slightly translucent). Left: outlined heart icon (thin white/grey stroke). Center-left: 'AVERAGE HEART RATE' uppercase white bold, letter-spaced. Right: downward chevron 'v' (white). Acts as a dropdown to switch which metric the trend view displays.",
+   "literals": [
+    "AVERAGE HEART RATE"
+   ],
+   "interaction": "Tapping opens a metric picker dropdown to switch the displayed trend metric",
+   "colors": [
+    "#2A3036",
+    "#FFFFFF"
+   ]
+  },
+  {
+   "order": 4,
+   "name": "Average value block",
+   "type": "metric-row",
+   "description": "Left-aligned. Small grey uppercase label 'AVERAGE' on top. Below it the big current value '68' in very large bold white, with smaller lowercase 'bpm' unit in grey/white baseline-aligned to its right. This is the period average.",
+   "literals": [
+    "AVERAGE",
+    "68",
+    "bpm"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#FFFFFF",
+    "#8A9098"
+   ]
+  },
+  {
+   "order": 5,
+   "name": "Time-range toggle (W/M/6M)",
+   "type": "button",
+   "description": "Right-aligned segmented control on a dark rounded track (~#1C2228). Three segments: 'W', 'M', '6M'. 'M' is selected (lighter grey raised pill ~#3A4046 with white text); 'W' and '6M' are unselected (grey text ~#8A9098). Selects the aggregation window for the trend (week / month / 6 months).",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "interaction": "Tapping a segment changes the trend time window; 'M' currently active",
+   "colors": [
+    "#3A4046",
+    "#1C2228",
+    "#FFFFFF",
+    "#8A9098"
+   ]
+  },
+  {
+   "order": 6,
+   "name": "Date-range stepper",
+   "type": "metric-row",
+   "description": "Centered below the toggle. Left chevron '<' (grey), centered range label 'JUN 1 - JUN 30, 26' (white, uppercase, semi-bold), right chevron '>' (grey). The '26' is the year (2026). Chevrons page to previous/next month.",
+   "literals": [
+    "JUN 1 - JUN 30, 26"
+   ],
+   "interaction": "Left/right chevrons step to previous/next month period",
+   "colors": [
+    "#FFFFFF",
+    "#6A7078"
+   ]
+  },
+  {
+   "order": 7,
+   "name": "Summary sentence",
+   "type": "text",
+   "description": "Two-line paragraph, left-aligned, white/light-grey regular weight, medium size: 'Your average HR this month is 68. Keep wearing your WHOOP to see how this changes over time.'",
+   "literals": [
+    "Your average HR this month is 68. Keep wearing your WHOOP to see how this changes over time."
+   ],
+   "interaction": "none",
+   "colors": [
+    "#E6E8EA"
+   ]
+  },
+  {
+   "order": 8,
+   "name": "Average HR trend chart",
+   "type": "chart",
+   "description": "Large line chart. Y-axis (left, grey labels) gridline values top-to-bottom: '92', '79', (a 66-ish line partly hidden behind the AVG pill), '53', '40'. Faint horizontal gridlines at each. A horizontal dashed white line marks the average, tagged at the left edge with a white rounded pill labeled 'AVG.' (black text) sitting at ~66 bpm. The plotted series is a bright blue (~#1FA8F2) jagged line for daily average HR; it only occupies the right ~half of the chart (data starts mid-month near the Jun 16 region and runs to Jun 30). Under the blue line there is a subtle blue-tinted shaded area fill (~#13384A, very dark translucent). The final/selected data point on the far right is annotated with bold blue '51' just above a small blue hollow circle marker sitting near the 53 gridline. X-axis labels (grey, two-line) left-to-right: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30'. Line peaks reach near ~78 and dips to ~56.",
+   "literals": [
+    "92",
+    "79",
+    "53",
+    "40",
+    "AVG.",
+    "51",
+    "Jun 2",
+    "Jun 9",
+    "Jun 16",
+    "Jun 23",
+    "Jun 30"
+   ],
+   "interaction": "Scrubbing/tapping a point selects that day and shows its value annotation",
+   "colors": [
+    "#1FA8F2",
+    "#FFFFFF",
+    "#8A9098",
+    "#13384A"
+   ]
+  },
+  {
+   "order": 9,
+   "name": "Average disclaimer row",
+   "type": "text",
+   "description": "Small info row below the chart. Left: lowercase 'i' info glyph in a circle (grey). Text (grey): 'Average does not include today (Jun 30)'.",
+   "literals": [
+    "Average does not include today (Jun 30)"
+   ],
+   "interaction": "none",
+   "colors": [
+    "#8A9098"
+   ]
+  },
+  {
+   "order": 10,
+   "name": "Learn More section header",
+   "type": "section-header",
+   "description": "Row with left uppercase grey-white bold label 'LEARN MORE' and right action 'VIEW ALL' (white bold) followed by a right-arrow '->' icon.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL"
+   ],
+   "interaction": "'VIEW ALL' navigates to a full list of learn-more content",
+   "colors": [
+    "#FFFFFF",
+    "#8A9098"
+   ]
+  },
+  {
+   "order": 11,
+   "name": "Video card \u2014 Understanding Average Heart Rate",
+   "type": "card",
+   "description": "Rounded card on dark ~#161B1F panel. Thumbnail image of a smiling woman with dark hair on a dark background. Top-right small black 'VIDEO' tag pill (white text). A white outlined heart (save/like) icon overlaps the thumbnail upper-right area. A circular black play button with white triangle sits at the thumbnail's lower-left. Below the thumbnail, two-line white title 'Understanding Average Heart Rate'.",
+   "literals": [
+    "VIDEO",
+    "Understanding Average Heart Rate"
+   ],
+   "interaction": "Tapping plays the video; heart icon saves/likes the content",
+   "colors": [
+    "#161B1F",
+    "#FFFFFF",
+    "#000000"
+   ]
+  },
+  {
+   "order": 12,
+   "name": "What is Average Heart Rate? explainer card",
+   "type": "card",
+   "description": "Large rounded dark card (~#15191D). Title 'What is Average Heart Rate?' in bold white, larger size. Body in light-grey regular text across three paragraphs: P1 'Avg HR measures your average heart rate throughout the day.' P2 'A higher avg HR typically indicates that you're more active, as heart rate increases during strenuous activities. However, other factors like stress and fatigue can also increase your avg HR.' P3 'Note that Avg HR is different from your resting heart rate (RHR), which is measured while you are asleep.'",
+   "literals": [
+    "What is Average Heart Rate?",
+    "Avg HR measures your average heart rate throughout the day.",
+    "A higher avg HR typically indicates that you're more active, as heart rate increases during strenuous activities. However, other factors like stress and fatigue can also increase your avg HR.",
+    "Note that Avg HR is different from your resting heart rate (RHR), which is measured while you are asleep."
+   ],
+   "interaction": "none",
+   "colors": [
+    "#15191D",
+    "#FFFFFF",
+    "#C8CCD0"
+   ]
+  }
+ ],
+ "charts": [
+  {
+   "name": "Average HR monthly trend",
+   "kind": "line",
+   "xAxis": "Dates across the month: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30' (one tick per ~week)",
+   "yAxis": "Heart rate bpm, gridlines at 40, 53, ~66 (avg, hidden by pill), 79, 92",
+   "series": "Single series: daily average HR, bright blue line (~#1FA8F2) with a subtle dark-blue area fill (~#13384A) underneath. Data only populates the right half (\u2248Jun 16 \u2192 Jun 30).",
+   "colors": [
+    "#1FA8F2",
+    "#13384A"
+   ],
+   "notes": "Horizontal dashed white AVG line at ~66 bpm with a white 'AVG.' pill (black text) anchored at the left edge. Final right-most point selected/annotated with bold blue '51' above a small blue hollow-circle marker near the 53 gridline. Line peaks ~78 and dips ~56. Y range 40\u201392; today (Jun 30) excluded from the average per disclaimer."
+  }
+ ],
+ "excluded": [
+  "Floating WHOOP Coach orb (bottom-right circular gradient button with the WHOOP 'W' glyph) \u2014 AI assistant entry point, present on both scroll positions"
+ ],
+ "_key": "average_hr",
+ "_dir": "home/average hr"
+}

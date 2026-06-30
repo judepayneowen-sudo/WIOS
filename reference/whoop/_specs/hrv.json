@@ -1,0 +1,225 @@
+{
+ "screen": "hrv (Trend View \u2014 Heart Rate Variability)",
+ "globalNotes": "Dark theme throughout. Background is a near-black with a subtle vertical gradient (top ~#1C2530 dark slate-blue near the header, fading to ~#0B0E12 near-black mid/bottom). Header \"TREND VIEW\" stays at top (back chevron + centered title). The screen is a single vertical scroll; the two screenshots overlap on the \"LEARN MORE\" video carousel. Status bar at top: time \"09:36\"/\"09:37\", silent-mode bell-with-slash icon, cellular bars (2 of 4), wifi icon, battery pill \"39\". The accent line color for the HRV chart is a light/sky blue (~#5BA7E8). Section header labels (AVERAGE, LEARN MORE, TYPICAL RANGE) are small, uppercase, letter-spaced, grey (~#7E8794). All-caps bold white for primary titles. A floating circular WHOOP logo button (gradient blue/purple ring, white \"W/W\" mark) sits bottom-right, overlaying content (appears in both screenshots).",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: time in white bold (~17pt) '09:36' (second screenshot '09:37') followed by a silenced-bell icon (bell with diagonal slash, white). Right: cellular signal bars (2 of 4 filled, white), wifi glyph (white), battery pill outline white containing '39' in white. Transparent background over the dark slate header.",
+   "literals": [
+    "09:36",
+    "09:37",
+    "39"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Header bar (TREND VIEW)",
+   "type": "nav",
+   "description": "Navigation header. Left-aligned back chevron '<' (thin white stroke, ~28pt) at far left. Centered title 'TREND VIEW' in white, bold, uppercase, letter-spaced (~16pt). No right-side action. Sits on the dark slate header band.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Back chevron pops the navigation stack, returning to the previous (Home/overview) screen."
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown (HEART RATE VARIABILITY)",
+   "type": "button",
+   "description": "Full-width rounded rectangle pill/card (~radius 16) in a lighter slate-grey (~#3A434E) with subtle gradient. Left: a small HRV/pulse-wave line icon (white outline, stylized 'M'-like ECG squiggle). Center-left: title text 'HEART RATE VARIABILITY' in white, bold, uppercase, letter-spaced (~18pt). Far right: a downward chevron 'v' (white) indicating a dropdown. Vertically centered content.",
+   "literals": [
+    "HEART RATE VARIABILITY"
+   ],
+   "colors": [
+    "#3A434E",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens a dropdown/picker to switch the trended metric (e.g., Resting Heart Rate, Recovery, etc.); reloads the chart for the chosen metric."
+  },
+  {
+   "order": 4,
+   "name": "Average value block",
+   "type": "metric-row",
+   "description": "Left-aligned. Small grey uppercase letter-spaced label 'AVERAGE' (~13pt, #7E8794) on top. Below it a very large white number '75' (bold, ~56pt) with a smaller grey/white unit 'ms' baseline-aligned to its right (~22pt). Represents the average HRV for the selected period.",
+   "literals": [
+    "AVERAGE",
+    "75",
+    "ms"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#7E8794"
+   ],
+   "interaction": "none (display only)"
+  },
+  {
+   "order": 5,
+   "name": "Time-range segmented toggle (W / M / 6M)",
+   "type": "pill",
+   "description": "Right-aligned rounded segmented control on a dark pill background (~#1E252D). Three segments: 'W', 'M', '6M'. The middle 'M' segment is SELECTED \u2014 shown with a lighter raised grey fill (~#4A535E) and white text; 'W' and '6M' are unselected with grey text (~#9AA2AB). Text bold uppercase (~16pt).",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#4A535E",
+    "#FFFFFF",
+    "#9AA2AB",
+    "#1E252D"
+   ],
+   "interaction": "Selecting W / M / 6M changes the trend window (Week / Month / 6 Months), reloading the date range, average, and chart."
+  },
+  {
+   "order": 6,
+   "name": "Date-range stepper",
+   "type": "metric-row",
+   "description": "Centered row below the toggle. Left chevron '<' (grey ~#5A636D) , centered range label 'JUN 1 - JUN 30, 26' in white bold uppercase letter-spaced (~17pt), right chevron '>' (grey, dimmer/disabled-looking since this is the current month). The '26' is the two-digit year (2026).",
+   "literals": [
+    "JUN 1 - JUN 30, 26",
+    "<",
+    ">"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#5A636D"
+   ],
+   "interaction": "Left chevron steps to the previous period (May); right chevron steps to the next period (disabled at current/latest). Updates average + chart."
+  },
+  {
+   "order": 7,
+   "name": "Explanatory sentence",
+   "type": "text",
+   "description": "Left-aligned two-line paragraph in white/light-grey (~#E4E7EA), regular weight (~21pt): 'Your average HRV this month is 75. Wear your WHOOP to bed each night to track how your HRV changes over time.'",
+   "literals": [
+    "Your average HRV this month is 75. Wear your WHOOP to bed each night to track how your HRV changes over time."
+   ],
+   "colors": [
+    "#E4E7EA"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 8,
+   "name": "Chart legend (TYPICAL RANGE)",
+   "type": "text",
+   "description": "Right-aligned above the chart. A small square swatch (semi-transparent light-grey fill ~#5A636D/40%) followed by the label 'TYPICAL RANGE' in white bold uppercase letter-spaced (~14pt). Identifies the shaded band on the chart.",
+   "literals": [
+    "TYPICAL RANGE"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#5A636D"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 9,
+   "name": "HRV trend line chart",
+   "type": "chart",
+   "description": "Line chart spanning full width. Y-AXIS (left, grey labels ~#7E8794): four gridline labels top-to-bottom '147', '98', '49', '0' with faint horizontal gridlines. X-AXIS (bottom, grey two-line labels): 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30' (weekly ticks across the month). A horizontal SHADED 'TYPICAL RANGE' band fills the area between roughly y=49 and y=98 (semi-transparent grey ~#5A636D at ~25% opacity) spanning the chart width. The plotted SERIES is a single sky-blue line (~#5BA7E8, ~2px) showing daily HRV; data only appears in the right ~40% of the chart (roughly from Jun 16 onward) \u2014 a sharp tall spike up to ~140 then a jagged W-shaped zig-zag (down to ~58, up to ~92, down near ~58, up to a second peak ~108, down to ~52, then rising). The MOST RECENT point (right end, ~Jun 30) is marked with a hollow blue circle (open ring, blue stroke) and an on-point value annotation '90' in blue (~#5BA7E8, bold ~22pt) just above-right of it. Left/earlier portion of the chart has no line (no data before mid-June).",
+   "literals": [
+    "147",
+    "98",
+    "49",
+    "0",
+    "Jun 2",
+    "Jun 9",
+    "Jun 16",
+    "Jun 23",
+    "Jun 30",
+    "90"
+   ],
+   "colors": [
+    "#5BA7E8",
+    "#5A636D",
+    "#7E8794"
+   ],
+   "interaction": "Likely scrub/tap on the line to select a day and show that day's HRV value; the highlighted end point shows the latest reading 90 ms."
+  },
+  {
+   "order": 10,
+   "name": "LEARN MORE section header",
+   "type": "section-header",
+   "description": "Row with left-aligned 'LEARN MORE' (grey, bold, uppercase, letter-spaced ~16pt, #8A929B) and right-aligned 'VIEW ALL' in white bold uppercase letter-spaced (~16pt) followed by a white right-arrow '\u2192'.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL",
+    "\u2192"
+   ],
+   "colors": [
+    "#8A929B",
+    "#FFFFFF"
+   ],
+   "interaction": "'VIEW ALL' / arrow navigates to a full list of HRV learning content/articles & videos."
+  },
+  {
+   "order": 11,
+   "name": "Learn-more video carousel",
+   "type": "list",
+   "description": "Horizontally scrolling carousel of media cards (rounded ~14 corners). CARD 1: thumbnail of a smiling woman in a denim shirt against a dark/orange backdrop; top-right black 'VIDEO' tag (white text); a small WHOOP overlay UI in the upper-left showing an HRV pulse icon and '84' big with 'ms' small, and a green pill below reading '76 - 89' with a small check \u2014 mimicking the in-app HRV tile; a circular black play button (white triangle) bottom-left; caption below 'What is HRV?' in white (~18pt). CARD 2: same woman gesturing; top-right black 'VIDEO' tag; an overlay graphic with a green check tile and 'TIPS FOR BETTER HRV' / 'HRV' text plus a small HRV squiggle icon; circular play button; caption 'Improving HRV Tips' in white. CARD 3 (partially off right edge): black-and-white photo of a wrist/arm wearing a band on gym equipment; caption (clipped) 'Everything to Know About ... Rate Variability' / 'Everything to Know About Heart Rate Variability'. The carousel sits at the bottom of screenshot 1 and the top of screenshot 2.",
+   "literals": [
+    "VIDEO",
+    "84",
+    "ms",
+    "76 - 89",
+    "TIPS FOR BETTER HRV",
+    "HRV",
+    "What is HRV?",
+    "Improving HRV Tips",
+    "Everything to Know About Heart Rate Variability"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#22C55E",
+    "#000000"
+   ],
+   "interaction": "Tapping a card / play button opens the respective HRV educational video or article. Swipe horizontally to reveal more cards."
+  },
+  {
+   "order": 12,
+   "name": "What is Heart Rate Variability? card",
+   "type": "card",
+   "description": "Large rounded rectangle card (~radius 20) in a slightly lighter dark slate (~#1A222B) with full-width padding. Title 'What is Heart Rate Variability?' in white, bold (~26pt). Body in light-grey (~#AEB4BB), regular (~21pt), three paragraphs:\nParagraph 1: 'Heart rate variability (HRV) measures the variance in time between your heartbeats while you are asleep. It is a great indicator of how well your body can adapt to its environment and perform.'\nParagraph 2: 'HRV is a very individualized metric that differs for everyone. Age, gender, lifestyle, and fitness all impact your HRV. Rather than comparing yourself to others, compare your HRV to your baseline values over time. In general, improvements in your HRV indicate better fitness and overall health.'\nParagraph 3: 'Upward trends in HRV are a sign that your nervous system is balanced and your body is performing at its best. Downward trends can be a sign of overtraining, lack of sleep, dehydration, or other negative factors like stress.'",
+   "literals": [
+    "What is Heart Rate Variability?",
+    "Heart rate variability (HRV) measures the variance in time between your heartbeats while you are asleep. It is a great indicator of how well your body can adapt to its environment and perform.",
+    "HRV is a very individualized metric that differs for everyone. Age, gender, lifestyle, and fitness all impact your HRV. Rather than comparing yourself to others, compare your HRV to your baseline values over time. In general, improvements in your HRV indicate better fitness and overall health.",
+    "Upward trends in HRV are a sign that your nervous system is balanced and your body is performing at its best. Downward trends can be a sign of overtraining, lack of sleep, dehydration, or other negative factors like stress."
+   ],
+   "colors": [
+    "#1A222B",
+    "#FFFFFF",
+    "#AEB4BB"
+   ],
+   "interaction": "none (static explanatory card)"
+  }
+ ],
+ "charts": [
+  {
+   "name": "HRV trend line chart",
+   "kind": "line",
+   "xAxis": "Time (days of the selected month). Weekly tick labels: Jun 2, Jun 9, Jun 16, Jun 23, Jun 30. Range = Jun 1 \u2013 Jun 30, 2026.",
+   "yAxis": "HRV in ms. Gridline labels: 0, 49, 98, 147 (single axis, ~0\u2013147 range).",
+   "series": "Single daily-HRV line in sky blue (~#5BA7E8). Data present only from ~mid-June onward (right ~40% of plot); left portion empty.",
+   "colors": [
+    "#5BA7E8",
+    "#5A636D"
+   ],
+   "notes": "Horizontal shaded 'TYPICAL RANGE' band (semi-transparent grey ~#5A636D ~25% opacity) spans full width between approx y=49 and y=98. Latest point (right end, ~Jun 30) marked with a hollow blue ring and an on-point value annotation '90' in blue above it. Line shape: a tall spike to ~140 around Jun 16-17, then jagged W zig-zags (lows ~52-58, secondary peak ~108) ending at 90. Average for the period = 75 ms (shown in the AVERAGE block, not as a chart line)."
+  }
+ ],
+ "excluded": [
+  "Floating WHOOP logo button (bottom-right, gradient blue/purple ring with white W/W mark) \u2014 likely opens the WHOOP Coach / AI assistant; excluded per no-AI-coach rule"
+ ],
+ "_key": "hrv",
+ "_dir": "home/hrv"
+}

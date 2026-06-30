@@ -1,0 +1,230 @@
+{
+ "screen": "steps (Trend View)",
+ "globalNotes": "Single vertically-scrolling screen with fixed dark navy/near-black background (~#0B0E12 top fading to ~#0A0C10). Status bar visible at top (09:37, silent/bell-off icon, cellular 2 bars, wifi, battery 39%). A persistent WHOOP Coach orb floats bottom-right in BOTH scroll positions (excluded). The header \"TREND VIEW\" with a back chevron stays at top. Image 1 = top of screen, image 2 = scrolled down; overlap is the LEARN MORE row + two article cards (counted once). Coordinates in this spec reference the displayed 923x2000 images; multiply by ~1.40 for native 1290x2796.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS status bar. Left: time '09:37' in white bold, followed by a bell-with-slash (silent mode) icon. Right: cellular signal (2 of 4 bars filled), wifi glyph, battery pill showing '39' with white fill at ~39%. All icons light grey/white on dark bg.",
+   "literals": [
+    "09:37",
+    "39"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#9AA0A6"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Header / nav bar",
+   "type": "nav",
+   "description": "Centered screen title 'TREND VIEW' in white, uppercase, letter-spaced, semibold ~17px. Left side: a back chevron '<' (thin white outline) for returning to the previous screen. No right-side action.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Back chevron pops the navigation stack (returns to overview/previous screen)."
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown",
+   "type": "pill",
+   "description": "Full-width rounded rectangle (~#2C3138 medium-grey, slightly lighter than bg, ~16px corner radius). Left: a small shoe/sneaker outline icon (white, ~line). Then label 'STEPS' in white bold uppercase ~20px, left-aligned. Far right: a downward chevron 'v' (white) indicating a dropdown to switch the displayed metric.",
+   "literals": [
+    "STEPS"
+   ],
+   "colors": [
+    "#2C3138",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens a metric picker to switch the trend metric (e.g. to other tracked metrics)."
+  },
+  {
+   "order": 4,
+   "name": "Average value block",
+   "type": "metric-row",
+   "description": "Left-aligned. Small grey uppercase label 'AVERAGE' (~#8A9099, letter-spaced, ~13px) on top. Below it the big current value '6,094' in very large white bold numerals (~64px), with a comma thousands separator. This is the 30-day average step count.",
+   "literals": [
+    "AVERAGE",
+    "6,094"
+   ],
+   "colors": [
+    "#8A9099",
+    "#FFFFFF"
+   ],
+   "interaction": "none (display)"
+  },
+  {
+   "order": 5,
+   "name": "Time-range segmented toggle (W / M / 6M)",
+   "type": "button",
+   "description": "Right-aligned pill-shaped segmented control on dark rounded background (~#1C2027). Three segments: 'W', 'M', '6M' in white. 'M' is currently SELECTED, shown with a lighter raised grey button fill (~#3A3F47) behind it; 'W' and '6M' are plain text on the dark track. Text bold uppercase ~16px.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#1C2027",
+    "#3A3F47",
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping a segment changes the chart aggregation window: W=week, M=month (selected), 6M=six months."
+  },
+  {
+   "order": 6,
+   "name": "Date-range stepper",
+   "type": "metric-row",
+   "description": "Below the toggle, right side. A left chevron '<' (grey), centered date-range label 'JUN 1 - JUN 30, 26' in white bold uppercase ~18px, and a right chevron '>' (grey). Represents the currently shown month period (June 1 to June 30, 2026).",
+   "literals": [
+    "JUN 1 - JUN 30, 26"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#6B7177"
+   ],
+   "interaction": "Left chevron goes to previous period; right chevron to next period (next is dimmer/disabled at current period)."
+  },
+  {
+   "order": 7,
+   "name": "Insight / description paragraph",
+   "type": "text",
+   "description": "Full-width body text in light grey/white (~#D7DBDF), regular weight ~20px, left-aligned, two lines: 'Your average steps for the last 30 days is 6,094. Wear WHOOP 24/7 to unlock personalized insights.'",
+   "literals": [
+    "Your average steps for the last 30 days is 6,094. Wear WHOOP 24/7 to unlock personalized insights."
+   ],
+   "colors": [
+    "#D7DBDF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 8,
+   "name": "Steps bar chart",
+   "type": "chart",
+   "description": "Daily steps bar chart for Jun 1-30, 2026. Y-axis (left) labels bottom-to-top: '0', '5,000', '10,000', '15,000' in grey (~#7A8088), with faint horizontal gridlines at each. X-axis labels along the bottom in grey, two-line format: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30' (weekly ticks). Vertical bars are bright WHOOP blue (~#2BA8E0 / cyan-blue), one per day; left ~half of the month (Jun 1-15) shows no/near-zero bars (no data), bars begin mid-month. Tallest bar reaches ~13,000 (around Jun 20-21). A horizontal dashed white line runs across the chart at the average (~6,094) level, with a white rounded label pill 'AVG.' (dark text on white) anchored at the left end of that dashed line. Bars vary: several around 9,000-13,000 near Jun 18-25, smaller bars (~1,500-5,000) toward Jun 26-30, last bar near Jun 30 is very small.",
+   "literals": [
+    "15,000",
+    "10,000",
+    "5,000",
+    "0",
+    "AVG.",
+    "Jun 2",
+    "Jun 9",
+    "Jun 16",
+    "Jun 23",
+    "Jun 30"
+   ],
+   "colors": [
+    "#2BA8E0",
+    "#FFFFFF",
+    "#7A8088"
+   ],
+   "interaction": "Tapping/long-pressing a bar likely surfaces that day's exact step value (selected-point readout)."
+  },
+  {
+   "order": 9,
+   "name": "Set steps goal button",
+   "type": "button",
+   "description": "Full-width rounded rectangle (~#262B31 dark grey), ~16px radius. Left: a clipboard-with-checkmark icon (white outline). Center-left label 'SET A STEPS GOAL IN WEEKLY PLAN' in white bold uppercase ~18px. Far right: a forward chevron '>' (white).",
+   "literals": [
+    "SET A STEPS GOAL IN WEEKLY PLAN"
+   ],
+   "colors": [
+    "#262B31",
+    "#FFFFFF"
+   ],
+   "interaction": "Navigates to the Weekly Plan to set a steps goal."
+  },
+  {
+   "order": 10,
+   "name": "LEARN MORE section header row",
+   "type": "section-header",
+   "description": "Row with left label 'LEARN MORE' in grey bold uppercase ~20px (~#8A9099) and right action 'VIEW ALL' in white bold uppercase with a right-arrow '\u2192' icon after it.",
+   "literals": [
+    "LEARN MORE",
+    "VIEW ALL"
+   ],
+   "colors": [
+    "#8A9099",
+    "#FFFFFF"
+   ],
+   "interaction": "'VIEW ALL' navigates to the full list of learn-more articles."
+  },
+  {
+   "order": 11,
+   "name": "Article card 1 \u2014 Start tracking steps with WHOOP",
+   "type": "card",
+   "description": "Left card of a horizontal pair. Thumbnail is a screenshot of the app's Trend View steps screen (dark UI showing 'TREND VIEW', a STEPS dropdown, 'AVERAGE 12,156', a '8% past week' delta, a 'W M 6M' toggle, an 'OCT 28 - NOV 3, 24' range, text 'You've met your step goal for the last two days, keep crushing it.', and a small blue bar chart with values like 12,156 / 14,234 / 11,450 / 15,288 / 13,150). A dark 'ARTICLE' tag pill (white text) overlays the top-right of the thumbnail. Caption below in white medium ~20px, two lines: 'Start tracking steps with WHOOP'.",
+   "literals": [
+    "ARTICLE",
+    "Start tracking steps with WHOOP",
+    "12,156",
+    "OCT 28 - NOV 3, 24"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#2BA8E0",
+    "#1A1E24"
+   ],
+   "interaction": "Tapping opens the article 'Start tracking steps with WHOOP'."
+  },
+  {
+   "order": 12,
+   "name": "Article card 2 \u2014 Steps: A Measure of Daily Movement",
+   "type": "card",
+   "description": "Right card of the pair. Thumbnail is a warm-lit photo of a woman with earbuds walking outdoors carrying a tote bag (autumn/evening light). A dark 'ARTICLE' tag pill (white text) overlays the top-right. Caption below in white medium ~20px, two lines: 'Steps: A Measure of Daily Movement'.",
+   "literals": [
+    "ARTICLE",
+    "Steps: A Measure of Daily Movement"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Tapping opens the article 'Steps: A Measure of Daily Movement' (its full text is shown in the card below)."
+  },
+  {
+   "order": 13,
+   "name": "Article body card \u2014 Steps: A Measure Of Daily Movement",
+   "type": "card",
+   "description": "Full-width rounded card (~#171B21 dark grey, ~20px radius) with padding. Title 'Steps: A Measure Of Daily Movement' in white bold ~30px. Body in light grey (~#B9BEC4) regular ~22px, three paragraphs verbatim: Para 1: 'Daily steps are the total number of steps you take each day, providing a fundamental measure of daily movement and physical activity.' Para 2: 'Achieving your daily step goal is linked to numerous health benefits. Tracking steps can help reduce the risk of heart disease, obesity, sleep apnea, and improves digestion. Additionally, getting enough daily steps can improve skeletal health, boost overall well-being, and aid in recovery.' Para 3: 'Tracking your daily Steps count over time, whether you walk long distances daily or need to break up sitting time, is essential for balancing your recovery and strain.'",
+   "literals": [
+    "Steps: A Measure Of Daily Movement",
+    "Daily steps are the total number of steps you take each day, providing a fundamental measure of daily movement and physical activity.",
+    "Achieving your daily step goal is linked to numerous health benefits. Tracking steps can help reduce the risk of heart disease, obesity, sleep apnea, and improves digestion. Additionally, getting enough daily steps can improve skeletal health, boost overall well-being, and aid in recovery.",
+    "Tracking your daily Steps count over time, whether you walk long distances daily or need to break up sitting time, is essential for balancing your recovery and strain."
+   ],
+   "colors": [
+    "#171B21",
+    "#FFFFFF",
+    "#B9BEC4"
+   ],
+   "interaction": "none (static article text). Scrolling ends here with empty dark space below."
+  }
+ ],
+ "charts": [
+  {
+   "name": "Steps daily bar chart",
+   "kind": "bar",
+   "series": "Single series: daily step count, one vertical bar per day of June 2026. Bars are bright WHOOP blue (~#2BA8E0). Bars only present from ~mid-month (Jun 16+) onward; Jun 1-15 are absent/zero (no data).",
+   "xAxis": "Days of month, weekly tick labels: 'Jun 2', 'Jun 9', 'Jun 16', 'Jun 23', 'Jun 30' (two-line Month/Day labels), grey ~#7A8088.",
+   "yAxis": "Single (left) axis, step count: '0', '5,000', '10,000', '15,000', grey, with faint horizontal gridlines.",
+   "notes": "Horizontal dashed white average line at ~6,094 with a white 'AVG.' label pill (dark text) at its left end. Tallest bar ~13,000 near Jun 20-21. No dual axis. Selected-point markers not visible in this capture (no bar selected).",
+   "colors": [
+    "#2BA8E0",
+    "#FFFFFF",
+    "#7A8088"
+   ]
+  }
+ ],
+ "excluded": [
+  "WHOOP Coach AI orb (circular gradient 'W' button floating bottom-right, persistent in both scroll positions) \u2014 AI/coach feature, skip."
+ ],
+ "_key": "steps",
+ "_dir": "home/steps"
+}

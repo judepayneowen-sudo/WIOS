@@ -1,0 +1,386 @@
+{
+ "screen": "recovery",
+ "globalNotes": "Single vertically-scrolling screen titled \"TODAY\" with a persistent top nav bar (back chevron left, \"TODAY\" centered, circled \"i\" info icon right) that stays fixed/visible across all scroll positions. Dark theme throughout: page background is near-black (#0E1419 / #11161C) with cards on a slightly lighter dark slate (#1C232B / #20272F). A floating circular WHOOP logo button (the \"/W\" mark in a blue/purple gradient glowing circle) is pinned bottom-right over all content (likely the WHOOP Coach / AI assistant launcher \u2014 EXCLUDED from build). Recovery color system: green = high recovery (#16EC06 / #2CD600), yellow = medium (#F5D015 / #FFD400), red = low (#FF2D2D / #E92C2C). Chart accent line/points are light blue (#3FA9F5 / #4FB0E8). All section/metric labels are uppercase, white, bold, letter-spaced. Status bar at very top shows 09:34, silent/mute bell icon, cellular bars, wifi, battery 39%.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Top nav bar",
+   "type": "nav",
+   "description": "Fixed header. Left: white back chevron '<'. Center: 'TODAY' in white, bold, uppercase, letter-spaced, ~15px. Right: a circled lowercase 'i' info icon (thin white ring, white serif-ish 'i'). Sits on the page background, no card. Persists across all scroll positions.",
+   "literals": [
+    "TODAY",
+    "i"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#0E1419"
+   ],
+   "interaction": "Back chevron navigates to previous screen (Home/overview). Info icon opens an explainer/help sheet about Recovery."
+  },
+  {
+   "order": 2,
+   "name": "Recovery ring (big)",
+   "type": "bigring",
+   "description": "Large centered circular progress ring (open gap at top). Track is dark grey (#3A4149); progress arc is bright green (#16EC06) filling roughly 67% of the circle clockwise from top. Inside the ring, stacked and centered: faint grey 'WHOOP' wordmark at top (#5A6470, uppercase, letter-spaced); then very large white '67' with a smaller superscript-style white '%' immediately right; below that 'RECOVERY' in white, bold, uppercase, letter-spaced, ~15px. A small downward-pointing caret/triangle sits just below the ring centered, acting as a pointer connecting the ring to the metrics card below.",
+   "literals": [
+    "WHOOP",
+    "67",
+    "%",
+    "RECOVERY"
+   ],
+   "colors": [
+    "#16EC06",
+    "#3A4149",
+    "#FFFFFF",
+    "#5A6470"
+   ],
+   "interaction": "Static summary of today's recovery score; ring color reflects recovery zone (green = high)."
+  },
+  {
+   "order": 3,
+   "name": "Recovery contributors metric list (card)",
+   "type": "list",
+   "description": "Rounded dark card containing 4 metric rows separated by thin horizontal divider lines (#2C333B). Each row: left a thin-line white/grey icon, then an uppercase white bold label; right side shows a large white current value with a small grey baseline value beneath it, and a small trend triangle to the right of the big value. Rows top-to-bottom: (1) lung/lightning HR icon 'HEART RATE VARIABILITY' value '90' baseline '75' with a green up-triangle (\u25b2). (2) heart-with-down-arrow icon 'RESTING HEART RATE' value '50' baseline '56' with a green down-triangle (\u25bc) [green because lower RHR is good]. (3) lungs icon 'RESPIRATORY RATE' value '15.4' baseline '15.7' with a green down-triangle (\u25bc). (4) crescent moon icon 'SLEEP PERFORMANCE' value '86%' baseline '86%' with a small grey/neutral dot marker (\u25cf, no change). Big values ~30px bold white; baseline values ~15px grey (#7A828B).",
+   "literals": [
+    "HEART RATE VARIABILITY",
+    "90",
+    "75",
+    "RESTING HEART RATE",
+    "50",
+    "56",
+    "RESPIRATORY RATE",
+    "15.4",
+    "15.7",
+    "SLEEP PERFORMANCE",
+    "86%",
+    "86%"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#7A828B",
+    "#16EC06",
+    "#2C333B"
+   ],
+   "interaction": "Tapping a row likely opens that metric's detail/trend (mirrors the Weekly Trends charts below). Static informational rows."
+  },
+  {
+   "order": 4,
+   "name": "Comparison legend pill",
+   "type": "pill",
+   "description": "Full-width dark rounded pill below the metric list. Left: a small green up-triangle (\u25b2) immediately followed by a small orange/yellow down-triangle (\u25bc) forming a legend pair. Then white bold text 'Today' followed by grey text 'vs. last 30 days'. Explains that each row's baseline value is the 30-day average and the triangle shows today's deviation.",
+   "literals": [
+    "Today",
+    "vs. last 30 days"
+   ],
+   "colors": [
+    "#16EC06",
+    "#F5A623",
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "Static legend; not interactive."
+  },
+  {
+   "order": 5,
+   "name": "HRV insight card",
+   "type": "card",
+   "description": "Rounded card with a faint blue/purple gradient border outline. Body text in white, regular weight, ~20px: 'Your HRV is 20% higher than usual. A high HRV indicates your nervous system is ready to handle stress, your body is in balance, and you are ready to take on strain.' Below the paragraph, a tappable link row in purple/violet bold uppercase: 'EXPLORE YOUR RECOVERY INSIGHTS' followed by a purple right-arrow (\u2192).",
+   "literals": [
+    "Your HRV is 20% higher than usual. A high HRV indicates your nervous system is ready to handle stress, your body is in balance, and you are ready to take on strain.",
+    "EXPLORE YOUR RECOVERY INSIGHTS",
+    "\u2192"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#7B61FF",
+    "#3A3F66"
+   ],
+   "interaction": "'EXPLORE YOUR RECOVERY INSIGHTS \u2192' navigates to a recovery insights detail page."
+  },
+  {
+   "order": 6,
+   "name": "Unlock behavior insights promo card",
+   "type": "promo",
+   "description": "Rounded dark card. Left column text: white bold ~22px title 'Unlock behavior insights'; grey sub-text ~17px on two lines 'Understand how your behaviors impact your recovery'; then a blue bold uppercase link 'SEE POPULAR IMPACTS' with a blue right-arrow (\u2192). Right side: a decorative half-circle gauge/speedometer graphic (dark arc with a small magenta/purple highlight at the top of the arc and a large grey check-mark in the center).",
+   "literals": [
+    "Unlock behavior insights",
+    "Understand how your behaviors impact your recovery",
+    "SEE POPULAR IMPACTS",
+    "\u2192"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#9AA2AB",
+    "#3FA9F5",
+    "#C026D3"
+   ],
+   "interaction": "'SEE POPULAR IMPACTS \u2192' opens behavior insights / popular impacts feature."
+  },
+  {
+   "order": 7,
+   "name": "Weekly Trends section header",
+   "type": "section-header",
+   "description": "Large white bold mixed-case heading 'Weekly Trends', ~34px, left-aligned, sitting directly on the page background (no card).",
+   "literals": [
+    "Weekly Trends"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "None (section header)."
+  },
+  {
+   "order": 8,
+   "name": "RECOVERY weekly bar chart (card)",
+   "type": "chart",
+   "description": "Rounded card. Header row: white bold uppercase 'RECOVERY' left, grey right-chevron '>' right. Vertical BAR chart, 7 bars (one per day). Each bar is color-coded by recovery zone with its percentage value printed above in the matching color. Three faint horizontal gridlines span the plot (roughly 33% and 66% thresholds plus a top line). X-axis labels under each bar: day abbreviation over date number. The last/rightmost column (Tue 30) is highlighted with a vertical translucent grey selection band and its date label boxed/highlighted (this is 'today'). Bars left-to-right: Wed 24 = red '25%'; Thu 25 = green '97%'; Fri 26 = green '94%'; Sat 27 = yellow '40%'; Sun 28 = red '25%'; Mon 29 = green '81%'; Tue 30 = green '67%' (selected/today).",
+   "literals": [
+    "RECOVERY",
+    ">",
+    "25%",
+    "97%",
+    "94%",
+    "40%",
+    "25%",
+    "81%",
+    "67%",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#16EC06",
+    "#F5D015",
+    "#FF2D2D",
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "Right-chevron '>' opens the full Recovery trend detail. Bars likely selectable to inspect a day."
+  },
+  {
+   "order": 9,
+   "name": "HEART RATE VARIABILITY weekly line chart (card)",
+   "type": "chart",
+   "description": "Rounded card. Header: white bold uppercase 'HEART RATE VARIABILITY' left, grey right-chevron '>' right. LINE chart with light-blue (#3FA9F5) line connecting 7 open-circle markers, with a faint blue area fill beneath the line. Each point has its value labeled above in light blue. Faint horizontal gridlines. X-axis: day abbrev over date. Rightmost column (Tue 30) highlighted with translucent grey vertical band and boxed date. Points left-to-right (Wed 24 \u2192 Tue 30): 44, 107, 94, 55, 37, 93, 90. Visual shape: low start (44), spike up to 107, gradual decline to a trough at 37 (Sun), then back up to 93/90. Units are ms (implied, not printed here).",
+   "literals": [
+    "HEART RATE VARIABILITY",
+    ">",
+    "44",
+    "107",
+    "94",
+    "55",
+    "37",
+    "93",
+    "90",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#3FA9F5",
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "Right-chevron '>' opens HRV trend detail."
+  },
+  {
+   "order": 10,
+   "name": "RESTING HEART RATE weekly line chart (card)",
+   "type": "chart",
+   "description": "Rounded card. Header: white bold uppercase 'RESTING HEART RATE' left, grey right-chevron '>' right. LINE chart, light-blue line + open-circle markers + faint blue area fill. Each point labeled above in light blue. X-axis: day abbrev over date. Rightmost column (Tue 30) highlighted with translucent grey band and boxed date. Points left-to-right (Wed 24 \u2192 Tue 30): 64, 51, 49, 59, 67, 52, 50. Shape: starts high (64), dips to 49 (Fri), rises to peak 67 (Sun), falls back to 52/50. Units bpm (implied).",
+   "literals": [
+    "RESTING HEART RATE",
+    ">",
+    "64",
+    "51",
+    "49",
+    "59",
+    "67",
+    "52",
+    "50",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#3FA9F5",
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "Right-chevron '>' opens RHR trend detail."
+  },
+  {
+   "order": 11,
+   "name": "RESPIRATORY RATE weekly line chart (card)",
+   "type": "chart",
+   "description": "Rounded card. Header: white bold uppercase 'RESPIRATORY RATE' left, grey right-chevron '>' right. LINE chart, light-blue line + open-circle markers + faint blue area fill. Each point labeled above in light blue. Nearly flat line. X-axis: day abbrev over date. Rightmost column (Tue 30) highlighted with translucent grey band and boxed date. Points left-to-right (Wed 24 \u2192 Tue 30): 16.3, 15.5, 15.4, 15.8, 15.9, 15.4, 15.4. Shape: starts highest at 16.3 then settles around 15.4-15.9. Units rpm (implied).",
+   "literals": [
+    "RESPIRATORY RATE",
+    ">",
+    "16.3",
+    "15.5",
+    "15.4",
+    "15.8",
+    "15.9",
+    "15.4",
+    "15.4",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#3FA9F5",
+    "#FFFFFF",
+    "#8A929B"
+   ],
+   "interaction": "Right-chevron '>' opens respiratory rate trend detail."
+  },
+  {
+   "order": 12,
+   "name": "SLEEP PERFORMANCE weekly bar chart (card)",
+   "type": "chart",
+   "description": "Rounded card. Header: white bold uppercase 'SLEEP PERFORMANCE' left, grey right-chevron '>' right (chevron implied, off the visible crop but consistent with other cards). Vertical BAR chart, 7 bars, all uniform light/steel blue (#9DBDD6 / #8FB3CE). Each bar's percentage labeled above in light blue. Faint horizontal gridlines. X-axis: day abbrev over date. Rightmost column (Tue 30) highlighted with translucent grey vertical band (date label partly cut off at bottom of crop). Bars left-to-right (Wed 24 \u2192 Tue 30): 76%, 84%, 90%, 82%, 76%, 87%, 86%.",
+   "literals": [
+    "SLEEP PERFORMANCE",
+    ">",
+    "76%",
+    "84%",
+    "90%",
+    "82%",
+    "76%",
+    "87%",
+    "86%",
+    "Wed",
+    "24",
+    "Thu",
+    "25",
+    "Fri",
+    "26",
+    "Sat",
+    "27",
+    "Sun",
+    "28",
+    "Mon",
+    "29",
+    "Tue",
+    "30"
+   ],
+   "colors": [
+    "#9DBDD6",
+    "#3FA9F5",
+    "#8A929B"
+   ],
+   "interaction": "Right-chevron '>' opens sleep performance trend detail."
+  }
+ ],
+ "charts": [
+  {
+   "name": "RECOVERY weekly bars",
+   "kind": "bar",
+   "series": "Single series: daily recovery %, bars colored by zone (green high / yellow medium / red low).",
+   "xAxis": "7 days: Wed 24, Thu 25, Fri 26, Sat 27, Sun 28, Mon 29, Tue 30 (today, highlighted)",
+   "yAxis": "0-100% (implied), 3 faint gridlines approx at recovery thresholds 33% / 66% / top; no numeric y labels",
+   "colors": [
+    "#16EC06",
+    "#F5D015",
+    "#FF2D2D"
+   ],
+   "notes": "Values printed above each bar in matching color: 25% red, 97% green, 94% green, 40% yellow, 25% red, 81% green, 67% green. Today (Tue 30) column has a translucent grey vertical selection band and boxed date label."
+  },
+  {
+   "name": "HEART RATE VARIABILITY weekly line",
+   "kind": "line",
+   "series": "Single light-blue line with open-circle markers and faint blue area fill under it.",
+   "xAxis": "7 days: Wed 24 \u2192 Tue 30 (today highlighted)",
+   "yAxis": "ms (implied), faint horizontal gridlines, no numeric labels",
+   "colors": [
+    "#3FA9F5"
+   ],
+   "notes": "Point values labeled above markers in light blue: 44, 107, 94, 55, 37, 93, 90. Trough at Sun (37), peak at Thu (107). Today column highlighted with grey band + boxed date."
+  },
+  {
+   "name": "RESTING HEART RATE weekly line",
+   "kind": "line",
+   "series": "Single light-blue line with open-circle markers and faint blue area fill.",
+   "xAxis": "7 days: Wed 24 \u2192 Tue 30 (today highlighted)",
+   "yAxis": "bpm (implied), faint gridlines, no numeric labels",
+   "colors": [
+    "#3FA9F5"
+   ],
+   "notes": "Point values labeled above markers: 64, 51, 49, 59, 67, 52, 50. Peak at Sun (67), low at Fri (49). Today column highlighted."
+  },
+  {
+   "name": "RESPIRATORY RATE weekly line",
+   "kind": "line",
+   "series": "Single light-blue line with open-circle markers and faint blue area fill; nearly flat.",
+   "xAxis": "7 days: Wed 24 \u2192 Tue 30 (today highlighted)",
+   "yAxis": "rpm (implied), faint gridlines, no numeric labels",
+   "colors": [
+    "#3FA9F5"
+   ],
+   "notes": "Point values labeled above markers: 16.3, 15.5, 15.4, 15.8, 15.9, 15.4, 15.4. Starts highest at 16.3, otherwise tightly clustered ~15.4-15.9. Today column highlighted."
+  },
+  {
+   "name": "SLEEP PERFORMANCE weekly bars",
+   "kind": "bar",
+   "series": "Single series: daily sleep performance %, all bars uniform steel-blue.",
+   "xAxis": "7 days: Wed 24 \u2192 Tue 30 (today highlighted)",
+   "yAxis": "0-100% (implied), faint gridlines, no numeric labels",
+   "colors": [
+    "#9DBDD6"
+   ],
+   "notes": "Values printed above each bar in light blue: 76%, 84%, 90%, 82%, 76%, 87%, 86%. Today (Tue 30) column has translucent grey band; date label cut off at bottom of crop."
+  }
+ ],
+ "excluded": [
+  "Floating circular WHOOP '/W' gradient logo button pinned bottom-right over all scroll positions (likely WHOOP Coach / AI assistant launcher) \u2014 excluded as AI/coach feature",
+  "'EXPLORE YOUR RECOVERY INSIGHTS \u2192' and the HRV insight narrative paragraph are auto-generated coaching/insight copy; the link itself can be a static button but the AI-personalized text/insight destination is a coach-style feature",
+  "'Unlock behavior insights' / 'SEE POPULAR IMPACTS \u2192' promo card \u2014 behavior-insights upsell/recommendation feature, excluded"
+ ],
+ "_key": "recovery",
+ "_dir": "home/recovery"
+}

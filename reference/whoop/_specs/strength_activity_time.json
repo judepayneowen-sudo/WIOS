@@ -1,0 +1,192 @@
+{
+ "screen": "strength_activity_time",
+ "globalNotes": "Dark theme throughout, near-black background (#0E1419 / #12181E) with a subtle vertical gradient (slightly lighter at top, darker at bottom). All header/label text is uppercase white or muted grey, condensed/heavy sans-serif (WHOOP's Proxima-like font). This is a Trend View detail screen reached by tapping a metric on the home/overview. Top status bar shows iOS system UI (09:38, silenced-bell icon, cellular 2/4 bars, wifi, battery 38%). A floating circular WHOOP Coach button (gradient blue/purple ring with W mark) overlaps the bottom-right \u2014 EXCLUDED. Screen scrolls; one more partial card peeks at the very bottom edge below the visible content.",
+ "layout": [
+  {
+   "order": 1,
+   "name": "Status bar",
+   "type": "nav",
+   "description": "iOS system status bar. Left: time '09:38' in white bold. A silenced/muted bell icon immediately right of the time. Right cluster: cellular signal bars (2 of 4 filled), wifi glyph, battery pill showing '38' with white fill at ~38%.",
+   "literals": [
+    "09:38",
+    "38"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 2,
+   "name": "Screen header / nav bar",
+   "type": "nav",
+   "description": "Centered uppercase title 'TREND VIEW' in white, bold, letter-spaced, ~17px. A back chevron '<' (left-pointing caret) at far left in white. No right-side action.",
+   "literals": [
+    "TREND VIEW"
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "Back chevron navigates back to the previous (home/overview) screen."
+  },
+  {
+   "order": 3,
+   "name": "Metric selector dropdown",
+   "type": "button",
+   "description": "Full-width rounded rectangle (~16px radius) with a slightly lighter grey gradient fill (#2A323A to #1E252C). Left: a dumbbell/barbell icon (outline, grey-white). Center-left: 'STRENGTH ACTIVITY TIME' in white, bold, uppercase, letter-spaced, ~18px. Far right: a downward chevron 'v' in white indicating a dropdown.",
+   "literals": [
+    "STRENGTH ACTIVITY TIME"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#2A323A"
+   ],
+   "interaction": "Tapping opens a dropdown/picker to switch which trend metric is displayed."
+  },
+  {
+   "order": 4,
+   "name": "AVG. WEEKLY TOTAL stat block",
+   "type": "metric-row",
+   "description": "Left-aligned. Small muted-grey uppercase label 'AVG. WEEKLY TOTAL' (~13px, #8A929A). Below it a very large white value '0:00' (heavy, ~56px) with a smaller white 'hr' unit suffix baseline-aligned to its right (~22px).",
+   "literals": [
+    "AVG. WEEKLY TOTAL",
+    "0:00",
+    "hr"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "none (display only)"
+  },
+  {
+   "order": 5,
+   "name": "Time-range segmented toggle",
+   "type": "pill",
+   "description": "Top-right, a rounded dark pill (#1A2026) segmented into three options: 'W', 'M', '6M'. 'M' is selected, shown as a raised lighter-grey rounded button (#3A424A) with white text; 'W' and '6M' are unselected, muted grey text on the dark pill. Each is bold uppercase ~16px.",
+   "literals": [
+    "W",
+    "M",
+    "6M"
+   ],
+   "colors": [
+    "#3A424A",
+    "#1A2026",
+    "#FFFFFF",
+    "#8A929A"
+   ],
+   "interaction": "Tapping W / M / 6M switches the trend window between Weekly, Monthly, and 6-Month views, re-loading the chart and date range. Currently 'M' active."
+  },
+  {
+   "order": 6,
+   "name": "Date-range stepper",
+   "type": "metric-row",
+   "description": "Below the toggle, right side. Centered white bold text 'JUN 3 - JUN 30, 26' (~17px) flanked by a left chevron '<' and right chevron '>' both in muted grey. Represents the currently shown month-window.",
+   "literals": [
+    "JUN 3 - JUN 30, 26"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#6A727A"
+   ],
+   "interaction": "Left/right chevrons page to the previous/next date window."
+  },
+  {
+   "order": 7,
+   "name": "Summary explanatory text",
+   "type": "text",
+   "description": "Multi-line white body paragraph, regular weight, ~20px, left-aligned, spanning full width: 'You spent 0:00 in strength activities in the last 7 days. This is consistent with your weekly average from the last four weeks (0:00).'",
+   "literals": [
+    "You spent 0:00 in strength activities in the last 7 days. This is consistent with your weekly average from the last four weeks (0:00)."
+   ],
+   "colors": [
+    "#FFFFFF"
+   ],
+   "interaction": "none"
+  },
+  {
+   "order": 8,
+   "name": "Trend chart (bar/line area)",
+   "type": "chart",
+   "description": "A trend chart occupying the mid-screen. Single left y-axis (no dual axis), time in H:MM with muted-grey gridline labels at: '0:30' (top), '0:22', '0:15', '0:07' (descending). Faint horizontal gridlines extend right from each label. X-axis labels (muted grey, bottom) are four weekly buckets: 'Jun 3 - 9', 'Jun 10 - 16', 'Jun 17 - 23', 'Jun 24 - 30'. A horizontal dashed white baseline runs across near the bottom (just above the x-axis labels) labeled with a white rounded tag 'AVG.' at its far left. No data bars/points are drawn because all values are 0:00, so the plot area is empty above the baseline. Series would be weekly strength-activity-time bars compared against the dashed AVG. line.",
+   "literals": [
+    "0:30",
+    "0:22",
+    "0:15",
+    "0:07",
+    "Jun 3 - 9",
+    "Jun 10 - 16",
+    "Jun 17 - 23",
+    "Jun 24 - 30",
+    "AVG."
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#8A929A",
+    "#2A2F35"
+   ],
+   "interaction": "Tapping/selecting a bar would highlight that week's value; none present here."
+  },
+  {
+   "order": 9,
+   "name": "Info note",
+   "type": "text",
+   "description": "A small circled 'i' info icon (outline) at left, followed by muted grey small text: 'Strength activity time is derived from logged strength activities listed below'. ~14px, single line truncated to width.",
+   "literals": [
+    "Strength activity time is derived from logged strength activities listed below"
+   ],
+   "colors": [
+    "#8A929A"
+   ],
+   "interaction": "none (informational)"
+  },
+  {
+   "order": 10,
+   "name": "ADD ACTIVITY button",
+   "type": "button",
+   "description": "Full-width rounded dark card (#1A2026). Left: a '+' plus icon (grey-white). Label 'ADD ACTIVITY' in white bold uppercase, letter-spaced, ~18px. Far right: a right chevron '>' in white.",
+   "literals": [
+    "ADD ACTIVITY"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#1A2026"
+   ],
+   "interaction": "Tapping opens the flow to manually add/log a strength activity."
+  },
+  {
+   "order": 11,
+   "name": "SET A GOAL IN WEEKLY PLAN button",
+   "type": "button",
+   "description": "Full-width rounded dark card (#1A2026) directly below ADD ACTIVITY. Left: a clipboard-with-checkmark icon (outline, grey-white). Label 'SET A GOAL IN WEEKLY PLAN' in white bold uppercase, letter-spaced, ~18px. Right side is partly overlapped by the floating Coach button; presumably also has a chevron.",
+   "literals": [
+    "SET A GOAL IN WEEKLY PLAN"
+   ],
+   "colors": [
+    "#FFFFFF",
+    "#1A2026"
+   ],
+   "interaction": "Tapping navigates to the Weekly Plan to set a strength-activity goal."
+  }
+ ],
+ "excluded": [
+  "Floating WHOOP Coach button (circular gradient blue/purple ring with stylized 'W' mark) overlapping the bottom-right corner over the 'SET A GOAL IN WEEKLY PLAN' card \u2014 AI/coach feature, excluded from build."
+ ],
+ "charts": [
+  {
+   "name": "Strength Activity Time weekly trend",
+   "kind": "bar",
+   "series": "Weekly strength-activity time per week bucket (no bars rendered because every week is 0:00); compared to a horizontal dashed white AVG. baseline",
+   "xAxis": "Weekly buckets: 'Jun 3 - 9', 'Jun 10 - 16', 'Jun 17 - 23', 'Jun 24 - 30' (muted grey labels)",
+   "yAxis": "Time H:MM, single left axis. Gridline labels top-to-bottom: 0:30, 0:22, 0:15, 0:07",
+   "colors": [
+    "#FFFFFF",
+    "#8A929A",
+    "#2A2F35"
+   ],
+   "notes": "Dashed white horizontal AVG. line near bottom with a white rounded 'AVG.' tag at far left. No data points/bars or on-point annotations are visible (all values 0:00). Single y-axis (not dual). Faint horizontal gridlines at each y label."
+  }
+ ],
+ "_key": "strength_activity_time",
+ "_dir": "home/strength activity time"
+}
