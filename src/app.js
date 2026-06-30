@@ -406,9 +406,10 @@ let selDayKey=null;                                            // YYYY-MM-DD sel
 const todayKey   = ()=> store.dayKeyOf(Math.floor(Date.now()/1000));
 const curDayKey  = ()=> selDayKey || todayKey();
 const dayData    = (k)=> histDays.find(d=>d.day===k) || null;
-const WR_C = 2*Math.PI*52;                                     // ring circumference (r=52)
+const WR_C = 2*Math.PI*52;                                     // big ring circumference (r=52)
 function setWRing(id, frac, color){ const el=$(id); if(!el) return; frac=Math.max(0,Math.min(1,frac||0));
-  el.style.strokeDasharray=WR_C; el.style.strokeDashoffset=WR_C*(1-frac); if(color) el.style.stroke=color; }
+  const r=parseFloat(el.getAttribute('r'))||52, C=2*Math.PI*r;  // per-element circumference (mini rings are r=15)
+  el.style.strokeDasharray=C; el.style.strokeDashoffset=C*(1-frac); if(color) el.style.stroke=color; }
 const fmtClock=(ts)=> ts? new Date(ts*1000).toLocaleTimeString([], {hour:'numeric',minute:'2-digit',hour12:false}) : '';
 const fmtHM=(min)=>{ if(min==null) return '—'; min=Math.round(min); return Math.floor(min/60)+':'+String(min%60).padStart(2,'0'); }
 const avgField=(get)=>{ const v=histDays.map(get).filter(x=>x!=null&&isFinite(x)&&x>0); return v.length? v.reduce((a,c)=>a+c,0)/v.length : null; };
@@ -449,6 +450,7 @@ function renderSummary(d){
     mrow(ICN.sleep,'HOURS OF SLEEP', fmtHM(asleep), slpA!=null?fmtHM(slpA):'', trendOf(asleep,slpA), true, 'hours_vs_needed'),
     mrow(ICN.zones,'HR ZONES ALL (WEEKLY)', '—', '', null, true, 'zone:zonesall'),
     mrow(ICN.resp,'RESPIRATORY RATE', '—', '', null, true, 'respiratory_rate'),
+    mrow('⚖','WEIGHT', '75.0', 'kg', null, true, 'weight'),
   ];
   host.innerHTML=rows.join('');
 }
@@ -594,7 +596,7 @@ function miniLine(data, days, color, fmt){
     `<text x="${X(i).toFixed(1)}" y="${H-6}" fill="var(--dimmer)" font-size="8" text-anchor="middle">${days[i]}</text>`; });
   return s+`</svg>`;
 }
-const recCard=(title,chart)=>`<div class="card"><div class="wrow" style="margin-bottom:6px"><span class="wsec-h" style="margin:0">${title}</span><span style="color:var(--dimmer)">›</span></div>${chart}</div>`;
+const recCard=(title,chart,nav)=>`<div class="card"${nav?` data-trend="${nav}"`:''} style="${nav?'cursor:pointer':''}"><div class="wrow" style="margin-bottom:6px"><span class="wsec-h" style="margin:0">${title}</span><span style="color:var(--dimmer)">›</span></div>${chart}</div>`;
 function renderRecovery(){
   const R=SAMPLE.recovery, c=recColor(R.pct);
   setHTML('rec-pct', R.pct+'<i>%</i>'); setRing('rec-arc', R.pct, c);
@@ -605,11 +607,11 @@ function renderRecovery(){
   setHTML('rec-insight', `<div class="card rec-ins">Your HRV is 20% higher than usual. A high HRV indicates your nervous system is ready to handle stress, your body is in balance, and you are ready to take on strain.<div class="rec-ins-cta">EXPLORE YOUR RECOVERY INSIGHTS →</div></div>`);
   const recC=v=>v>=67?'var(--rec-green)':v>=34?'var(--rec-yellow)':'var(--rec-red)';
   setHTML('rec-weekly',
-    recCard('RECOVERY', miniBars(REC_WEEK.recovery,REC_WEEK.days,recC,v=>v+'%'))+
-    recCard('HEART RATE VARIABILITY', miniLine(REC_WEEK.hrv,REC_WEEK.days,'#7fb0e0',v=>v))+
-    recCard('RESTING HEART RATE', miniLine(REC_WEEK.rhr,REC_WEEK.days,'#7fb0e0',v=>v))+
-    recCard('RESPIRATORY RATE', miniLine(REC_WEEK.resp,REC_WEEK.days,'#7fb0e0',v=>v.toFixed(1)))+
-    recCard('SLEEP PERFORMANCE', miniBars(REC_WEEK.sleepPerf,REC_WEEK.days,()=>'#7ba1bb',v=>v+'%')));
+    recCard('RECOVERY', miniBars(REC_WEEK.recovery,REC_WEEK.days,recC,v=>v+'%'), 'recovery_trend')+
+    recCard('HEART RATE VARIABILITY', miniLine(REC_WEEK.hrv,REC_WEEK.days,'#7fb0e0',v=>v), 'hrv')+
+    recCard('RESTING HEART RATE', miniLine(REC_WEEK.rhr,REC_WEEK.days,'#7fb0e0',v=>v), 'rhr')+
+    recCard('RESPIRATORY RATE', miniLine(REC_WEEK.resp,REC_WEEK.days,'#7fb0e0',v=>v.toFixed(1)), 'respiratory_rate')+
+    recCard('SLEEP PERFORMANCE', miniBars(REC_WEEK.sleepPerf,REC_WEEK.days,()=>'#7ba1bb',v=>v+'%'), 'sleep_performance'));
 }
 // Flip a hand-coded screen's "preview · sample" badge to "your data" (green) once it's backed by the store.
 function markPreview(sectionId, isSample){
@@ -663,8 +665,8 @@ function renderStrainWith(S){
     mrow(ICN.cal,'CALORIES', S.cal||'—', '', null, true, 'calories'));
   const strW=[4.7,0.9,10.6,5.6,4.3,4.3,0.1];
   setHTML('str-weekly',
-    recCard('STRAIN', miniBars(strW, REC_WEEK.days, ()=>'#0093e7', v=>v.toFixed(1)))+
-    recCard('CALORIES', miniBars([2146,2568,1012,1980,2030,1890,2100], REC_WEEK.days, ()=>'#7ba1bb', v=>(v/1000).toFixed(1)+'k')));
+    recCard('STRAIN', miniBars(strW, REC_WEEK.days, ()=>'#0093e7', v=>v.toFixed(1)), 'day_strain')+
+    recCard('CALORIES', miniBars([2146,2568,1012,1980,2030,1890,2100], REC_WEEK.days, ()=>'#7ba1bb', v=>(v/1000).toFixed(1)+'k'), 'calories'));
 }
 function renderSleep(){
   const real=latestSleep();
@@ -684,7 +686,7 @@ function renderSleep(){
     brow('SLEEP DEBT', fmtMs(S.debtMin!=null?S.debtMin:24), 'sleep_debt')+
     brow('RESTORATIVE SLEEP', Math.round((t.rem+t.sws)/Math.max(1,inbed)*100)+'%', 'restorative_sleep')+
     brow('TIME IN BED', fmtMs(inbed), 'time_in_bed'));
-  setHTML('slp-weekly', recCard('SLEEP PERFORMANCE', miniBars(REC_WEEK.sleepPerf, REC_WEEK.days, ()=>'#7ba1bb', v=>v+'%')));
+  setHTML('slp-weekly', recCard('SLEEP PERFORMANCE', miniBars(REC_WEEK.sleepPerf, REC_WEEK.days, ()=>'#7ba1bb', v=>v+'%'), 'sleep_performance'));
   setHTML('slp-hypno', hypnogram(S.segs));
   setHTML('slp-stages', ['rem','sws','light','awake'].map(k=>`<div class="stg"><span class="sw" style="background:${STAGE[k].c}"></span>`+
     `<span class="nm">${STAGE[k].nm}</span><span class="tm">${fmtMs(t[k])}</span><span class="pc">${Math.round(t[k]/inbed*100)}%</span></div>`).join(''));
