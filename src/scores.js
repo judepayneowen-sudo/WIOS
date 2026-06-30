@@ -300,7 +300,7 @@ export function summarizeStages(stages, epochSeconds = 30) {
 // epochs to capture light-sleep onset/offset (where HR is still settling). Validated against WHOOP's
 // Jun-2026 in-bed durations to ~8 min. Returns {start,end,startIdx,endIdx,durMin,restHr} (epoch .t in ms)
 // or null. Tune via SLEEP_WINDOW_PARAMS; do not chase WHOOP's exact onset (it counts pre-sleep latency).
-export const SLEEP_WINDOW_PARAMS = { hrFloorPct: 0.10, hrMargin: 0.18, moveQuietPct: 0.55, bridgeMin: 20, edgeMoveMult: 2.0 };
+export const SLEEP_WINDOW_PARAMS = { hrFloorPct: 0.10, hrMargin: 0.18, moveQuietPct: 0.55, bridgeMin: 35, edgeMoveMult: 2.0, windowHrMargin: 0.50 };
 export function detectSleepWindow(epochs, params = SLEEP_WINDOW_PARAMS) {
   if (!epochs || epochs.length < 20) return null;
   const ES = (epochs[1] && epochs[0]) ? (epochs[1].t - epochs[0].t) / 1000 : 30;
@@ -311,7 +311,11 @@ export function detectSleepWindow(epochs, params = SLEEP_WINDOW_PARAMS) {
   const hrThr = restHr * (1 + params.hrMargin);
   const moveThr = moves.length ? percentile(moves, params.moveQuietPct) : 0.02;
   const edgeMove = moveThr * params.edgeMoveMult;
-  const quiet = epochs.map((e) => (e.hr > 0 && e.hr <= hrThr && (e.move || 0) <= moveThr) ? 1 : 0);
+  // Envelope = sustained LOW MOVEMENT (actigraphy is the sleep signal). HR only loosely excludes clearly-awake
+  // epochs: a tight HR cap (hrThr) wrongly drops REM (HR rises well above deep-sleep HR), splitting the night and
+  // truncating the window. Use a generous HR ceiling so REM stays inside the window.
+  const hrCeil = restHr * (1 + (params.windowHrMargin != null ? params.windowHrMargin : Math.max(params.hrMargin, 0.5)));
+  const quiet = epochs.map((e) => ((e.move || 0) <= moveThr && (e.hr === 0 || e.hr <= hrCeil)) ? 1 : 0);
   const bridge = Math.round(params.bridgeMin * 60 / ES);
   const q = quiet.slice();
   for (let i = 0; i < q.length; i++) {                          // bridge short awake gaps inside sleep
