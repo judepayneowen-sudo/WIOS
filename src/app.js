@@ -316,22 +316,36 @@ function interactiveChart(host, series, opts={}){
   const mn=o.min!=null?o.min:vlo, mx=o.max!=null?o.max:vhi, rg=(mx-mn)||1;
   const cw=Math.max(240,(host.clientWidth||320));
   const innerW=o.ppP? Math.max(cw, Math.round(n*o.ppP)) : cw;
-  const H=o.h, padT=16, padB=18, P=8;
-  const X=i=> P + i*(innerW-2*P)/Math.max(1,n-1);
+  const H=o.h, padT=16, padB=20, padL=o.yAxis?34:8, P=8;
+  const X=i=> padL + i*(innerW-padL-P)/Math.max(1,n-1);
   const Y=v=> padT + (1-(v-mn)/rg)*(H-padT-padB);
   const XY=pts.map((p,i)=>[X(i),Y(p.v)]);
   const line=smoothPath(XY);                                  // smooth HD curve through the points
   const area=`${line} L${X(n-1).toFixed(1)} ${(H-padB).toFixed(1)} L${X(0).toFixed(1)} ${(H-padB).toFixed(1)} Z`;
+  const fmtY=o.fmtY||o.fmt;
+  // y-axis gridlines + labels (top→bottom): 4 evenly spaced
+  let grid=''; if(o.yAxis){ for(let k=0;k<=3;k++){ const v=mn+rg*(3-k)/3, y=Y(v);
+    grid+=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(innerW-P).toFixed(1)}" y2="${y.toFixed(1)}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`+
+          `<text x="${padL-6}" y="${(y+3).toFixed(1)}" fill="var(--dimmer)" font-size="9" text-anchor="end">${fmtY(v)}</text>`; } }
   let bands=''; if(o.bands) for(const b of o.bands){ const y1=Y(b.hi),y2=Y(b.lo);
-    bands+=`<rect x="0" y="${y1.toFixed(1)}" width="${innerW}" height="${Math.max(0,y2-y1).toFixed(1)}" fill="${b.c}" opacity="0.10"/>`; }
+    bands+=`<rect x="${padL}" y="${y1.toFixed(1)}" width="${(innerW-padL-P).toFixed(1)}" height="${Math.max(0,y2-y1).toFixed(1)}" fill="${b.c}" opacity="0.24"/>`; }
+  let avgEl=''; if(o.avg!=null){ const y=Y(o.avg);
+    avgEl=`<line x1="${padL}" y1="${y.toFixed(1)}" x2="${(innerW-P).toFixed(1)}" y2="${y.toFixed(1)}" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity=".5"/>`+
+          `<rect x="${padL}" y="${(y-8).toFixed(1)}" width="32" height="15" rx="4" fill="#fff"/><text x="${padL+16}" y="${(y+2.5).toFixed(1)}" fill="#0b0f14" font-size="8.5" font-weight="700" text-anchor="middle">AVG.</text>`; }
+  let endEl=''; if(o.endpoint && n){ const lx=X(n-1), ly=Y(pts[n-1].v);
+    endEl=`<circle cx="${lx.toFixed(1)}" cy="${ly.toFixed(1)}" r="4" fill="var(--bg)" stroke="${o.color}" stroke-width="2.5"/>`+
+          `<text x="${(lx-7).toFixed(1)}" y="${(ly-9).toFixed(1)}" fill="#fff" font-size="11" font-weight="700" text-anchor="end">${o.fmt(pts[n-1].v)}</text>`; }
+  let secondEl=''; if(o.second && o.second.pts){ const s2=o.second.pts.map((v,i)=>[X(i),Y(v)]);
+    secondEl=`<path d="${smoothPath(s2)}" fill="none" stroke="${o.second.color}" stroke-width="2" stroke-linecap="round"/>`+
+      (o.endpoint?`<circle cx="${X(n-1).toFixed(1)}" cy="${Y(o.second.pts[n-1]).toFixed(1)}" r="4" fill="var(--bg)" stroke="${o.second.color}" stroke-width="2.5"/>`:''); }
   let ticks=''; const step=Math.max(1,Math.round(n/6));
   for(let i=0;i<n;i+=step){ if(pts[i].t) ticks+=`<text x="${X(i).toFixed(1)}" y="${H-4}" fill="var(--dimmer)" font-size="9" text-anchor="middle">${pts[i].t}</text>`; }
   const id='ch'+(++_chartId);
   host.innerHTML=
     `<div class="ichart"><div class="ichart-scroll"><svg id="${id}" width="${innerW}" height="${H}" viewBox="0 0 ${innerW} ${H}" style="display:block;touch-action:pan-x">
-      ${bands}${o.fill?`<path d="${area}" fill="${o.color}" opacity="0.14"/>`:''}
-      <path d="${line}" fill="none" stroke="${o.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-      ${ticks}<line class="scrub" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#fff" stroke-width="1" opacity="0"/>
+      ${grid}${bands}${o.fill?`<path d="${area}" fill="${o.color}" opacity="0.14"/>`:''}
+      ${avgEl}${secondEl}<path d="${line}" fill="none" stroke="${o.color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      ${endEl}${ticks}<line class="scrub" x1="0" y1="${padT}" x2="0" y2="${H-padB}" stroke="#fff" stroke-width="1" opacity="0"/>
       <circle class="scrubdot" r="4" fill="#fff" stroke="${o.color}" stroke-width="2" opacity="0"/>
     </svg></div><div class="ichart-tip"></div></div>`;
   const svg=host.querySelector('svg'), scrub=svg.querySelector('.scrub'), dot=svg.querySelector('.scrubdot'),
@@ -702,17 +716,22 @@ function trendSeries(base, amp, n, every){
 // Vertical bar chart with an optional dashed AVG line + tag (WHOOP trend bars).
 function barChart(host, series, opts={}){
   if(!host) return;
-  const o=Object.assign({color:'#0093e7', h:170, max:null, avg:null}, opts);
+  const o=Object.assign({color:'#0093e7', h:178, max:null, avg:null, xlabels:false, fmtY:v=>Math.round(v).toLocaleString()}, opts);
   const vals=series.map(s=>typeof s==='number'?s:s.v), n=series.length;
   const mx=o.max!=null?o.max:Math.max(...vals,1)*1.1;
-  const W=Math.max(300,(host.clientWidth||330)), H=o.h, padT=16,padB=20,padL=4,padR=4, iw=W-padL-padR, ih=H-padT-padB;
+  const W=Math.max(300,(host.clientWidth||330)), H=o.h, padT=14,padB=o.xlabels?22:14,padL=34,padR=6, iw=W-padL-padR, ih=H-padT-padB;
   const bw=Math.max(2, iw/n*0.58);
   let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">`;
+  for(let k=0;k<=3;k++){ const v=mx*(3-k)/3, y=(padT+ih*k/3).toFixed(1);   // y-axis gridlines + labels
+    s+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="rgba(255,255,255,.06)" stroke-width="1"/>`+
+       `<text x="${padL-6}" y="${(+y+3)}" fill="var(--dimmer)" font-size="9" text-anchor="end">${o.fmtY(v)}</text>`; }
   if(o.avg!=null){ const y=(padT+ih*(1-Math.min(1,o.avg/mx))).toFixed(1);
     s+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity=".55"/>`+
-       `<rect x="${padL}" y="${(+y-9)}" width="36" height="16" rx="4" fill="#fff"/><text x="${padL+18}" y="${(+y+2.5)}" fill="#0b0f14" font-size="9" font-weight="700" text-anchor="middle">AVG.</text>`; }
+       `<rect x="${padL}" y="${(+y-9)}" width="34" height="15" rx="4" fill="#fff"/><text x="${padL+17}" y="${(+y+2.5)}" fill="#0b0f14" font-size="8.5" font-weight="700" text-anchor="middle">AVG.</text>`; }
+  const lab=['Jun 2','Jun 9','Jun 16','Jun 23','Jun 30'];
   series.forEach((p,i)=>{ const v=typeof p==='number'?p:p.v, x=padL+iw*(i+0.5)/n, bh=ih*Math.max(.01,Math.min(1,v/mx));
     s+=`<rect x="${(x-bw/2).toFixed(1)}" y="${(padT+ih-bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${o.color}"/>`; });
+  if(o.xlabels){ for(let k=0;k<5;k++){ const x=padL+iw*(k/4); s+=`<text x="${x.toFixed(1)}" y="${H-5}" fill="var(--dimmer)" font-size="9" text-anchor="middle">${lab[k]}</text>`; } }
   s+=`</svg>`; host.innerHTML=s;
 }
 function renderTrendView(key){
@@ -739,12 +758,16 @@ function renderTrendView(key){
     `<div class="card tv-explain"><h3>${m.explain.title}</h3>${m.explain.paras.map(p=>`<p>${p}</p>`).join('')}</div>`;
   setField('tv-title', m.name.length>16?'TREND VIEW':'TREND VIEW');
   const cw=$('tv-chart');
-  if(m.chart==='bar') barChart(cw, ser, { color:'#0093e7', max:m.max||null, avg });
+  const fmtY = (key==='steps'||key==='calories') ? (v=>Math.round(v).toLocaleString())
+             : m.unit==='hr' ? (v=>{const t=Math.round(v*60);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');})
+             : (v=>Math.round(v));
+  if(m.chart==='bar') barChart(cw, ser, { color:'#0093e7', max:m.max||null, avg, xlabels:true });
   else if(m.dual){
     const need=trendSeries(m.base2,m.amp,n,every);
-    interactiveChart(cw, ser, { color:'#7FC9D6', h:170, min:0, max:12, fill:false });
-  } else interactiveChart(cw, ser, { color: m.icon===ICN.rhr?'#7FB0E0':'#19E68C', h:170, fill:false,
-    bands: m.typical?[{lo:m.typical[0],hi:m.typical[1],c:'#5A636D'}]:null });
+    interactiveChart(cw, ser, { color:'#7FC9D6', h:170, min:0, max:12, fill:false, yAxis:true, endpoint:true, fmtY, fmt:fmtY, second:{pts:need.map(x=>x.v),color:'#19E68C'} });
+  } else interactiveChart(cw, ser, { color: key==='rhr'?'#7FB0E0':key==='average_hr'?'#7FB0E0':'#e3e9ed', h:170,
+    fill: key==='average_hr', yAxis:true, endpoint:true, fmt:fmtY, fmtY, avg:m.avgLine?m.base:null,
+    bands: m.typical?[{lo:m.typical[0],hi:m.typical[1],c:'#7d8a96'}]:null });
 }
 /* ===================== HR ZONES (trend detail) ===================== */
 let curZone='zonesall';
@@ -763,10 +786,18 @@ const ZONE_SCREENS={
     weeks:[[20,5,2,0,0],[30,8,3,1,0],[88,12,6,2,1],[40,6,2,0,0]], zoneIdx:[0,1,2,3,4], zones:[['Zone 1','1:50',0],['Zone 2','0:25',1],['Zone 3','0:12',2],['Zone 4','0:05',3],['Zone 5','0:02',4]] },
 };
 function zoneStackBar(weeks, idx){
-  const W=330,H=170,padT=14,padB=22,padL=6,padR=6, iw=W-padL-padR, ih=H-padT-padB;
-  const tot=weeks.map(w=>w.reduce((a,c)=>a+c,0)); const mx=Math.max(...tot,1);
+  const W=330,H=180,padT=14,padB=22,padL=34,padR=6, iw=W-padL-padR, ih=H-padT-padB;
+  const tot=weeks.map(w=>w.reduce((a,c)=>a+c,0)); const mx=Math.max(...tot,1)*1.1;
+  const mean=tot.reduce((a,c)=>a+c,0)/tot.length;
+  const fmtT=(v)=>{const t=Math.round(v);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');};
   const labs=['Jun 3 - 9','Jun 10 - 16','Jun 17 - 23','Jun 24 - 30']; const bw=Math.max(8,iw/weeks.length*0.5);
   let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">`;
+  for(let k=0;k<=3;k++){ const y=(padT+ih*k/3).toFixed(1);
+    s+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="rgba(255,255,255,.06)"/>`+
+       `<text x="${padL-6}" y="${(+y+3)}" fill="var(--dimmer)" font-size="9" text-anchor="end">${fmtT(mx*(3-k)/3)}</text>`; }
+  if(mean>0){ const y=(padT+ih*(1-Math.min(1,mean/mx))).toFixed(1);
+    s+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity=".5"/>`+
+       `<rect x="${padL}" y="${(+y-9)}" width="32" height="15" rx="4" fill="#fff"/><text x="${padL+16}" y="${(+y+2.5)}" fill="#0b0f14" font-size="8.5" font-weight="700" text-anchor="middle">AVG</text>`; }
   weeks.forEach((w,i)=>{ const x=padL+iw*(i+0.5)/weeks.length; let y=padT+ih;
     w.forEach((v,j)=>{ const h=ih*(v/mx); y-=h; if(h>0) s+=`<rect x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${ZCOL[idx[j]]}"/>`; });
     s+=`<text x="${x.toFixed(1)}" y="${H-6}" fill="var(--dimmer)" font-size="8.5" text-anchor="middle">${labs[i]}</text>`; });
