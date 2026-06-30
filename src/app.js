@@ -408,8 +408,8 @@ function renderDash(d){
     mrow(ICN.hrv,'HEART RATE VARIABILITY', hrv!=null?hrv:'—', hrvA!=null?Math.round(hrvA):'', trendOf(hrv,hrvA), true, 'hrv'),
     mrow(ICN.rhr,'RESTING HEART RATE', rhr!=null?rhr:'—', rhrA!=null?Math.round(rhrA):'', trendOf(rhr,rhrA), false, 'rhr'),
     mrow(ICN.steps,'STEPS', '—', '', null, true, 'steps'),
-    mrow(ICN.zones,'HR ZONES 1-3 (WEEKLY)', '—', '', null),
-    mrow(ICN.zones,'HR ZONES 4-5 (WEEKLY)', '—', '', null),
+    mrow(ICN.zones,'HR ZONES 1-3 (WEEKLY)', '—', '', null, true, 'zone:zones13'),
+    mrow(ICN.zones,'HR ZONES 4-5 (WEEKLY)', '—', '', null, true, 'zone:zones45'),
     mrow(ICN.strength,'STRENGTH ACTIVITY TIME', '—', '', null),
     `<div class="wmrow chev"><span class="mi">${ICN.vo2}</span><span class="ml">VO₂ MAX</span><span class="mv">›</span><span class="mtr"></span></div>`,
     mrow(ICN.cal,'CALORIES', '—', '', null, true, 'calories'),
@@ -424,7 +424,7 @@ function renderSummary(d){
     mrow(ICN.hr.replace('♥','🏋'),'DAY STRAIN', strain!=null?strain.toFixed(1):'—', strA!=null?strA.toFixed(1):'', trendOf(strain,strA), true, 'day_strain'),
     mrow(ICN.hr,'AVERAGE HEART RATE', hr!=null?hr:'—', hrA!=null?Math.round(hrA):'', trendOf(hr,hrA), true, 'average_hr'),
     mrow(ICN.sleep,'HOURS OF SLEEP', fmtHM(asleep), slpA!=null?fmtHM(slpA):'', trendOf(asleep,slpA), true, 'hours_vs_needed'),
-    mrow(ICN.zones,'HR ZONES ALL (WEEKLY)', '—', '', null),
+    mrow(ICN.zones,'HR ZONES ALL (WEEKLY)', '—', '', null, true, 'zone:zonesall'),
     mrow(ICN.resp,'RESPIRATORY RATE', '—', '', null, true, 'respiratory_rate'),
   ];
   host.innerHTML=rows.join('');
@@ -737,7 +737,64 @@ function renderTrendView(key){
   } else interactiveChart(cw, ser, { color: m.icon===ICN.rhr?'#7FB0E0':'#19E68C', h:170, fill:false,
     bands: m.typical?[{lo:m.typical[0],hi:m.typical[1],c:'#5A636D'}]:null });
 }
-const HAND_RENDER={ overview:renderOverview, recovery:renderRecovery, strain:renderStrain, sleep:renderSleep, trends:renderTrends, trendview:()=>renderTrendView(curTrend) };
+/* ===================== HR ZONES (trend detail) ===================== */
+let curZone='zonesall';
+const ZCOL=['#b6c4cc','#2e9bd6','#3fb98a','#f4a84a','#e8702a'];   // Zone 1..5
+// The HR-zone-training explainer appears in EVERY HR-zone screen (per product spec), not only zones 1-3.
+const ZONE_DEFS=[['Zone 5 (90-100%)','All out intensity',4],['Zone 4 (80-89%)','High',3],['Zone 3 (70-79%)','Moderate',2],['Zone 2 (60-69%)','Light',1],['Zone 1 (40-59%)','Very light',0]];
+const ZONE_SCREENS={
+  zones13:{ name:'HEART RATE ZONES 1-3', avg:'0:54', change:'5% vs. prior month', up:true,
+    sentence:'You spent 0:14 in zones 1-3 in the last 7 days. This is below your weekly average from the last four weeks (0:54).',
+    weeks:[[0,0,0],[0,0,0],[88,7,5],[49,4,1]], zoneIdx:[0,1,2], zones:[['Zone 1','0:49',0],['Zone 2','0:04',1],['Zone 3','0:01',2]], why:true },
+  zones45:{ name:'HEART RATE ZONES 4-5', avg:'0:00',
+    sentence:'You spent 0:00 in zones 4-5 in the last 7 days. This is below your weekly average from the last four weeks (0:00).',
+    weeks:[[0,0],[0,0],[0,0],[0,0]], zoneIdx:[3,4], zones:[['Zone 4','0:00',3],['Zone 5','0:00',4]] },
+  zonesall:{ name:'HEART RATE ZONES ALL', avg:'2:34', change:'18% vs. prior month', up:false,
+    sentence:'You spent 0:31 in activities in the last 7 days. This is below your weekly average from the last four weeks (2:34).',
+    weeks:[[20,5,2,0,0],[30,8,3,1,0],[88,12,6,2,1],[40,6,2,0,0]], zoneIdx:[0,1,2,3,4], zones:[['Zone 1','1:50',0],['Zone 2','0:25',1],['Zone 3','0:12',2],['Zone 4','0:05',3],['Zone 5','0:02',4]] },
+};
+function zoneStackBar(weeks, idx){
+  const W=330,H=170,padT=14,padB=22,padL=6,padR=6, iw=W-padL-padR, ih=H-padT-padB;
+  const tot=weeks.map(w=>w.reduce((a,c)=>a+c,0)); const mx=Math.max(...tot,1);
+  const labs=['Jun 3 - 9','Jun 10 - 16','Jun 17 - 23','Jun 24 - 30']; const bw=Math.max(8,iw/weeks.length*0.5);
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">`;
+  weeks.forEach((w,i)=>{ const x=padL+iw*(i+0.5)/weeks.length; let y=padT+ih;
+    w.forEach((v,j)=>{ const h=ih*(v/mx); y-=h; if(h>0) s+=`<rect x="${(x-bw/2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${ZCOL[idx[j]]}"/>`; });
+    s+=`<text x="${x.toFixed(1)}" y="${H-6}" fill="var(--dimmer)" font-size="8.5" text-anchor="middle">${labs[i]}</text>`; });
+  s+=`</svg>`; return s;
+}
+function renderZones(key){
+  const z=ZONE_SCREENS[key]||ZONE_SCREENS.zonesall, host=$('zn-body'); if(!host) return;
+  const seg=(p)=>`<button class="tv-seg${trendPer===p?' on':''}" data-per="${p}">${p}</button>`;
+  const totMin = z.zones.reduce((a,zz)=>a+(()=>{const[m,s2]=zz[1].split(':').map(Number);return m*60+s2;})(),0)||1;
+  const prop = z.zones.map(zz=>{ const[m,s2]=zz[1].split(':').map(Number); return (m*60+s2)/totMin; });
+  host.innerHTML=
+    `<div class="tv-pill"><span class="tv-pic">${ICN.zones}</span><span class="tv-pnm">${z.name}</span><span class="tv-pch">⌄</span></div>`+
+    `<div class="tv-head"><div class="tv-avg"><span>AVG. WEEKLY TOTAL</span><b>${z.avg}<i>hr</i></b>`+
+      (z.change?`<div class="tv-chg ${z.up?'up':'dn'}">${z.up?'▲':'▼'} ${z.change}</div>`:'')+`</div>`+
+      `<div class="tv-seg-wrap">${['W','M','6M'].map(seg).join('')}</div></div>`+
+    `<div class="tv-step"><span>‹</span><b>JUN 3 - JUN 30, 26</b><span>›</span></div>`+
+    `<p class="tv-text">${z.sentence}</p>`+
+    `<div class="tv-chart">${zoneStackBar(z.weeks, z.zoneIdx)}</div>`+
+    `<div class="tv-note">ⓘ Zone time is derived from logged activities</div>`+
+    `<div class="wsec-h" style="margin:22px 0 12px">HR ZONES BREAKDOWN <span style="color:var(--dimmer)">(AVG. WEEKLY TOTAL)</span></div>`+
+    `<div class="tv-bd-bar">${z.zones.map((zz,i)=>`<i style="flex:${Math.max(0.02,prop[i])};background:${ZCOL[zz[2]]}"></i>`).join('')}</div>`+
+    z.zones.map(zz=>`<div class="tv-bd-row"><span class="tv-bd-sw" style="background:${ZCOL[zz[2]]}"></span><b>${zz[1]}</b><span class="tv-bd-lb">${zz[0]}</span></div>`).join('')+
+    `<button class="wbtn wfull" style="margin-top:14px">+ ADD ACTIVITY</button>`+
+    `<button class="wbtn wfull" style="margin-top:10px">▤ SET A HR ZONES GOAL IN WEEKLY PLAN</button>`+
+    `<div class="card tv-explain"><h3>What is Heart Rate Zone Training?</h3>`+
+      `<p>Heart rate (HR) zone training is an exercise method that focuses on tracking your heart rate during workouts and maintaining specific HR ranges. Training within these zones helps you manage workout intensity, boosting your cardiovascular health and overall fitness.</p>`+
+      `<p>On WHOOP, your HR zones are personalized to your unique physiology, based on your heart rate reserve (HRR):</p>`+
+      `<div class="zhrr">Heart Rate Reserve (HRR) = Max HR − RHR</div>`+
+      `<p>Since your HRR evolves as your fitness level changes, WHOOP adjusts your zones dynamically.</p>`+
+      `<div class="zpyr">`+[4,3,2,1,0].map(zi=>`<div class="zpyr-t" style="width:${40+zi*15}%;background:${ZCOL[zi]}"><b>${zi+1}</b></div>`).join('')+`</div>`+
+      `<div class="zdefs">`+ZONE_DEFS.map(d=>`<div class="zdef"><span class="zdef-sw" style="background:${ZCOL[d[2]]}"></span><b>${d[0]}:</b> ${d[1]}</div>`).join('')+`</div></div>`+
+    (z.why?`<div class="card tv-explain"><h3>Why Does Exercise Intensity Matter?</h3>`+
+      `<p>Balancing time in different HR zones is key to developing your long-term fitness by making your cells stronger to facilitate more sustainable progress towards your fittest and healthiest years.</p>`+
+      `<p>Training in HR zones 1-3 helps you build your aerobic base—your body's ability to use oxygen efficiently during sustained activities like running and cycling, improving your endurance and long-term health.</p>`+
+      `<p>Exercising in HR zones 4-5 strengthens your heart, making it more efficient at pumping blood and adapting to intense demands. It improves your anaerobic capacity and increases your VO₂ Max, a key measure of your fitness and long-term health.</p></div>`:'');
+}
+const HAND_RENDER={ overview:renderOverview, recovery:renderRecovery, strain:renderStrain, sleep:renderSleep, trends:renderTrends, trendview:()=>renderTrendView(curTrend), zones:()=>renderZones(curZone) };
 function renderScreen(name){ if(HAND_RENDER[name]) HAND_RENDER[name](); }
 function renderAll(){ showScreen(curScreen); }
 function showScreen(id){
@@ -2400,8 +2457,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const a=e.target.closest('[data-act]'); if(a){ doAction(a.dataset.act); return; }
     const t=e.target.closest('[data-stab]'); if(t){ const [scr,key]=t.dataset.stab.split(':'); STAB[scr]=key; rerender(); return; }
     const beh=e.target.closest('[data-beh]'); if(beh){ toggleBehaviour(beh.dataset.beh); return; }
-    const tv=e.target.closest('[data-trend]'); if(tv){ curTrend=tv.dataset.trend; goScreen('trendview'); return; }
-    const pr=e.target.closest('[data-per]'); if(pr){ trendPer=pr.dataset.per; renderTrendView(curTrend); return; }
+    const tv=e.target.closest('[data-trend]'); if(tv){ const v=tv.dataset.trend;
+      if(v.startsWith('zone:')){ curZone=v.slice(5); goScreen('zones'); } else { curTrend=v; goScreen('trendview'); } return; }
+    const pr=e.target.closest('[data-per]'); if(pr){ trendPer=pr.dataset.per;
+      if(curScreen==='zones') renderZones(curZone); else renderTrendView(curTrend); return; }
     const n=e.target.closest('[data-nav]'); if(n){ goScreen(n.dataset.nav); return; }
     if(e.target.closest('[data-back]')) goBack(); });
   { const bb=$('backbtn'); if(bb) bb.onclick=goBack; }

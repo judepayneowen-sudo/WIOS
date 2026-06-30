@@ -348,6 +348,16 @@
   .tv-bd-row b{font-size:15px;font-weight:700;min-width:34px} .tv-bd-lb{color:var(--dim);font-size:14px}
   .tv-explain{margin-top:22px;padding:20px 18px}
   .tv-explain h3{font-size:22px;font-weight:700;margin:0 0 12px} .tv-explain p{font-size:15px;line-height:1.5;color:#aeb4bb;margin:0 0 12px} .tv-explain p:last-child{margin-bottom:0}
+  .tv-chg{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;margin-top:7px;padding:3px 8px;border-radius:6px}
+  .tv-chg.up{color:#19e68c;background:rgba(25,230,140,.12)} .tv-chg.dn{color:#e8a33d;background:rgba(232,163,61,.12)}
+  /* HR zone explainer */
+  .zhrr{background:rgba(255,255,255,.05);border-radius:8px;padding:11px 13px;font-size:14px;font-weight:600;color:#e4e7ea;margin:4px 0 14px;text-align:center}
+  .zpyr{display:flex;flex-direction:column;align-items:center;gap:3px;margin:16px 0}
+  .zpyr-t{height:26px;border-radius:3px;display:flex;align-items:center;justify-content:center}
+  .zpyr-t b{color:#0b0f14;font-size:13px;font-weight:800}
+  .zdefs{margin-top:14px;display:flex;flex-direction:column;gap:9px}
+  .zdef{font-size:14px;color:#c4cace;display:flex;align-items:center;gap:9px} .zdef b{color:#fff}
+  .zdef-sw{width:12px;height:12px;border-radius:3px;flex:none}
   /* weekly strain & recovery chart */
   #wh-week svg{width:100%;display:block}
   .wk-x{fill:var(--dim);font-size:11px;font-weight:600}
@@ -457,6 +467,11 @@
   <section class="screen" id="s-trendview">
     <div class="hd"><div class="t" id="tv-title">TREND VIEW</div></div>
     <div id="tv-body"></div>
+  </section>
+
+  <section class="screen" id="s-zones">
+    <div class="hd"><div class="t">TREND VIEW</div></div>
+    <div id="zn-body"></div>
   </section>
 
   <section class="screen" id="s-recovery">

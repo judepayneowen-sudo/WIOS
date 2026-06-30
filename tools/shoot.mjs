@@ -73,12 +73,12 @@ const home  = async () => { await page.click('#tabs button[data-tab=overview]');
 for(const t of TARGETS){
   if(t === 'overview'){ await home(); await shoot('overview'); continue; }
   await home();
-  if(t.startsWith('trend:')){                                  // trend:hrv → click the dashboard row, screenshot
-    const key=t.slice(6);
-    const row=await page.$(`[data-trend="${key}"]`);
-    if(!row){ console.log('  (no data-trend for '+key+' — skipped)'); continue; }
+  if(t.startsWith('trend:') || t.startsWith('zone:')){          // click the dashboard row by its data-trend value
+    const val = t.startsWith('zone:') ? t : t.slice(6);
+    const row=await page.$(`[data-trend="${val}"]`);
+    if(!row){ console.log('  (no data-trend="'+val+'" — skipped)'); continue; }
     await row.scrollIntoViewIfNeeded(); await row.click(); await page.waitForTimeout(600);
-    await shoot('trend-'+key); continue;
+    await shoot((t.startsWith('zone:')?'':'trend-')+val.replace(':','-')); continue;
   }
   const link = await page.$(`[data-go="${t}"]`);
   if(!link){ console.log('  (no data-go for ' + t + ' — skipped)'); continue; }
