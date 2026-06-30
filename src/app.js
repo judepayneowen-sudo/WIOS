@@ -391,12 +391,12 @@ const fmtHM=(min)=>{ if(min==null) return '—'; min=Math.round(min); return Mat
 const avgField=(get)=>{ const v=histDays.map(get).filter(x=>x!=null&&isFinite(x)&&x>0); return v.length? v.reduce((a,c)=>a+c,0)/v.length : null; };
 // One dashboard / summary metric row. delta = sign of (value − baseline); goodUp = is "up" the healthy
 // direction (HRV up = good, resting-HR up = bad). The arrow points by direction, coloured green=good / orange=bad.
-function mrow(icon,label,val,sub,delta,goodUp=true){
+function mrow(icon,label,val,sub,delta,goodUp=true,nav=null){
   let tr='<span class="mtr fl">•</span>';                       // neutral grey dot when flat / no baseline (WHOOP)
   if(delta!=null && delta!==0){ const good = goodUp ? delta>0 : delta<0;
     tr=`<span class="mtr ${good?'up':'dn'}">${delta>0?'▲':'▼'}</span>`; }
   const sb = sub!=null && sub!=='' ? `<small>${sub}</small>` : '';
-  return `<div class="wmrow"><span class="mi">${icon}</span><span class="ml">${label}</span><span class="mv">${val}${sb}</span>${tr}</div>`;
+  return `<div class="wmrow"${nav?` data-trend="${nav}"`:''}><span class="mi">${icon}</span><span class="ml">${label}</span><span class="mv">${val}${sb}</span>${tr}</div>`;
 }
 const ICN={ hrv:'〜', rhr:'♥', steps:'👣', zones:'❤', strength:'🏋', vo2:'🫁', cal:'🔥', hr:'♥', sleep:'☾', resp:'🫁' };
 function trendOf(v, base){ if(v==null||base==null) return null; const d=v-base; return Math.abs(d)<base*0.01?0:(d>0?1:-1); }
@@ -405,14 +405,14 @@ function renderDash(d){
   const hrvA=avgField(x=>x.hrvMs), rhrA=avgField(x=>x.restHr);
   const hrv = d? d.hrvMs : null, rhr = d? d.restHr : null;
   const rows=[
-    mrow(ICN.hrv,'HEART RATE VARIABILITY', hrv!=null?hrv:'—', hrvA!=null?Math.round(hrvA):'', trendOf(hrv,hrvA)),
-    mrow(ICN.rhr,'RESTING HEART RATE', rhr!=null?rhr:'—', rhrA!=null?Math.round(rhrA):'', trendOf(rhr,rhrA), false),
-    mrow(ICN.steps,'STEPS', '—', '', null),
+    mrow(ICN.hrv,'HEART RATE VARIABILITY', hrv!=null?hrv:'—', hrvA!=null?Math.round(hrvA):'', trendOf(hrv,hrvA), true, 'hrv'),
+    mrow(ICN.rhr,'RESTING HEART RATE', rhr!=null?rhr:'—', rhrA!=null?Math.round(rhrA):'', trendOf(rhr,rhrA), false, 'rhr'),
+    mrow(ICN.steps,'STEPS', '—', '', null, true, 'steps'),
     mrow(ICN.zones,'HR ZONES 1-3 (WEEKLY)', '—', '', null),
     mrow(ICN.zones,'HR ZONES 4-5 (WEEKLY)', '—', '', null),
     mrow(ICN.strength,'STRENGTH ACTIVITY TIME', '—', '', null),
     `<div class="wmrow chev"><span class="mi">${ICN.vo2}</span><span class="ml">VO₂ MAX</span><span class="mv">›</span><span class="mtr"></span></div>`,
-    mrow(ICN.cal,'CALORIES', '—', '', null),
+    mrow(ICN.cal,'CALORIES', '—', '', null, true, 'calories'),
   ];
   host.innerHTML=rows.join('');
 }
@@ -421,11 +421,11 @@ function renderSummary(d){
   const hrA=avgField(x=>x.avgHr), strA=avgField(x=>x.strain), slpA=avgField(x=>x.sleep&&x.sleep.asleepMin);
   const strain=d?d.strain:null, hr=d?d.avgHr:null, asleep=d&&d.sleep?d.sleep.asleepMin:null;
   const rows=[
-    mrow(ICN.hr.replace('♥','🏋'),'DAY STRAIN', strain!=null?strain.toFixed(1):'—', strA!=null?strA.toFixed(1):'', trendOf(strain,strA)),
-    mrow(ICN.hr,'AVERAGE HEART RATE', hr!=null?hr:'—', hrA!=null?Math.round(hrA):'', trendOf(hr,hrA)),
-    mrow(ICN.sleep,'HOURS OF SLEEP', fmtHM(asleep), slpA!=null?fmtHM(slpA):'', trendOf(asleep,slpA)),
+    mrow(ICN.hr.replace('♥','🏋'),'DAY STRAIN', strain!=null?strain.toFixed(1):'—', strA!=null?strA.toFixed(1):'', trendOf(strain,strA), true, 'day_strain'),
+    mrow(ICN.hr,'AVERAGE HEART RATE', hr!=null?hr:'—', hrA!=null?Math.round(hrA):'', trendOf(hr,hrA), true, 'average_hr'),
+    mrow(ICN.sleep,'HOURS OF SLEEP', fmtHM(asleep), slpA!=null?fmtHM(slpA):'', trendOf(asleep,slpA), true, 'hours_vs_needed'),
     mrow(ICN.zones,'HR ZONES ALL (WEEKLY)', '—', '', null),
-    mrow(ICN.resp,'RESPIRATORY RATE', '—', '', null),
+    mrow(ICN.resp,'RESPIRATORY RATE', '—', '', null, true, 'respiratory_rate'),
   ];
   host.innerHTML=rows.join('');
 }
@@ -653,7 +653,91 @@ function renderTrends(){
 // Bottom tabs mirror the WHOOP app (Home / Health / Coaching / Community / Profile). Pillar details
 // (Recovery/Sleep/Strain/Trends) and every secondary screen are PUSHED onto a back-stack from tiles/menus.
 let curTab='overview', curScreen='overview', navStack=[];
-const HAND_RENDER={ overview:renderOverview, recovery:renderRecovery, strain:renderStrain, sleep:renderSleep, trends:renderTrends };
+/* ===================== TREND VIEW (metric detail) ===================== *
+ * One parameterized screen reproducing WHOOP's "TREND VIEW": metric pill, AVERAGE block, W/M/6M toggle,
+ * date-range stepper, explanatory sentence, trend chart (line w/ typical-range band, or bars w/ AVG line),
+ * optional breakdown, and the verbatim "What is X?" explainer card(s). Driven by curTrend + METRIC_DETAILS. */
+let curTrend='hrv', trendPer='M';
+const METRIC_DETAILS={
+  hrv:{ name:'HEART RATE VARIABILITY', icon:ICN.hrv, unit:'ms', base:75, amp:18, typical:[58,92], chart:'line',
+    text:a=>`Your average HRV this month is ${a}. Wear your WHOOP to bed each night to track how your HRV changes over time.`,
+    explain:{title:'What is Heart Rate Variability?',paras:['Heart rate variability (HRV) measures the variance in time between your heartbeats while you are asleep. It is a great indicator of how well your body can adapt to its environment and perform.','HRV is a very individualized metric that differs for everyone. Age, gender, lifestyle, and fitness all impact your HRV. Rather than comparing yourself to others, compare your HRV to your baseline values over time. In general, improvements in your HRV indicate better fitness and overall health.','Upward trends in HRV are a sign that your nervous system is balanced and your body is performing at its best. Downward trends can be a sign of overtraining, lack of sleep, dehydration, or other negative factors like stress.']} },
+  rhr:{ name:'RESTING HEART RATE', icon:ICN.rhr, unit:'bpm', base:56, amp:6, typical:[53,60], chart:'line',
+    text:a=>`Your average RHR this month is ${a}. Wear your WHOOP to bed each night to track your sleep and monitor your RHR over time.`,
+    explain:{title:'What is Resting Heart Rate?',paras:['Resting heart rate (RHR) is the average number of times your heart beats per minute while in a complete state of rest. It is measured towards the end of your sleep cycle when your body is in its most restful state, Slow Wave Sleep.','In general, a lower RHR indicates better fitness. A low resting heart rate is an indication of a strong heart muscle that can pump more blood with every beat, so it doesn’t have to beat as frequently.','Short-term increases in RHR can signal fatigue or illness, while long-term decreases indicate improved cardiovascular health.']} },
+  steps:{ name:'STEPS', icon:ICN.steps, unit:'', base:6094, amp:2600, chart:'bar',
+    text:a=>`Your average steps for the last 30 days is ${a}. Wear WHOOP 24/7 to unlock personalized insights.`,
+    explain:{title:'What are Steps?',paras:['Steps count the number of steps you take throughout the day, estimated from your wrist movement and walking cadence.','WHOOP filters out non-walking motion and uses a stride model to estimate your total, so driving or cycling don’t inflate the count.']} },
+  calories:{ name:'CALORIES', icon:ICN.cal, unit:'Cals', base:2030, amp:520, chart:'bar', noToday:true,
+    text:a=>`You have burned an average of ${a} calories this month. Wear your WHOOP consistently to see how this changes over time.`,
+    explain:{title:'What are Calories?',paras:['Calories measure the total energy your body burns over the day — both your resting metabolism and the energy used during activity.','WHOOP estimates burn continuously from your heart rate, so higher-strain days show more calories.']} },
+  average_hr:{ name:'AVERAGE HEART RATE', icon:ICN.hr, unit:'bpm', base:68, amp:9, chart:'line', avgLine:true,
+    text:a=>`Your average HR this month is ${a}. Keep wearing your WHOOP to see how this changes over time.`,
+    explain:{title:'What is Average Heart Rate?',paras:['Avg HR measures your average heart rate throughout the day.','A higher avg HR typically indicates that you’re more active, as heart rate increases during strenuous activities. However, other factors like stress and fatigue can also increase your avg HR.','Note that Avg HR is different from your resting heart rate (RHR), which is measured while you are asleep.']} },
+  day_strain:{ name:'DAY STRAIN', icon:'🏋', unit:'', base:6.4, amp:4, max:21, chart:'bar', noToday:true,
+    text:a=>`Your average Strain this month is ${a}. Keep wearing your WHOOP to see how this changes over time.`,
+    breakdown:[['All Out (>18.0)',0],['Strenuous (14.1-18.0)',0],['Moderate (10.1-14.0)',1],['Light (<10.0)',13]],
+    explain:{title:'What is Day Strain?',paras:['Day Strain measures your total Strain accumulated over the course of the entire day. This includes both cardiovascular and muscular Strain.','Anything that gets your heart rate up can build cardiovascular Strain. This is why you can wake up with a Strain from 0-4. Muscular Strain measures the exertion to your musculoskeletal system from activities like weightlifting. Together these make up your Day Strain.','Strain gives you valuable insight into how various stressors impact your heart and musculature. The harder your body works, the more Strain you build.']} },
+  respiratory_rate:{ name:'RESPIRATORY RATE', icon:ICN.resp, unit:'rpm', base:15.7, amp:0.9, typical:[14.5,16.7], chart:'line',
+    text:a=>`Your average respiratory rate this month is ${a}. Wear your WHOOP to bed each night to track how your respiratory rate changes over time.`,
+    explain:{title:'What is Respiratory Rate?',paras:['Respiratory rate (RR) measures how many breaths you take per minute while asleep.','It reflects your median respiratory rate over the course of the night, and is calculated from the cyclical pattern in your heart rate as you breathe in and out.','RR is typically stable from night to night, meaning that any drastic changes are likely meaningful. These may be due to illness, fatigue, allergies or changes in altitude.']} },
+  hours_vs_needed:{ name:'HOURS VS. NEEDED (HOURS)', icon:ICN.sleep, unit:'hr', dual:true, base:7.67, base2:8.23, amp:0.8, chart:'line',
+    text:a=>`Your average sleep need this month is 8:14. Wear your WHOOP to bed each night to track how your hours of sleep and sleep need change over time.`,
+    explain:{title:'What is Sleep Hours vs. Need?',paras:['Hours vs Need shows how many hours of sleep you got compared to how many you needed each night.','Sleep need is calculated each day based on your personalized baseline, as well as sleep debt, Day Strain and naps. It is a measure of how much sleep you need in order to hit peak performance.','Meet your sleep need consistently to accelerate Recovery and maximize your performance.']} },
+};
+const PERIOD_DAYS={ W:7, M:30, '6M':180 };
+// Deterministic representative series (no live RNG) so the trend chart is populated for design + demo.
+function trendSeries(base, amp, n, every){
+  const out=[]; for(let i=0;i<n;i++){ const v=base+amp*0.5*Math.sin(i*0.5)+amp*0.25*Math.sin(i*1.7+1);
+    out.push({ v:+v.toFixed(2), t:(i%every===0)?('Jun '+(i+1)):'' }); } return out; }
+// Vertical bar chart with an optional dashed AVG line + tag (WHOOP trend bars).
+function barChart(host, series, opts={}){
+  if(!host) return;
+  const o=Object.assign({color:'#0093e7', h:170, max:null, avg:null}, opts);
+  const vals=series.map(s=>typeof s==='number'?s:s.v), n=series.length;
+  const mx=o.max!=null?o.max:Math.max(...vals,1)*1.1;
+  const W=Math.max(300,(host.clientWidth||330)), H=o.h, padT=16,padB=20,padL=4,padR=4, iw=W-padL-padR, ih=H-padT-padB;
+  const bw=Math.max(2, iw/n*0.58);
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">`;
+  if(o.avg!=null){ const y=(padT+ih*(1-Math.min(1,o.avg/mx))).toFixed(1);
+    s+=`<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#fff" stroke-width="1" stroke-dasharray="4 4" opacity=".55"/>`+
+       `<rect x="${padL}" y="${(+y-9)}" width="36" height="16" rx="4" fill="#fff"/><text x="${padL+18}" y="${(+y+2.5)}" fill="#0b0f14" font-size="9" font-weight="700" text-anchor="middle">AVG.</text>`; }
+  series.forEach((p,i)=>{ const v=typeof p==='number'?p:p.v, x=padL+iw*(i+0.5)/n, bh=ih*Math.max(.01,Math.min(1,v/mx));
+    s+=`<rect x="${(x-bw/2).toFixed(1)}" y="${(padT+ih-bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${o.color}"/>`; });
+  s+=`</svg>`; host.innerHTML=s;
+}
+function renderTrendView(key){
+  const m=METRIC_DETAILS[key]||METRIC_DETAILS.hrv, host=$('tv-body'); if(!host) return;
+  const n=PERIOD_DAYS[trendPer], every=trendPer==='W'?1:trendPer==='M'?5:30;
+  const ser=trendSeries(m.base, m.amp, n, every);
+  const avg=m.base, avgStr=(m.unit==='ms'||m.unit==='bpm')?String(Math.round(avg)):(key==='steps'||key==='calories')?Math.round(avg).toLocaleString():avg.toFixed(1);
+  const seg=(p)=>`<button class="tv-seg${trendPer===p?' on':''}" data-per="${p}">${p}</button>`;
+  // average block (dual for hours-vs-need)
+  const avgBlock = m.dual
+    ? `<div class="tv-avgs"><div><b class="tv-need">8:14<i>hr</i></b><span>AVG. NEED</span></div><div><b class="tv-hrs">7:40<i>hr</i></b><span>AVG. HOURS</span></div></div>`
+    : `<div class="tv-avg"><span>AVERAGE</span><b>${avgStr}${m.unit?`<i>${m.unit}</i>`:''}</b></div>`;
+  host.innerHTML=
+    `<div class="tv-pill"><span class="tv-pic">${m.icon}</span><span class="tv-pnm">${m.name}</span><span class="tv-pch">⌄</span></div>`+
+    `<div class="tv-head">${avgBlock}<div class="tv-seg-wrap">${['W','M','6M'].map(seg).join('')}</div></div>`+
+    `<div class="tv-step"><span>‹</span><b>JUN 1 - JUN 30, 26</b><span>›</span></div>`+
+    `<p class="tv-text">${m.text(avgStr)}</p>`+
+    (m.typical?`<div class="tv-legend"><span class="tv-sw"></span>TYPICAL RANGE</div>`:'')+
+    `<div class="tv-chart" id="tv-chart"></div>`+
+    (m.noToday?`<div class="tv-note">ⓘ Average does not include today (Jun 30)</div>`:'')+
+    (m.breakdown?`<div class="wsec-h" style="margin:22px 0 12px">STRAIN BREAKDOWN <span style="color:var(--dimmer)">(DAYS)</span></div>`+
+      `<div class="tv-bd-bar">${m.breakdown.map(b=>b[1]).reduce((a,c)=>a+c,0)?m.breakdown.map(b=>`<i style="flex:${b[1]||0.0001};background:var(--strain);opacity:${b[1]?1:0}"></i>`).join(''):'<i style="flex:1;background:#222"></i>'}</div>`+
+      m.breakdown.map(b=>`<div class="tv-bd-row"><span class="tv-bd-sw"></span><b>${b[1]}x</b><span class="tv-bd-lb">${b[0]}</span></div>`).join(''):'')+
+    `<div class="card tv-explain"><h3>${m.explain.title}</h3>${m.explain.paras.map(p=>`<p>${p}</p>`).join('')}</div>`;
+  setField('tv-title', m.name.length>16?'TREND VIEW':'TREND VIEW');
+  const cw=$('tv-chart');
+  if(m.chart==='bar') barChart(cw, ser, { color:'#0093e7', max:m.max||null, avg });
+  else if(m.dual){
+    const need=trendSeries(m.base2,m.amp,n,every);
+    interactiveChart(cw, ser, { color:'#7FC9D6', h:170, min:0, max:12, fill:false });
+  } else interactiveChart(cw, ser, { color: m.icon===ICN.rhr?'#7FB0E0':'#19E68C', h:170, fill:false,
+    bands: m.typical?[{lo:m.typical[0],hi:m.typical[1],c:'#5A636D'}]:null });
+}
+const HAND_RENDER={ overview:renderOverview, recovery:renderRecovery, strain:renderStrain, sleep:renderSleep, trends:renderTrends, trendview:()=>renderTrendView(curTrend) };
 function renderScreen(name){ if(HAND_RENDER[name]) HAND_RENDER[name](); }
 function renderAll(){ showScreen(curScreen); }
 function showScreen(id){
@@ -2316,6 +2400,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
     const a=e.target.closest('[data-act]'); if(a){ doAction(a.dataset.act); return; }
     const t=e.target.closest('[data-stab]'); if(t){ const [scr,key]=t.dataset.stab.split(':'); STAB[scr]=key; rerender(); return; }
     const beh=e.target.closest('[data-beh]'); if(beh){ toggleBehaviour(beh.dataset.beh); return; }
+    const tv=e.target.closest('[data-trend]'); if(tv){ curTrend=tv.dataset.trend; goScreen('trendview'); return; }
+    const pr=e.target.closest('[data-per]'); if(pr){ trendPer=pr.dataset.per; renderTrendView(curTrend); return; }
     const n=e.target.closest('[data-nav]'); if(n){ goScreen(n.dataset.nav); return; }
     if(e.target.closest('[data-back]')) goBack(); });
   { const bb=$('backbtn'); if(bb) bb.onclick=goBack; }

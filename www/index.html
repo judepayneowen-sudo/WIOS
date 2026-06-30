@@ -317,6 +317,37 @@
   .wmrow .mtr{width:16px;text-align:center;font-size:13px;flex:none}
   .mtr.up{color:var(--rec-green)} .mtr.dn{color:#ff9f3a} .mtr.fl{color:var(--dimmer)}
   .wmrow.chev .mv{font-size:18px;color:var(--dimmer)}
+  .wmrow[data-trend]{cursor:pointer}
+  /* TREND VIEW (metric detail) */
+  .tv-pill{display:flex;align-items:center;gap:11px;background:#2b333c;border-radius:14px;padding:14px 16px;margin-bottom:20px}
+  .tv-pill .tv-pic{font-size:17px;color:#aebcc6} .tv-pill .tv-pnm{flex:1;font-size:14px;font-weight:700;letter-spacing:.4px}
+  .tv-pill .tv-pch{color:var(--dimmer);font-size:16px}
+  .tv-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px}
+  .tv-avg span{font-size:12px;font-weight:700;letter-spacing:1px;color:var(--dim);text-transform:uppercase}
+  .tv-avg b{display:block;font-size:52px;font-weight:700;line-height:1.05;margin-top:2px}
+  .tv-avg b i{font-style:normal;font-size:20px;font-weight:600;color:var(--dim);margin-left:4px}
+  .tv-avgs{display:flex;flex-direction:column;gap:10px}
+  .tv-avgs b{font-size:30px;font-weight:700;line-height:1} .tv-avgs b i{font-style:normal;font-size:14px;margin-left:3px}
+  .tv-avgs .tv-need{color:#19e68c} .tv-avgs .tv-need i{color:#19e68c}
+  .tv-avgs .tv-hrs{color:#7fc9d6} .tv-avgs .tv-hrs i{color:#7fc9d6}
+  .tv-avgs span{font-size:11px;font-weight:700;letter-spacing:.8px;color:var(--dim)}
+  .tv-seg-wrap{display:flex;background:#1c2229;border-radius:10px;padding:3px}
+  .tv-seg{background:none;border:0;color:var(--dim);font-size:13px;font-weight:700;padding:7px 13px;border-radius:8px;font-family:inherit}
+  .tv-seg.on{background:#39424c;color:#fff}
+  .tv-step{display:flex;align-items:center;justify-content:center;gap:18px;margin:6px 0 16px;color:var(--dimmer)}
+  .tv-step b{color:#fff;font-size:15px;font-weight:700;letter-spacing:.5px} .tv-step span{font-size:18px}
+  .tv-text{font-size:15.5px;line-height:1.5;color:#e4e7ea;margin:0 0 18px}
+  .tv-legend{display:flex;align-items:center;justify-content:flex-end;gap:7px;font-size:11px;font-weight:700;letter-spacing:.6px;color:var(--dim);margin-bottom:6px}
+  .tv-sw{width:13px;height:13px;border-radius:3px;background:rgba(120,135,150,.4)}
+  .tv-chart{margin-bottom:6px}
+  .tv-note{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim);margin-top:4px}
+  .tv-bd-bar{display:flex;height:16px;border-radius:5px;overflow:hidden;margin-bottom:14px;gap:2px}
+  .tv-bd-bar i{display:block;border-radius:2px}
+  .tv-bd-row{display:flex;align-items:center;gap:10px;padding:7px 0}
+  .tv-bd-sw{width:13px;height:13px;border-radius:3px;background:var(--strain);flex:none}
+  .tv-bd-row b{font-size:15px;font-weight:700;min-width:34px} .tv-bd-lb{color:var(--dim);font-size:14px}
+  .tv-explain{margin-top:22px;padding:20px 18px}
+  .tv-explain h3{font-size:22px;font-weight:700;margin:0 0 12px} .tv-explain p{font-size:15px;line-height:1.5;color:#aeb4bb;margin:0 0 12px} .tv-explain p:last-child{margin-bottom:0}
   /* weekly strain & recovery chart */
   #wh-week svg{width:100%;display:block}
   .wk-x{fill:var(--dim);font-size:11px;font-weight:600}
@@ -421,6 +452,11 @@
 
     <!-- summary rows (group 2) -->
     <div id="wh-summary"></div>
+  </section>
+
+  <section class="screen" id="s-trendview">
+    <div class="hd"><div class="t" id="tv-title">TREND VIEW</div></div>
+    <div id="tv-body"></div>
   </section>
 
   <section class="screen" id="s-recovery">

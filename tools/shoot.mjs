@@ -73,6 +73,13 @@ const home  = async () => { await page.click('#tabs button[data-tab=overview]');
 for(const t of TARGETS){
   if(t === 'overview'){ await home(); await shoot('overview'); continue; }
   await home();
+  if(t.startsWith('trend:')){                                  // trend:hrv → click the dashboard row, screenshot
+    const key=t.slice(6);
+    const row=await page.$(`[data-trend="${key}"]`);
+    if(!row){ console.log('  (no data-trend for '+key+' — skipped)'); continue; }
+    await row.scrollIntoViewIfNeeded(); await row.click(); await page.waitForTimeout(600);
+    await shoot('trend-'+key); continue;
+  }
   const link = await page.$(`[data-go="${t}"]`);
   if(!link){ console.log('  (no data-go for ' + t + ' — skipped)'); continue; }
   await link.click();
