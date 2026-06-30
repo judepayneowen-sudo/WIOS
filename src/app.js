@@ -738,6 +738,34 @@ const METRIC_DETAILS={
   hours_vs_needed:{ name:'HOURS VS. NEEDED (HOURS)', icon:ICN.sleep, unit:'hr', dual:true, base:7.67, base2:8.23, amp:0.8, chart:'line',
     text:a=>`Your average sleep need this month is 8:14. Wear your WHOOP to bed each night to track how your hours of sleep and sleep need change over time.`,
     explain:{title:'What is Sleep Hours vs. Need?',paras:['Hours vs Need shows how many hours of sleep you got compared to how many you needed each night.','Sleep need is calculated each day based on your personalized baseline, as well as sleep debt, Day Strain and naps. It is a measure of how much sleep you need in order to hit peak performance.','Meet your sleep need consistently to accelerate Recovery and maximize your performance.']} },
+  recovery_trend:{ name:'RECOVERY', icon:'◍', unit:'%', base:64, amp:26, max:100, chart:'bar', zoneColor:true,
+    text:a=>`Your average recovery this month is ${a}. Wear your WHOOP to bed each night to track how your recovery changes over time.`,
+    explain:{title:'What is Recovery?',paras:['Recovery is a measure of how prepared your body is to perform. It is calculated from HRV, resting heart rate, respiratory rate and sleep.','A green recovery (67-99%) means your body is primed to take on strain; yellow (34-66%) means maintain; red (1-33%) means your body needs rest.']} },
+  sleep_performance:{ name:'SLEEP PERFORMANCE', icon:ICN.sleep, unit:'%', base:86, amp:10, max:100, chart:'bar',
+    text:a=>`Your average sleep performance this month is ${a}. Wear your WHOOP to bed each night to track how this changes over time.`,
+    explain:{title:'What is Sleep Performance?',paras:['Sleep Performance is the percentage of sleep you got versus the sleep your body needed.','It is calculated as hours of sleep divided by your sleep need. Consistently hitting 85%+ accelerates Recovery and keeps you performing at your best.']} },
+  sleep_consistency:{ name:'SLEEP CONSISTENCY', icon:ICN.sleep, unit:'%', base:69, amp:14, max:100, chart:'bar',
+    text:a=>`Your average sleep consistency this month is ${a}. Wear your WHOOP to bed each night to track how this changes over time.`,
+    explain:{title:'What is Sleep Consistency?',paras:['Sleep Consistency measures how similar your sleep and wake times are from day to day, over a 4-day rolling window.','Going to bed and waking at consistent times strengthens your circadian rhythm, improving sleep quality and Recovery.']} },
+  sleep_efficiency:{ name:'SLEEP EFFICIENCY', icon:ICN.sleep, unit:'%', base:92, amp:5, max:100, chart:'bar',
+    text:a=>`Your average sleep efficiency this month is ${a}. Wear your WHOOP to bed each night to track how this changes over time.`,
+    explain:{title:'What is Sleep Efficiency?',paras:['Sleep Efficiency is the percentage of time in bed that you were actually asleep.','It reflects how well you stay asleep through the night — high efficiency means little time awake once you are in bed.']} },
+  sleep_debt:{ name:'SLEEP DEBT', icon:ICN.sleep, unit:'hr', base:0.4, amp:0.5, chart:'bar', noToday:false,
+    text:a=>`Your average sleep debt this month was ${a}. Wear your WHOOP to bed each night to track how this changes over time.`,
+    breakdown:[['High (>0:45)',2],['Moderate (0:30-0:45)',3],['Low (<0:30)',7]], bdTitle:'SLEEP DEBT BREAKDOWN',
+    explain:{title:'What is Sleep Debt?',paras:['Sleep Debt is the accumulated difference between the sleep you needed and the sleep you actually got over recent nights.','Repaying debt by sleeping extra helps restore your Recovery. WHOOP factors current debt into each day’s sleep need.']} },
+  restorative_sleep:{ name:'RESTORATIVE SLEEP (%)', icon:ICN.sleep, unit:'%', base:46, amp:9, max:100, chart:'bar',
+    text:a=>`Your average restorative sleep this month is ${a}. Wear your WHOOP to bed each night to track how this changes over time.`,
+    explain:{title:'What is Restorative Sleep?',paras:['Restorative Sleep is the proportion of your night spent in the two most physically and mentally restorative stages — Slow Wave Sleep (Deep) and REM.','SWS repairs the body and consolidates physical recovery; REM supports memory, learning and mood.']} },
+  restorative_sleep_hr:{ name:'RESTORATIVE SLEEP (HOURS)', icon:ICN.sleep, unit:'hr', base:3.7, amp:0.8, chart:'bar',
+    text:a=>`Your average restorative sleep this month is ${a}. Wear your WHOOP to bed each night to track how this changes over time.`,
+    explain:{title:'What is Restorative Sleep?',paras:['Restorative Sleep is the time spent in Slow Wave Sleep (Deep) and REM — the stages that physically and mentally restore you.','Deep sleep repairs the body; REM supports memory and mood. Together they drive your Recovery.']} },
+  time_in_bed:{ name:'TIME IN BED', icon:ICN.sleep, unit:'hr', base:8.0, amp:0.9, chart:'bar',
+    text:a=>`Your average time in bed this month is ${a}. Wear your WHOOP to bed each night to track how this changes over time.`,
+    explain:{title:'What is Time in Bed?',paras:['Time in Bed is the total time from when you fell asleep to when you woke, including any time spent awake during the night.','It differs from hours of sleep, which excludes time awake. Leaving enough time in bed is the first step to meeting your sleep need.']} },
+  weight:{ name:'WEIGHT', icon:'⚖', unit:'kg', base:75, amp:1.2, chart:'line',
+    text:a=>`Your average weight this month is ${a} kg. Log your weight regularly to track how it changes over time.`,
+    explain:{title:'About Weight',paras:['Tracking weight alongside your strain, recovery and sleep helps you understand how your training and nutrition affect your body over time.']} },
 };
 const PERIOD_DAYS={ W:7, M:30, '6M':180 };
 // Deterministic representative series (no live RNG) so the trend chart is populated for design + demo.
@@ -761,7 +789,7 @@ function barChart(host, series, opts={}){
        `<rect x="${padL}" y="${(+y-9)}" width="34" height="15" rx="4" fill="#fff"/><text x="${padL+17}" y="${(+y+2.5)}" fill="#0b0f14" font-size="8.5" font-weight="700" text-anchor="middle">AVG.</text>`; }
   const lab=['Jun 2','Jun 9','Jun 16','Jun 23','Jun 30'];
   series.forEach((p,i)=>{ const v=typeof p==='number'?p:p.v, x=padL+iw*(i+0.5)/n, bh=ih*Math.max(.01,Math.min(1,v/mx));
-    s+=`<rect x="${(x-bw/2).toFixed(1)}" y="${(padT+ih-bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${o.color}"/>`; });
+    s+=`<rect x="${(x-bw/2).toFixed(1)}" y="${(padT+ih-bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${o.colorFn?o.colorFn(v):o.color}"/>`; });
   if(o.xlabels){ for(let k=0;k<5;k++){ const x=padL+iw*(k/4); s+=`<text x="${x.toFixed(1)}" y="${H-5}" fill="var(--dimmer)" font-size="9" text-anchor="middle">${lab[k]}</text>`; } }
   s+=`</svg>`; host.innerHTML=s;
 }
@@ -769,12 +797,15 @@ function renderTrendView(key){
   const m=METRIC_DETAILS[key]||METRIC_DETAILS.hrv, host=$('tv-body'); if(!host) return;
   const n=PERIOD_DAYS[trendPer], every=trendPer==='W'?1:trendPer==='M'?5:30;
   const ser=trendSeries(m.base, m.amp, n, every);
-  const avg=m.base, avgStr=(m.unit==='ms'||m.unit==='bpm')?String(Math.round(avg)):(key==='steps'||key==='calories')?Math.round(avg).toLocaleString():avg.toFixed(1);
+  const hmH=(h)=>{const t=Math.round(h*60);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');};
+  const avg=m.base, avgStr=(m.unit==='ms'||m.unit==='bpm')?String(Math.round(avg)):(key==='steps'||key==='calories')?Math.round(avg).toLocaleString()
+    :m.unit==='%'?Math.round(avg)+'%':m.unit==='hr'?hmH(avg):avg.toFixed(1);
+  const avgUnit = (m.unit==='%'||m.unit==='hr') ? '' : m.unit;   // % / time already baked into avgStr
   const seg=(p)=>`<button class="tv-seg${trendPer===p?' on':''}" data-per="${p}">${p}</button>`;
   // average block (dual for hours-vs-need)
   const avgBlock = m.dual
     ? `<div class="tv-avgs"><div><b class="tv-need">8:14<i>hr</i></b><span>AVG. NEED</span></div><div><b class="tv-hrs">7:40<i>hr</i></b><span>AVG. HOURS</span></div></div>`
-    : `<div class="tv-avg"><span>AVERAGE</span><b>${avgStr}${m.unit?`<i>${m.unit}</i>`:''}</b></div>`;
+    : `<div class="tv-avg"><span>AVERAGE</span><b>${avgStr}${avgUnit?`<i>${avgUnit}</i>`:''}</b></div>`;
   host.innerHTML=
     `<div class="tv-pill"><span class="tv-pic">${m.icon}</span><span class="tv-pnm">${m.name}</span><span class="tv-pch">⌄</span></div>`+
     `<div class="tv-head">${avgBlock}<div class="tv-seg-wrap">${['W','M','6M'].map(seg).join('')}</div></div>`+
@@ -783,7 +814,7 @@ function renderTrendView(key){
     (m.typical?`<div class="tv-legend"><span class="tv-sw"></span>TYPICAL RANGE</div>`:'')+
     `<div class="tv-chart" id="tv-chart"></div>`+
     (m.noToday?`<div class="tv-note">ⓘ Average does not include today (Jun 30)</div>`:'')+
-    (m.breakdown?`<div class="wsec-h" style="margin:22px 0 12px">STRAIN BREAKDOWN <span style="color:var(--dimmer)">(DAYS)</span></div>`+
+    (m.breakdown?`<div class="wsec-h" style="margin:22px 0 12px">${m.bdTitle||'STRAIN BREAKDOWN'} <span style="color:var(--dimmer)">(DAYS)</span></div>`+
       `<div class="tv-bd-bar">${m.breakdown.map(b=>b[1]).reduce((a,c)=>a+c,0)?m.breakdown.map(b=>`<i style="flex:${b[1]||0.0001};background:var(--strain);opacity:${b[1]?1:0}"></i>`).join(''):'<i style="flex:1;background:#222"></i>'}</div>`+
       m.breakdown.map(b=>`<div class="tv-bd-row"><span class="tv-bd-sw"></span><b>${b[1]}x</b><span class="tv-bd-lb">${b[0]}</span></div>`).join(''):'')+
     `<div class="card tv-explain"><h3>${m.explain.title}</h3>${m.explain.paras.map(p=>`<p>${p}</p>`).join('')}</div>`;
@@ -791,8 +822,10 @@ function renderTrendView(key){
   const cw=$('tv-chart');
   const fmtY = (key==='steps'||key==='calories') ? (v=>Math.round(v).toLocaleString())
              : m.unit==='hr' ? (v=>{const t=Math.round(v*60);return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');})
+             : m.unit==='%' ? (v=>Math.round(v)+'%')
              : (v=>Math.round(v));
-  if(m.chart==='bar') barChart(cw, ser, { color:'#0093e7', max:m.max||null, avg, xlabels:true });
+  const zoneC = m.zoneColor ? (v=>v>=67?'var(--rec-green)':v>=34?'var(--rec-yellow)':'var(--rec-red)') : null;
+  if(m.chart==='bar') barChart(cw, ser, { color:'#0093e7', max:m.max||null, avg, xlabels:true, fmtY, colorFn:zoneC });
   else if(m.dual){
     const need=trendSeries(m.base2,m.amp,n,every);
     interactiveChart(cw, ser, { color:'#7FC9D6', h:170, min:0, max:12, fill:false, yAxis:true, endpoint:true, fmtY, fmt:fmtY, second:{pts:need.map(x=>x.v),color:'#19E68C'} });
@@ -2592,6 +2625,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   { const a=$('dp-next'); if(a) a.onclick=()=>shiftDay(1); }
   { const sp=$('wstrap'); if(sp) sp.onclick = onSyncPillTap; }
   initStickyRings();
+  if(DEMO){ window.__trend=(k)=>{ curTrend=k; goScreen('trendview'); }; }   // harness-only navigation hook
   $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} lset('bandId',null); deviceId=null; setSync('off'); } };
   $('hello').onclick      = ()=>send(145,[0x01],'get_hello');
   $('battery').onclick    = ()=>send(26,[],'get_battery_level');

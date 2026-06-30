@@ -73,6 +73,11 @@ const home  = async () => { await page.click('#tabs button[data-tab=overview]');
 for(const t of TARGETS){
   if(t === 'overview'){ await home(); await shoot('overview'); continue; }
   await home();
+  if(t.startsWith('tv:')){                                      // tv:weight → drive the trend screen via the demo hook
+    const key=t.slice(3);
+    await page.evaluate(k=>window.__trend && window.__trend(k), key);
+    await page.waitForTimeout(600); await shoot('tv-'+key); continue;
+  }
   if(t.startsWith('nav:')){                                     // nav:healthmonitor → click a [data-nav] element
     const key=t.slice(4);
     const el=await page.$(`[data-nav="${key}"]`);
