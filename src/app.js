@@ -392,7 +392,7 @@ const avgField=(get)=>{ const v=histDays.map(get).filter(x=>x!=null&&isFinite(x)
 // One dashboard / summary metric row. delta = sign of (value − baseline); goodUp = is "up" the healthy
 // direction (HRV up = good, resting-HR up = bad). The arrow points by direction, coloured green=good / orange=bad.
 function mrow(icon,label,val,sub,delta,goodUp=true){
-  let tr='<span class="mtr"></span>';
+  let tr='<span class="mtr fl">•</span>';                       // neutral grey dot when flat / no baseline (WHOOP)
   if(delta!=null && delta!==0){ const good = goodUp ? delta>0 : delta<0;
     tr=`<span class="mtr ${good?'up':'dn'}">${delta>0?'▲':'▼'}</span>`; }
   const sb = sub!=null && sub!=='' ? `<small>${sub}</small>` : '';
@@ -466,6 +466,18 @@ function renderWeek(){
   s+=`</svg>`;
   host.innerHTML=s;
 }
+// Sticky mini-ring header: reveal the compact 3-ring row once the big rings scroll above the top (Home only).
+function initStickyRings(){
+  const mini=$('wh-mini');
+  const onScroll=()=>{
+    const rings=document.querySelector('#s-overview .wrings');
+    if(!mini||!rings){ return; }
+    if(curScreen!=='overview' || !$('s-overview').classList.contains('on')){ mini.classList.remove('show'); return; }
+    mini.classList.toggle('show', rings.getBoundingClientRect().bottom < 6);
+  };
+  window.addEventListener('scroll', onScroll, {passive:true});
+  onScroll();
+}
 function renderOverview(){
   const key=curDayKey(), today=todayKey(), d=dayData(key);
   // day-picker label ("MON, JUN 22" — built manually so locale ordering doesn't flip it) + next-arrow gating
@@ -474,16 +486,33 @@ function renderOverview(){
       : `${wd.toLocaleDateString([], {weekday:'short'})}, ${wd.toLocaleDateString([], {month:'short'})} ${wd.getDate()}`.toUpperCase();
     setField('dp-label', lab); }
   { const np=$('dp-next'); if(np) np.style.opacity = key>=today ? .3 : 1; }
-  // rings
+  // rings (big + the sticky mini-header mirror)
   const recPct=d&&d.rec!=null?d.rec:null, slpPct=d&&d.sleep?d.sleep.performance:null, strain=d?d.strain:null;
-  setWRing('wr-rec',   recPct!=null?recPct/100:0, recPct!=null?recColor(recPct):'rgba(255,255,255,.18)');
+  const recC = recPct!=null?recColor(recPct):'rgba(255,255,255,.18)';
+  setWRing('wr-rec',   recPct!=null?recPct/100:0, recC);
   setWRing('wr-sleep', slpPct!=null?slpPct/100:0, 'var(--sleep)');
   setWRing('wr-strain',strain!=null?strain/21:0, 'var(--strain)');
+  setWRing('wm-rec',   recPct!=null?recPct/100:0, recC);
+  setWRing('wm-sleep', slpPct!=null?slpPct/100:0, 'var(--sleep)');
+  setWRing('wm-strain',strain!=null?Math.min(1,strain/21):0, 'var(--strain)');
   setHTML('wr-rec-v',   recPct!=null?`${recPct}<i>%</i>`:'—');
   setHTML('wr-sleep-v', slpPct!=null?`${slpPct}<i>%</i>`:'—');
   setHTML('wr-strain-v',strain!=null?strain.toFixed(1):'—');
-  // health/stress monitor compact state
-  setField('wh-hm-state', histDays.length? 'Monitoring' : 'Calibrating');
+  // streak (days of data) + health-monitor compact card
+  setField('wh-streak', String(histDays.length||0));
+  setField('wh-hm-state', histDays.length? 'Within range' : 'Calibrating');
+  setField('wh-hm-sub',   histDays.length? '5/5 metrics'  : 'gathering data');
+  // stress: value drives both the compact card and the graph-card header (graph itself in renderStress)
+  let sv=SAMPLE.stress.now;
+  if(state.hr!=null){ const hrC=Math.max(0,Math.min(3,(state.hr-52)/40)); const hvC=state.hrvMs!=null?Math.max(0,Math.min(3,(70-state.hrvMs)/22)):hrC; sv=Math.round((hrC*0.6+hvC*0.4)*10)/10; }
+  const slvl = sv<1?'LOW':sv<2?'MODERATE':'HIGH', nowClk=fmtClock(Math.floor(Date.now()/1000));
+  setField('wh-sm-sq', sv.toFixed(1)); setField('wh-sm-state', slvl[0]+slvl.slice(1).toLowerCase()); setField('wh-sm-sub', nowClk);
+  setField('wh-stress-val', sv.toFixed(1)); setField('wh-stress-lvl', slvl); setField('wh-stress-upd', 'Last updated '+nowClk);
+  // tonight's sleep: recommended bedtime = target wake − sleep need
+  const needMin = sleepNeedMinutes({dayStrain: strain!=null?strain:(d&&d.strain)||0}) || 480;
+  const wakeMin = 7*60+30, bedMin=((wakeMin-Math.round(needMin))%1440+1440)%1440;
+  const hm=(m)=> String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');
+  setField('wh-bedtime', hm(bedMin)); setField('wh-wake', hm(wakeMin));
   // activities (the night's sleep)
   if(d&&d.sleep&&d.sleep.asleepMin){ setField('wh-act-hrs', fmtHM(d.sleep.asleepMin));
     setField('wh-act-t', `${fmtClock(d.sleep.start)}\n${fmtClock(d.sleep.end)}`); }
@@ -516,11 +545,9 @@ function renderHealth(){
 }
 function renderStress(){
   const host=$('ov-stress'); if(!host) return;
-  let v=SAMPLE.stress.now;
-  if(state.hr!=null){ const hrComp=Math.max(0,Math.min(3,(state.hr-52)/40));
-    const hrvComp=state.hrvMs!=null?Math.max(0,Math.min(3,(70-state.hrvMs)/22)):hrComp;
-    v=Math.round((hrComp*0.6+hrvComp*0.4)*10)/10; }
-  host.innerHTML=stressGauge(v);
+  // WHOOP home shows a stress-over-time LINE graph (0–3). We don't compute a real per-day stress series from the
+  // band yet (data gap) — render the representative day curve; live value sits in the card header (renderOverview).
+  interactiveChart(host, SAMPLE.stress.day, { color:'#5BC8E0', h:150, min:0, max:3, fill:true, fmt:v=>v.toFixed(1) });
 }
 function renderRecovery(){
   const R=SAMPLE.recovery, c=recColor(R.pct);
@@ -2302,6 +2329,8 @@ document.addEventListener('DOMContentLoaded', ()=>{
   { const a=$('dp-prev'); if(a) a.onclick=()=>shiftDay(-1); }
   { const a=$('dp-next'); if(a) a.onclick=()=>shiftDay(1); }
   { const sp=$('wstrap'); if(sp) sp.onclick = onSyncPillTap; }
+  { const sa=$('wh-setalarm'); if(sa) sa.onclick = setSmartAlarm; }
+  initStickyRings();
   $('disconnect').onclick = async ()=>{ if(deviceId){ try{ await BleClient.disconnect(deviceId); }catch(e){} lset('bandId',null); deviceId=null; setSync('off'); } };
   $('hello').onclick      = ()=>send(145,[0x01],'get_hello');
   $('battery').onclick    = ()=>send(26,[],'get_battery_level');
