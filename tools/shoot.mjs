@@ -73,6 +73,13 @@ const home  = async () => { await page.click('#tabs button[data-tab=overview]');
 for(const t of TARGETS){
   if(t === 'overview'){ await home(); await shoot('overview'); continue; }
   await home();
+  if(t.startsWith('nav:')){                                     // nav:healthmonitor → click a [data-nav] element
+    const key=t.slice(4);
+    const el=await page.$(`[data-nav="${key}"]`);
+    if(!el){ console.log('  (no data-nav="'+key+'" — skipped)'); continue; }
+    await el.scrollIntoViewIfNeeded(); await el.click(); await page.waitForTimeout(600);
+    await shoot('nav-'+key); continue;
+  }
   if(t.startsWith('trend:') || t.startsWith('zone:')){          // click the dashboard row by its data-trend value
     const val = t.startsWith('zone:') ? t : t.slice(6);
     const row=await page.$(`[data-trend="${val}"]`);

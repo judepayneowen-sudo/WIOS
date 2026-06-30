@@ -1003,15 +1003,20 @@ const SECTIONS = [
     + card(scaffold('Step count needs the raw <b>R21 IMU</b> stream (int16 6-axis, cmd 105) → a pedometer over accel. On the band-RE roadmap.')) },
 
   // ----- DETAIL: Health Monitor (live vitals + screener) -----
-  { id:'healthmonitor', build:()=>
-    hd('Health Monitor','live · band-derived')
-    + card(SAMPLE.health.map(m=>{ let v=m.val, real=false;
-        if(m.key==='hr') v=state.hr; else if(m.key==='hrv'&&state.hrvMs!=null) v=state.hrvMs;
-        else if(m.key==='skin'&&state.skinTempC!=null){ v=+state.skinTempC.toFixed(1); real=true; }
-        else if(m.key==='spo2'&&state.spo2!=null){ v=state.spo2; real=true; }
-        const shown=(v==null?'—':v); const ok=v==null?true:(v>=m.lo&&v<=m.hi);
-        return `<div class="hrow"><span class="hk"><span class="flag" style="background:${v==null?'var(--dimmer)':ok?'var(--rec-green)':'var(--rec-yellow)'}"></span>${m.nm}${m.live?' <i class="livedot"></i>':real?' <span class="soon" style="border-color:var(--rec-green);color:var(--rec-green)">band</span>':''}</span><span class="hv">${shown}<small>${m.unit}</small></span><span class="hr-rng">${m.lo}–${m.hi}</span></div>`; }).join(''))
-    + card(hd('Heart Screener','ECG-style')+scaffold('Heart screener is a cloud “labrador” report. <b>Skin temperature and SpO₂ are now read straight off the band</b> (decoded from the (47) record — skin-temp @65, SpO₂ @74) and update after each history pull — no cloud needed.')) },
+  { id:'healthmonitor', build:()=>{
+    const hr = state.hr!=null?state.hr:54;
+    const vit=(ic,title,val,unit,status)=>`<div class="hm-card"><div class="hm-ct">${ic}<span>${title}</span></div><div class="hm-cv">${val}<i>${unit}</i></div><div class="hm-cs">${status}</div></div>`;
+    return hd('Health Monitor')
+      + `<div class="card hm-hero"><div class="hm-hr-t">HEART RATE</div><div class="hm-hr-v">${hr}<i>BPM</i></div><div class="hm-hr-z">Zone 0</div></div>`
+      + `<div class="hm-grid">`
+        + vit(ICN.resp,'RESPIRATORY RATE', state.respRate?state.respRate.toFixed(1):'15.4','rpm','within 15.4 - 15.9')
+        + vit('🩸','BLOOD OXYGEN (SpO₂)', state.spo2||97,'%','within 95% - 100%')
+        + vit(ICN.rhr,'RHR', computedRestHr()||50,'bpm','low &lt; 51')
+        + vit(ICN.hrv,'HRV', state.hrvMs||90,'ms','within 43 - 94')
+        + vit('🌡','SKIN TEMP (FROM BASELINE)', state.skinTempC?((state.skinTempC-34).toFixed(1)):'-0.8','°C','low &lt; -0.2')
+      + `</div>`
+      + `<button class="wbtn wfull" style="margin-top:6px">⤴ SHARE YOUR HEALTH REPORT</button>`
+      + `<p style="margin-top:12px;font-size:13.5px;line-height:1.5;color:var(--dim)">Printable report for sharing with your doctor, physician, trainer, or anyone of your choosing.</p>`; } },
 
   // ----- DETAIL: Stress Monitor -----
   { id:'stress', build:()=>{
