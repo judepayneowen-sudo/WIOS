@@ -394,6 +394,17 @@
   .sp-opt{text-align:center;font-size:11px;font-weight:700;letter-spacing:.8px;color:#6ba8e0;border:1px dashed rgba(107,168,224,.5);border-radius:8px;padding:8px;margin-bottom:18px}
   .sp-alarm-row{display:grid;grid-template-columns:1fr 1fr;gap:11px}
   .sp-acard{background:rgba(255,255,255,.04);border-radius:12px;padding:14px} .sp-acard span{font-size:11px;font-weight:700;letter-spacing:.4px;color:var(--dim)} .sp-acard b{display:block;font-size:24px;font-weight:700;margin-top:7px}
+  /* Recovery detail */
+  .rec-mark{font-size:13px;font-weight:300;letter-spacing:3px;color:#cfd9df;margin-bottom:2px}
+  .ringtxt .big i{font-style:normal;font-size:22px;font-weight:600;margin-left:1px}
+  .rec-crow{display:flex;align-items:center;padding:15px 2px;border-bottom:1px solid #232c33}
+  .rec-crow:last-child{border-bottom:0}
+  .rec-cl{flex:1;font-size:14px;font-weight:700;letter-spacing:.2px}
+  .rec-cv{font-size:22px;font-weight:700;text-align:right} .rec-cv small{display:block;font-size:12px;font-weight:600;color:var(--dim);margin-top:3px}
+  .rec-crow .mtr{width:18px;text-align:center;margin-left:12px}
+  .rec-leg{display:flex;align-items:center;gap:5px;background:var(--card);border-radius:12px;padding:13px 16px;font-size:13px;font-weight:700;margin-bottom:14px}
+  .rec-ins{border:1px solid transparent;background:linear-gradient(var(--card),var(--card)) padding-box,linear-gradient(110deg,#3a6ea5,#7d4fb0) border-box;font-size:15px;line-height:1.5;color:#e4e7ea}
+  .rec-ins-cta{margin-top:14px;font-size:12.5px;font-weight:700;letter-spacing:.5px;color:#8fb4e8}
   /* weekly strain & recovery chart */
   #wh-week svg{width:100%;display:block}
   .wk-x{fill:var(--dim);font-size:11px;font-weight:600}
@@ -511,18 +522,19 @@
   </section>
 
   <section class="screen" id="s-recovery">
-    <div class="hd"><div class="t">Recovery</div><span class="preview">preview · sample</span></div>
-    <div class="card" style="text-align:center">
+    <div class="hd"><div class="t" id="rec-title">TODAY</div></div>
+    <div style="text-align:center;margin:6px 0 18px">
       <div class="ringwrap"><svg class="ring" viewBox="0 0 200 200">
         <circle class="ring-bg" cx="100" cy="100" r="88"></circle>
         <circle class="ring-fg" id="rec-arc" cx="100" cy="100" r="88"></circle></svg>
-        <div class="ringtxt"><div class="big" id="rec-pct">—</div><div class="lbl" id="rec-state">Recovery</div></div>
+        <div class="ringtxt"><div class="rec-mark">WHOOP</div><div class="big" id="rec-pct">—</div><div class="lbl">RECOVERY</div></div>
       </div>
-      <p class="vow" id="rec-vow"></p>
     </div>
     <div class="card" id="rec-metrics"></div>
-    <div class="card"><div class="hd"><div class="t">Recovery · 14 days</div><span class="muted" id="rec-trend-avg"></span></div>
-      <div id="rec-trend"></div></div>
+    <div id="rec-legend"></div>
+    <div id="rec-insight"></div>
+    <div class="wsec-h2" style="margin-top:24px">Weekly Trends</div>
+    <div id="rec-weekly"></div>
   </section>
 
   <section class="screen" id="s-strain">

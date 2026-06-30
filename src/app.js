@@ -572,13 +572,44 @@ function renderStress(){
   // band yet (data gap) — render the representative day curve; live value sits in the card header (renderOverview).
   interactiveChart(host, SAMPLE.stress.day, { color:'#5BC8E0', h:150, min:0, max:3, fill:true, fmt:v=>v.toFixed(1) });
 }
+const REC_WEEK={ days:['Wed 24','Thu 25','Fri 26','Sat 27','Sun 28','Mon 29','Tue 30'],
+  recovery:[25,97,94,40,25,81,67], hrv:[44,107,94,55,37,93,90], rhr:[64,51,49,59,67,52,50],
+  resp:[16.3,15.5,15.4,15.8,15.9,15.4,15.4], sleepPerf:[76,84,90,82,76,87,86] };
+// mini weekly bar chart with per-bar colour + value labels + day x-axis (Weekly Trends cards)
+function miniBars(data, days, colorFn, fmt){
+  const W=330,H=150,padT=22,padB=26,padL=6,padR=6,iw=W-padL-padR,ih=H-padT-padB,n=data.length, mx=Math.max(...data)*1.14, bw=iw/n*0.5;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block">`;
+  data.forEach((v,i)=>{ const x=padL+iw*(i+0.5)/n, bh=ih*Math.max(.02,v/mx), c=colorFn(v);
+    s+=`<rect x="${(x-bw/2).toFixed(1)}" y="${(padT+ih-bh).toFixed(1)}" width="${bw.toFixed(1)}" height="${bh.toFixed(1)}" rx="2" fill="${c}"/>`+
+       `<text x="${x.toFixed(1)}" y="${(padT+ih-bh-5).toFixed(1)}" fill="${c}" font-size="10" font-weight="700" text-anchor="middle">${fmt(v)}</text>`+
+       `<text x="${x.toFixed(1)}" y="${H-6}" fill="var(--dimmer)" font-size="8" text-anchor="middle">${days[i]}</text>`; });
+  return s+`</svg>`;
+}
+function miniLine(data, days, color, fmt){
+  const W=330,H=150,padT=22,padB=26,padL=6,padR=6,iw=W-padL-padR,ih=H-padT-padB,n=data.length;
+  const mn=Math.min(...data)*0.92,mx=Math.max(...data)*1.06,rg=(mx-mn)||1, X=i=>padL+iw*i/(n-1), Y=v=>padT+(1-(v-mn)/rg)*ih;
+  let s=`<svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}" style="display:block"><path d="${smoothPath(data.map((v,i)=>[X(i),Y(v)]))}" fill="none" stroke="${color}" stroke-width="2"/>`;
+  data.forEach((v,i)=>{ s+=`<circle cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3" fill="var(--bg)" stroke="${color}" stroke-width="2"/>`+
+    `<text x="${X(i).toFixed(1)}" y="${(Y(v)-8).toFixed(1)}" fill="${color}" font-size="9" font-weight="700" text-anchor="middle">${fmt(v)}</text>`+
+    `<text x="${X(i).toFixed(1)}" y="${H-6}" fill="var(--dimmer)" font-size="8" text-anchor="middle">${days[i]}</text>`; });
+  return s+`</svg>`;
+}
+const recCard=(title,chart)=>`<div class="card"><div class="wrow" style="margin-bottom:6px"><span class="wsec-h" style="margin:0">${title}</span><span style="color:var(--dimmer)">›</span></div>${chart}</div>`;
 function renderRecovery(){
   const R=SAMPLE.recovery, c=recColor(R.pct);
-  setField('rec-pct', R.pct); setRing('rec-arc', R.pct, c);
-  setField('rec-state', recState(R.pct)); setField('rec-vow', R.vow);
-  setHTML('rec-metrics', metricRows(R.metrics));
-  interactiveChart($('rec-trend'), R.trend, {color:c,h:120,unit:'%',min:0,max:100});
-  setField('rec-trend-avg', 'avg '+Math.round(R.trend.reduce((a,b)=>a+b.v,0)/R.trend.length)+'%');
+  setHTML('rec-pct', R.pct+'<i>%</i>'); setRing('rec-arc', R.pct, c);
+  const crow=(label,val,base,goodUp)=>{ const d=val-base, good=goodUp?d>0:d<0;
+    return `<div class="rec-crow"><span class="rec-cl">${label}</span><span class="rec-cv">${val}<small>${base}</small></span><span class="mtr ${d===0?'fl':good?'up':'dn'}">${d===0?'•':d>0?'▲':'▼'}</span></div>`; };
+  setHTML('rec-metrics', crow('HEART RATE VARIABILITY',R.hrv,75,true)+crow('RESTING HEART RATE',R.rhr,56,false)+crow('RESPIRATORY RATE',R.resp,15.7,false)+crow('SLEEP PERFORMANCE','86%','86%',true));
+  setHTML('rec-legend', `<div class="rec-leg"><span class="mtr up">▲</span><span class="mtr dn">▼</span> Today<span style="margin-left:auto;color:var(--dim)">vs. last 30 days</span></div>`);
+  setHTML('rec-insight', `<div class="card rec-ins">Your HRV is 20% higher than usual. A high HRV indicates your nervous system is ready to handle stress, your body is in balance, and you are ready to take on strain.<div class="rec-ins-cta">EXPLORE YOUR RECOVERY INSIGHTS →</div></div>`);
+  const recC=v=>v>=67?'var(--rec-green)':v>=34?'var(--rec-yellow)':'var(--rec-red)';
+  setHTML('rec-weekly',
+    recCard('RECOVERY', miniBars(REC_WEEK.recovery,REC_WEEK.days,recC,v=>v+'%'))+
+    recCard('HEART RATE VARIABILITY', miniLine(REC_WEEK.hrv,REC_WEEK.days,'#7fb0e0',v=>v))+
+    recCard('RESTING HEART RATE', miniLine(REC_WEEK.rhr,REC_WEEK.days,'#7fb0e0',v=>v))+
+    recCard('RESPIRATORY RATE', miniLine(REC_WEEK.resp,REC_WEEK.days,'#7fb0e0',v=>v.toFixed(1)))+
+    recCard('SLEEP PERFORMANCE', miniBars(REC_WEEK.sleepPerf,REC_WEEK.days,()=>'#7ba1bb',v=>v+'%')));
 }
 // Flip a hand-coded screen's "preview · sample" badge to "your data" (green) once it's backed by the store.
 function markPreview(sectionId, isSample){
