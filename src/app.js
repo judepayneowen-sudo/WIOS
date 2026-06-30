@@ -655,6 +655,16 @@ function renderStrainWith(S){
   if(wk) wk.innerHTML=S.workouts.length? S.workouts.map(w=>`<div class="wk"><div class="wk-top"><span class="wk-nm">${w.nm}</span><span class="wk-str">${w.strain.toFixed(1)}</span></div>`+
     `<div class="wk-sub">${w.t} · ${fmtDur(w.dur)} · ${w.cal} cal · avg ${w.avg} · max ${w.max} bpm</div></div>`).join('')
     : '<div class="muted" style="font-size:12px">No tagged activities — automatic activity detection is coming. Your whole-day strain above is computed from the band.</div>';
+  // summary rows → trend views
+  setHTML('str-summary',
+    mrow('🏋','DAY STRAIN', S.day.toFixed(1), '6.4', trendOf(S.day,6.4), true, 'day_strain')+
+    mrow(ICN.hr,'AVERAGE HEART RATE', S.avg||'—', '68', null, true, 'average_hr')+
+    mrow(ICN.steps,'STEPS', '—', '', null, true, 'steps')+
+    mrow(ICN.cal,'CALORIES', S.cal||'—', '', null, true, 'calories'));
+  const strW=[4.7,0.9,10.6,5.6,4.3,4.3,0.1];
+  setHTML('str-weekly',
+    recCard('STRAIN', miniBars(strW, REC_WEEK.days, ()=>'#0093e7', v=>v.toFixed(1)))+
+    recCard('CALORIES', miniBars([2146,2568,1012,1980,2030,1890,2100], REC_WEEK.days, ()=>'#7ba1bb', v=>(v/1000).toFixed(1)+'k')));
 }
 function renderSleep(){
   const real=latestSleep();
