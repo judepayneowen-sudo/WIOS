@@ -209,7 +209,13 @@ payload :  [ packetType, sequence, command/event, ...data ]
 | 145 | get_hello | identity |
 - **Guardrailed (confirm-gated) in the custom sender:** 36/37/38 firmware DFU, 39/41/43 optical-sensor (AFE) config — destructive.
 
-## Verified against a real band (serial 5A00977378, fw 50.36.2.0)
+## Verified against a real band (serial 5A00977378, fw 50.36.2.0 — and 50.40.1.0)
+> **Firmware 50.40.1.0 verified protocol-compatible (2026-06-30).** After a WHOOP-app firmware update from
+> 50.36.2.0 → 50.40.1.0, a full "Sync full history" still decoded sane HR/timestamps — the record byte map,
+> command enum (FORCE_TRIM=25 etc.), ack-loop, and FORCE_TRIM seek all unchanged. No re-mapping needed; pre/post-
+> update records are the same format and safe to co-store. (The update reboots the band, but did NOT move the
+> existing reboot-orphan frontier, so no additional data was orphaned.)
+
 - `get_hello` (145) → COMMAND_RESPONSE carrying band clock (unix time, LE), serial string, and a device identity token.
 - `get_data_range` (34) → COMMAND_RESPONSE with available-window timestamps + record-index counters (currently only ~minutes of buffer when freshly connected).
 - `send_r10_r11_realtime` (63) → only ACKs, no stream (wrong toggle — use cmd 3).
