@@ -1,0 +1,1616 @@
+{
+  "summary": "Adversarial visual-diff: compare each rendered screen against its WHOOP reference and list mismatches",
+  "agentCount": 17,
+  "logs": [
+    "verified 17/17 screens"
+  ],
+  "result": [
+    {
+      "screen": "home (overview)",
+      "fidelity": "good",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Recovery ring color",
+          "expected": "Recovery ring arc is GREEN for a recovered score (≥67%), data-driven by zone (green ≥67 / yellow 34-66 / red ≤33)",
+          "actual": "Our Recovery ring arc is YELLOW even though it should be color-driven by the recovery zone"
+        },
+        {
+          "severity": "high",
+          "element": "'Set Up Your Journal' card",
+          "expected": "Full-width card with notebook illustration, 'Set Up Your Journal' heading, 'Customize your daily routine and fill out your first entry.' subtext, and a 'LET'S GO' pill button, placed between Tonight's Sleep and My Plan",
+          "actual": "Missing entirely"
+        },
+        {
+          "severity": "high",
+          "element": "'My Plan' section and 'Build Your Best Self' card",
+          "expected": "'My Plan' section header followed by a 'Build Your Best Self' card ('Set goals, track progress...', 'EXPLORE PLANS →' link, three ringed icons)",
+          "actual": "Missing entirely; our render goes from Tonight's Sleep straight to My Dashboard"
+        },
+        {
+          "severity": "high",
+          "element": "'Your Daily Outlook' row",
+          "expected": "A 'Your Daily Outlook' row (sun icon, chevron) under the 'My Day' header, above Today's Activities",
+          "actual": "Missing; My Day goes straight to Today's Activities"
+        },
+        {
+          "severity": "high",
+          "element": "STEPS metric value",
+          "expected": "Steps shows a numeric value (e.g. 262) with a secondary baseline (6,094) and trend arrow",
+          "actual": "Steps shows an em-dash '—' placeholder with no value"
+        },
+        {
+          "severity": "medium",
+          "element": "Dashboard metric row values",
+          "expected": "HR ZONES 1-3, HR ZONES 4-5, STRENGTH ACTIVITY TIME, CALORIES display time/number values (e.g. 0:14, 0:00, 0:00, 1,012) each with a secondary baseline value",
+          "actual": "All show '—' placeholders with no secondary value"
+        },
+        {
+          "severity": "medium",
+          "element": "'Discover More' section",
+          "expected": "A 'Discover More' section header with content (e.g. 'Go to Advanced Labs') below the metric rows at the bottom",
+          "actual": "Missing; our render ends at Respiratory Rate"
+        },
+        {
+          "severity": "medium",
+          "element": "Stress Monitor chart axes and overlays",
+          "expected": "Y-axis labeled 0.0–3.0, a shaded sleep band capped at 3.0, a moon icon marking the sleep period, x-axis real times (21:32 / 02:00 / 05:00 / 09:25)",
+          "actual": "No Y-axis scale labels, no sleep shaded band, no moon marker; x-axis shows generic 00:00–20:00 hours"
+        },
+        {
+          "severity": "medium",
+          "element": "Strain & Recovery chart recovery dots",
+          "expected": "Recovery percent dots colored by zone (green high 97/94/81/67%, yellow mid 40%, red low 25%); right axis ticks 100/66/33/0%",
+          "actual": "Recovery dots/labels render as a mostly-yellow series without per-point zone coloring"
+        },
+        {
+          "severity": "low",
+          "element": "Band battery pill in header",
+          "expected": "Top-right shows a band-battery percentage pill (e.g. 11%) with band icon",
+          "actual": "Top-right shows a generic battery glyph without the band-battery percentage styling"
+        },
+        {
+          "severity": "low",
+          "element": "Health Monitor status casing",
+          "expected": "'WITHIN RANGE' uppercase on one line, '5/5 Metrics'",
+          "actual": "'Within range' in title case wrapping to two lines, '5/5 metrics' lowercase"
+        },
+        {
+          "severity": "low",
+          "element": "Tonight's Sleep card",
+          "expected": "Sunset/sunrise icons beside the 23:30 and 07:30 times plus a 'SET ALARM' button row beneath",
+          "actual": "Icons differ (moon-style icon used) and SET ALARM button not visible"
+        },
+        {
+          "severity": "low",
+          "element": "RHR trend arrow color/direction",
+          "expected": "Resting Heart Rate shows a green down-arrow (lower is good)",
+          "actual": "Our RHR shows an orange/amber up-arrow; trend color/direction logic differs"
+        },
+        {
+          "severity": "low",
+          "element": "Today's Activities sleep start time prefix",
+          "expected": "Start time shown with day prefix like '[Mon] 22:51'",
+          "actual": "Shows '22:51' with no day prefix"
+        }
+      ],
+      "_k": "home (overview)"
+    },
+    {
+      "screen": "recovery",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Recovery dial - primary value/unit",
+          "expected": "Large number with a '%' suffix (e.g. '67%') and label 'RECOVERY' below it; recovery is a percentage",
+          "actual": "Bare number '64' with NO percent sign, and the label below is a qualitative word 'ADEQUATE' instead of 'RECOVERY'"
+        },
+        {
+          "severity": "high",
+          "element": "Recovery dial color",
+          "expected": "WHOOP uses the recovery color band: green for high recovery (67% is green), yellow ~34-66%, red <=33%. A 64-67% score renders GREEN.",
+          "actual": "Dial arc is rendered YELLOW for a 64 score. WHOOP color thresholds put this in green territory; yellow implies a lower/mid score so the color mapping is wrong."
+        },
+        {
+          "severity": "high",
+          "element": "Metric rows - 'vs 30-day' comparison",
+          "expected": "Each metric shows a small baseline/30-day value beneath the big number (e.g. HRV 90 with '75' under it) plus an up/down trend triangle (green up, red down). A footer row reads 'Today vs. last 30 days'.",
+          "actual": "No baseline number shown; instead shows a horizontal slider/range bar with 'typical 55-95 ms' on the left and 'vs 30-day' text on the right. Trend triangles are missing (replaced by a green dot). Different layout/metaphor entirely."
+        },
+        {
+          "severity": "high",
+          "element": "Metric icons",
+          "expected": "Each metric row has a distinct left icon: HRV = waveform/pulse line, RHR = heart with down-arrow, Respiratory = lungs, Sleep = crescent moon.",
+          "actual": "No per-metric icons; rows use a generic colored status dot only."
+        },
+        {
+          "severity": "high",
+          "element": "Fourth metric row",
+          "expected": "Fourth metric is 'SLEEP PERFORMANCE' shown as a percentage (e.g. 86%).",
+          "actual": "Sleep Performance is missing from the metrics list. Instead 'Blood oxygen' and 'Skin temperature' rows appear, which are not part of WHOOP's recovery metric card."
+        },
+        {
+          "severity": "high",
+          "element": "Weekly Trends section",
+          "expected": "A 'Weekly Trends' section with multiple per-metric cards: RECOVERY (bar chart, color-coded red/yellow/green per day), HEART RATE VARIABILITY (line chart with point labels), RESTING HEART RATE (line chart), RESPIRATORY RATE (line chart), SLEEP PERFORMANCE (bar chart). Each card has a header and a '>' chevron, x-axis day labels (Wed 24 ... Tue 30).",
+          "actual": "Only a single 'RECOVERY - 14 DAYS' area/line chart (yellow filled) is present. Missing the per-metric HRV / RHR / Respiratory / Sleep trend charts and the multi-card 'Weekly Trends' structure."
+        },
+        {
+          "severity": "high",
+          "element": "Recovery trend chart type",
+          "expected": "Recovery trend is a BAR chart with one bar per day, each bar color-coded by recovery zone (red/yellow/green) and labeled with its % above the bar; x-axis shows day-of-week + date.",
+          "actual": "Rendered as a continuous yellow area/line chart labeled '14 DAYS' with x-axis '-13d ... -1d' relative labels. Wrong chart type, wrong axis labeling, no per-bar colors or value labels."
+        },
+        {
+          "severity": "medium",
+          "element": "Metric value labels / casing",
+          "expected": "Metric titles are UPPERCASE ('HEART RATE VARIABILITY', 'RESTING HEART RATE', 'RESPIRATORY RATE') and values have no explicit unit text shown inline.",
+          "actual": "Titles are Title Case ('Heart rate variability') and units are spelled out inline ('ms', 'bpm', 'rpm', '%', '°C')."
+        },
+        {
+          "severity": "medium",
+          "element": "Insight/explanation card",
+          "expected": "A bordered insight card with body text plus a colored call-to-action link 'EXPLORE YOUR RECOVERY INSIGHTS ->' (purple/blue, with arrow).",
+          "actual": "Plain explanatory paragraph only, no bordered card, no CTA link or arrow."
+        },
+        {
+          "severity": "medium",
+          "element": "Header title",
+          "expected": "Centered header reads 'TODAY' with a back chevron left and an info (i) circle icon right.",
+          "actual": "Left-aligned header reads 'RECOVERY' with a 'PREVIEW · SAMPLE' badge on the right; no info icon. (Title text and right-side control differ.)"
+        },
+        {
+          "severity": "low",
+          "element": "Respiratory rate unit label",
+          "expected": "WHOOP shows respiratory rate as a plain number (rpm implied), no unit text on the dial card.",
+          "actual": "Shows 'rpm' inline; minor but WHOOP abbreviates differently / omits it."
+        },
+        {
+          "severity": "low",
+          "element": "Dial branding/center",
+          "expected": "Dial center has faint 'WHOOP' wordmark above the number.",
+          "actual": "No center wordmark (acceptable for our brand, noted as a subtle visual difference)."
+        }
+      ],
+      "_k": "recovery"
+    },
+    {
+      "screen": "sleep",
+      "fidelity": "poor",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Sleep Performance ring center label",
+          "expected": "Ring center shows a percent value with a '%' symbol (e.g. '86%') above the label 'SLEEP PERFORMANCE'",
+          "actual": "Ring center shows a bare number '85' (no % sign) above label 'PERFORMANCE' (missing the word 'SLEEP')"
+        },
+        {
+          "severity": "high",
+          "element": "Sleep breakdown card (Hours vs Needed / Consistency / Efficiency / Stress)",
+          "expected": "A prominent card directly under the ring listing HOURS VS. NEEDED, SLEEP CONSISTENCY, SLEEP EFFICIENCY, HIGH SLEEP STRESS, each with an icon, a segmented colored status bar (Poor/Sufficient/Optimal) and a percentage, plus a colored legend row",
+          "actual": "Missing entirely; replaced by an unrelated 'SLEEP STAGES' hypnogram card"
+        },
+        {
+          "severity": "high",
+          "element": "Hours-of-sleep HR waveform chart",
+          "expected": "'Last Night's Sleep' section with a 'HOURS OF SLEEP' card showing duration (9:16), a heart-rate waveform line chart across the night with 22:31 / 08:40 start/end markers and a 30-90 axis",
+          "actual": "Missing entirely"
+        },
+        {
+          "severity": "high",
+          "element": "Sleep stage breakdown style",
+          "expected": "Stages shown as a TYPICAL RANGE list: Awake/Light/SWS(DEEP)/REM each with a horizontal range bar (filled bar vs. hatched typical-range zone), percentage, and duration; colors are purple/violet/pink family",
+          "actual": "Shown as a small hypnogram block chart plus a simple list (REM/Deep(SWS)/Light/Awake) using blue tones; no typical-range range bars"
+        },
+        {
+          "severity": "high",
+          "element": "Sleep stage colors",
+          "expected": "WHOOP uses violet/purple for Light, pink/magenta for SWS(Deep), bright purple for REM",
+          "actual": "Uses light-blue for Light, dark navy for Deep, light-blue for REM (wrong color palette)"
+        },
+        {
+          "severity": "high",
+          "element": "Sleep Consistency chart",
+          "expected": "A dedicated 'SLEEP CONSISTENCY' card with a 69% value, trend arrow, prior baseline %, and a 5-day (Fri-Tue) bar chart of bed/wake times with dashed 'OPTIMAL BED/WAKETIME' lines",
+          "actual": "Missing entirely (only a '— CONSISTENCY' stat tile with no value/chart)"
+        },
+        {
+          "severity": "high",
+          "element": "Sleep Efficiency chart",
+          "expected": "A dedicated 'SLEEP EFFICIENCY' card with 92% value, ASLEEP vs AWAKE segmented bars, and a 'WAKE EVENTS' count",
+          "actual": "Missing entirely (only a '— EFFICIENCY' stat tile with no value)"
+        },
+        {
+          "severity": "high",
+          "element": "Sleep Stress chart",
+          "expected": "A 'SLEEP STRESS' card with 0% value, a stress line chart over the night, and HIGH/MEDIUM/LOW breakdown bars with durations",
+          "actual": "Missing entirely"
+        },
+        {
+          "severity": "high",
+          "element": "Weekly Trends section",
+          "expected": "A 'Weekly Trends' section with a 'SLEEP PERFORMANCE' bar chart across multiple days (76%/84%/90%...)",
+          "actual": "Missing entirely"
+        },
+        {
+          "severity": "medium",
+          "element": "Restorative Sleep row",
+          "expected": "A 'RESTORATIVE SLEEP' row with a value (4:54) and baseline (4:00) plus trend arrow",
+          "actual": "Missing"
+        },
+        {
+          "severity": "medium",
+          "element": "Sleep Need breakdown labels",
+          "expected": "Sleep need broken into 'Healthy Minimum', 'Recent Strain', 'Sleep Debt' (WHOOP labels)",
+          "actual": "Uses different labels: 'Baseline need', 'From sleep debt', 'Credited from naps'"
+        },
+        {
+          "severity": "medium",
+          "element": "Top header title",
+          "expected": "Centered header reads 'TODAY' with an info (i) icon at top-right",
+          "actual": "Left-aligned header reads 'SLEEP' with a 'YOUR DATA' pill at top-right (wrong title and wrong right-side control)"
+        },
+        {
+          "severity": "medium",
+          "element": "Sleep Coach row",
+          "expected": "Not present in WHOOP reference sleep detail screens",
+          "actual": "A 'SLEEP COACH' navigation row is present (extra element not in reference)"
+        },
+        {
+          "severity": "low",
+          "element": "Stat tiles (RESP/DISTURBANCES/TIME IN BED)",
+          "expected": "WHOOP surfaces respiratory rate and wake events within their respective cards, not as a combined bottom tile row",
+          "actual": "Combined tile row with 'RESP·RPM', 'DISTURBANCES', 'TIME IN BED' showing dashes for missing values"
+        },
+        {
+          "severity": "low",
+          "element": "Duration sublabel under ring",
+          "expected": "Reference does not show 'asleep / in bed' text directly under the ring (in-bed/asleep durations live in the breakdown cards)",
+          "actual": "Shows '6h 18m asleep · 6h 32m in bed' under the ring"
+        }
+      ],
+      "_k": "sleep"
+    },
+    {
+      "screen": "strain",
+      "fidelity": "poor",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Day Strain primary visualization (ring vs bar)",
+          "expected": "WHOOP shows a large circular RING DIAL with the strain number centered inside it, the word 'WHOOP' above the number inside the ring, and 'STRAIN' below it. The ring has colored tick/progress segments around its circumference.",
+          "actual": "Our render uses a flat HORIZONTAL linear gradient bar (0/7/14/21 scale) with a glowing dot marker and the number above it. Completely different chart type from WHOOP's circular ring."
+        },
+        {
+          "severity": "high",
+          "element": "Weekly Trends section",
+          "expected": "WHOOP has a large 'Weekly Trends' section containing multiple 7-day bar charts: STRAIN, HR ZONES 1-3, HR ZONES 4-5, STEPS, CALORIES, and STRENGTH ACTIVITY TIME — each with day/date x-axis (Wed 24 ... Tue 30), value labels above bars, and the current day column highlighted.",
+          "actual": "Entire Weekly Trends section and all its bar charts are MISSING from our render."
+        },
+        {
+          "severity": "high",
+          "element": "Summary metric rows below the dial",
+          "expected": "WHOOP shows a list of summary rows directly under the ring, each with an icon: 'HEART RATE ZONES 1-3', 'HEART RATE ZONES 4-5', 'STRENGTH ACTIVITY TIME', and 'STEPS', each showing a primary value, a secondary baseline value beneath it, and a colored up/down trend arrow.",
+          "actual": "This grouped summary list (with icons, baseline comparison values, and trend arrows) is missing. We instead show a 'TIME IN HEART-RATE ZONES' list broken into Zone 0–5."
+        },
+        {
+          "severity": "high",
+          "element": "Steps metric",
+          "expected": "WHOOP prominently features STEPS both as a summary row (262 with baseline 6,094) and as a dedicated weekly bar chart.",
+          "actual": "Steps are entirely absent from our render."
+        },
+        {
+          "severity": "high",
+          "element": "Calories metric",
+          "expected": "WHOOP includes a CALORIES weekly bar chart (e.g. 2,146 / 2,568 / 1,012).",
+          "actual": "Calories are entirely absent from our render."
+        },
+        {
+          "severity": "high",
+          "element": "Heart-rate zone count and grouping",
+          "expected": "WHOOP groups HR zones as 'Zones 1-3' and 'Zones 4-5' (5 zones total, 1–5), shown as summary rows and stacked bar charts.",
+          "actual": "Our render uses 6 zones (Zone 0 through Zone 5) listed individually with horizontal progress bars. Different zone model and numbering (we include a Zone 0)."
+        },
+        {
+          "severity": "high",
+          "element": "Coaching insight card",
+          "expected": "WHOOP shows a bordered gradient card: 'Your body is signaling it's ready to perform today. Aim for moderate Day Strain between 10.0 and 14.0...' with an 'EXPLORE YOUR STRAIN INSIGHTS →' link.",
+          "actual": "Missing. We have an 'ACTIVITIES' card with 'No tagged activities' text instead."
+        },
+        {
+          "severity": "medium",
+          "element": "Header title and layout",
+          "expected": "WHOOP header is centered title 'TODAY' with a back chevron on the left and a circular info (i) icon on the right.",
+          "actual": "Our header is left-aligned title 'STRAIN' with a 'YOUR DATA' green pill on the right and a back chevron; no info icon, title text differs."
+        },
+        {
+          "severity": "medium",
+          "element": "'Today vs last 30 days' comparison legend",
+          "expected": "WHOOP shows a small pill/legend row with green-up and orange-down arrows reading 'Today vs last 30 days', tying the trend arrows to a baseline comparison.",
+          "actual": "Missing entirely."
+        },
+        {
+          "severity": "medium",
+          "element": "HR zone descriptive labels / percentages",
+          "expected": "WHOOP labels zones by number group (Zones 1-3, 4-5) and uses %HRR coloring in charts; it does not surface 'Restorative 50-60%', 'Very light 60-70%' style descriptors on this screen.",
+          "actual": "Our render adds verbose descriptors (Restorative 50-60%, Very light, Light, Moderate, Hard, Max) per zone row that don't appear in the WHOOP strain screen."
+        },
+        {
+          "severity": "low",
+          "element": "Strength Activity Time metric",
+          "expected": "WHOOP has a 'STRENGTH ACTIVITY TIME' summary row and weekly bar chart (0:00 values).",
+          "actual": "Missing from our render."
+        },
+        {
+          "severity": "low",
+          "element": "Color of strain value / accents",
+          "expected": "WHOOP renders the central strain number in white inside the ring; accent trend arrows are green/orange.",
+          "actual": "Our strain number '11.0' is rendered in bright blue, and our accent system (green 'YOUR DATA' pill, blue gradient bar) diverges from WHOOP's white-number + green/orange-arrow scheme."
+        }
+      ],
+      "_k": "strain"
+    },
+    {
+      "screen": "HRV trend (Trend View — Heart Rate Variability)",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Trend chart line colour",
+          "expected": "HRV trend line is BLUE (light/sky blue), WHOOP's standard HRV colour",
+          "actual": "Trend line is rendered in green (Strain/recovery-style green)"
+        },
+        {
+          "severity": "high",
+          "element": "Chart Y-axis labels",
+          "expected": "Left Y-axis shows numeric gridline labels (e.g. 0, 49, 98, 147 ms scale) with horizontal gridlines",
+          "actual": "No Y-axis labels and no horizontal gridlines at all"
+        },
+        {
+          "severity": "high",
+          "element": "TYPICAL RANGE shaded band",
+          "expected": "A shaded grey rectangular band is drawn across the chart spanning the user's typical HRV range (≈49–98), with the 'TYPICAL RANGE' legend swatch matching that fill",
+          "actual": "Only the 'TYPICAL RANGE' text/legend is present; no shaded band is drawn on the chart"
+        },
+        {
+          "severity": "high",
+          "element": "LEARN MORE video carousel section",
+          "expected": "Below the chart, a 'LEARN MORE' header with 'VIEW ALL →' link and a horizontally scrolling row of video cards ('What is HRV?', 'Improving HRV Tips', 'Everything to Know About HRV') with play buttons and VIDEO badges",
+          "actual": "Entire video carousel section is missing; the 'What is Heart Rate Variability?' text block follows the chart directly"
+        },
+        {
+          "severity": "medium",
+          "element": "Chart endpoint marker / latest value",
+          "expected": "The most recent data point has a hollow circle marker with its value labelled next to it (e.g. '90') in the line colour",
+          "actual": "No endpoint marker and no inline latest-value label"
+        },
+        {
+          "severity": "medium",
+          "element": "Chart line shape / data density",
+          "expected": "Line is a sparse, jagged daily-point polyline (angular segments connecting discrete day values, with gaps where data is missing)",
+          "actual": "Line is a smooth, dense, continuous sine-like wave with no gaps — looks like interpolated/synthetic data rather than discrete daily samples"
+        },
+        {
+          "severity": "low",
+          "element": "Header layout / back chevron",
+          "expected": "'TREND VIEW' is a centered title bar with the back chevron on the left at the same vertical level",
+          "actual": "'TREND VIEW' is left-aligned as a small label below a separate circular back button, not a centered title"
+        },
+        {
+          "severity": "low",
+          "element": "Metric dropdown icon",
+          "expected": "HRV selector uses the WHOOP HRV squiggle/heartbeat-line glyph",
+          "actual": "Uses a plain tilde (~) character instead of the heartbeat-line icon"
+        },
+        {
+          "severity": "low",
+          "element": "X-axis tick labels",
+          "expected": "Ticks at weekly intervals: Jun 2, Jun 9, Jun 16, Jun 23, Jun 30",
+          "actual": "Ticks at ~5-day intervals: Jun 1 (clipped to 'un 1'), Jun 6, Jun 11, Jun 16, Jun 21, Jun 26"
+        },
+        {
+          "severity": "low",
+          "element": "'ms' unit weight on AVERAGE value",
+          "expected": "Large white '75' with a smaller white/grey 'ms' suffix",
+          "actual": "'ms' suffix is tinted blue rather than neutral white/grey"
+        }
+      ],
+      "_k": "HRV trend"
+    },
+    {
+      "screen": "RHR trend (Trend View — Resting Heart Rate)",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Chart Y-axis",
+          "expected": "Left-side numeric Y-axis labels (e.g. 39 / 53 / 67 / 81 bpm) with faint horizontal gridlines",
+          "actual": "No Y-axis labels and no gridlines at all — chart floats with no scale reference"
+        },
+        {
+          "severity": "high",
+          "element": "Typical Range band",
+          "expected": "A shaded grey horizontal band across the chart marking the user's typical RHR range (the legend 'TYPICAL RANGE' references this band)",
+          "actual": "Legend swatch is present but there is NO shaded typical-range band drawn on the chart, so the legend refers to nothing"
+        },
+        {
+          "severity": "high",
+          "element": "LEARN MORE / VIEW ALL media carousel",
+          "expected": "A 'LEARN MORE  VIEW ALL →' section with horizontally scrolling VIDEO and ARTICLE cards (e.g. 'What is RHR?', 'RHR: What's Normal and How to Improve It') sits between the chart and the 'What is Resting Heart Rate?' article",
+          "actual": "Entire LEARN MORE / media carousel section is missing; the article follows the chart directly"
+        },
+        {
+          "severity": "medium",
+          "element": "Chart endpoint marker",
+          "expected": "Latest data point has a circle marker with a value callout label (e.g. '50') at the right edge of the line",
+          "actual": "No endpoint marker or value callout on the line"
+        },
+        {
+          "severity": "medium",
+          "element": "Chart line shape/style",
+          "expected": "Angular polyline connecting daily points with visible inflections; brighter saturated blue stroke",
+          "actual": "Smoothed/curved sine-like line in a more muted/desaturated blue"
+        },
+        {
+          "severity": "medium",
+          "element": "'TREND VIEW' header & dropdown title color",
+          "expected": "White text for 'TREND VIEW' and 'RESTING HEART RATE' dropdown label",
+          "actual": "Desaturated teal/slate-blue text for 'TREND VIEW'; dropdown label is white-ish but overall accent tint differs"
+        },
+        {
+          "severity": "low",
+          "element": "Header layout / back button",
+          "expected": "'TREND VIEW' title is centered with a chevron-only back arrow at top-left (no circular button background)",
+          "actual": "'TREND VIEW' is left-aligned and the back chevron sits inside a circular button"
+        },
+        {
+          "severity": "low",
+          "element": "X-axis tick labels",
+          "expected": "Two-line date ticks ('Jun' over '2', 'Jun' over '9', ... 'Jun 30') spaced weekly",
+          "actual": "Single-line ticks ('un 1', 'Jun 6', 'Jun 11' ...) with first label clipped ('un 1' missing the J)"
+        },
+        {
+          "severity": "low",
+          "element": "Dropdown heart icon",
+          "expected": "Heart outline with a small down-arrow glyph (RHR 'heart with trend' icon)",
+          "actual": "Plain filled heart icon, tinted teal, no trend arrow"
+        },
+        {
+          "severity": "low",
+          "element": "'AVERAGE 56 bpm' accent color",
+          "expected": "'bpm' unit and 'AVERAGE' label in light grey/white",
+          "actual": "'AVERAGE' and 'bpm' rendered in teal accent"
+        }
+      ],
+      "_k": "RHR trend"
+    },
+    {
+      "screen": "Steps trend (Trend View)",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Chart Y-axis",
+          "expected": "Y-axis with numeric scale labels 0 / 5,000 / 10,000 / 15,000 and horizontal gridlines across the plot",
+          "actual": "No Y-axis, no numeric scale labels, and no horizontal gridlines"
+        },
+        {
+          "severity": "high",
+          "element": "Chart X-axis date labels",
+          "expected": "X-axis date tick labels under the bars: Jun 2 / Jun 9 / Jun 16 / Jun 23 / Jun 30",
+          "actual": "No X-axis date labels under the bars"
+        },
+        {
+          "severity": "high",
+          "element": "'Set a steps goal' CTA row",
+          "expected": "Full-width tappable row 'SET A STEPS GOAL IN WEEKLY PLAN' with a clipboard/checklist icon on the left and a chevron (>) on the right, directly below the chart",
+          "actual": "Missing entirely; render jumps from the chart straight to a 'What are Steps?' info card"
+        },
+        {
+          "severity": "high",
+          "element": "Bar chart scaling / baseline",
+          "expected": "Bars anchored to a 0 baseline and scaled against the 0-15,000 axis, varying widely (many short bars, a few ~13k spikes), only populating the right portion where data exists",
+          "actual": "Bars are roughly uniform tall heights filling the entire width with no 0-baseline scale relationship; looks like decorative demo data not tied to an axis"
+        },
+        {
+          "severity": "medium",
+          "element": "AVG. dashed-line label",
+          "expected": "Pill label reads 'AVG.' (with period) at the left end of the dashed average line, positioned at the ~6,094 level on the Y-scale",
+          "actual": "Pill label reads 'AVG' and is partially obscured by the steps icon; line level is not tied to a Y-scale so its position is arbitrary"
+        },
+        {
+          "severity": "medium",
+          "element": "Steps selector icon",
+          "expected": "Side-profile running shoe / sneaker outline icon (monochrome grey) next to 'STEPS'",
+          "actual": "A pair of blue footprints icon instead of the sneaker outline"
+        },
+        {
+          "severity": "medium",
+          "element": "Explanatory content card",
+          "expected": "WHOOP shows a 'Steps: A Measure Of Daily Movement' article-style card with WHOOP's specific copy; no generic 'What are Steps?' card",
+          "actual": "A custom 'What are Steps?' card with our own copy replaces the reference layout"
+        },
+        {
+          "severity": "medium",
+          "element": "TREND VIEW header",
+          "expected": "'TREND VIEW' centered in the top nav bar with the back chevron at the far left",
+          "actual": "'TREND VIEW' left-aligned below a circular back button, not centered in a nav bar"
+        },
+        {
+          "severity": "low",
+          "element": "Average value typography",
+          "expected": "'6,094' is large but proportionate, sitting on the same row area as the W/M/6M toggle",
+          "actual": "'6,094' is rendered noticeably larger/heavier, dominating the layout more than the reference"
+        },
+        {
+          "severity": "low",
+          "element": "Selector pill background",
+          "expected": "STEPS selector has a subtle grey raised/gradient pill background",
+          "actual": "Selector pill background is a flatter dark grey"
+        }
+      ],
+      "_k": "Steps trend"
+    },
+    {
+      "screen": "Calories trend",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Chart Y-axis",
+          "expected": "WHOOP shows a labeled Y-axis with gridlines and values (0, 1,000, 2,000, 3,000) and horizontal gridlines across the plot",
+          "actual": "Our render has no Y-axis labels and no gridlines at all — bars float with no scale reference"
+        },
+        {
+          "severity": "high",
+          "element": "Chart X-axis",
+          "expected": "WHOOP shows X-axis date labels under the bars (Jun 2, Jun 9, Jun 16, Jun 23, Jun 30)",
+          "actual": "Our render has no X-axis labels at all"
+        },
+        {
+          "severity": "high",
+          "element": "AVG line label pill",
+          "expected": "WHOOP shows a clean white rounded pill reading 'AVG.' (with period) sitting on the left edge, clearly legible at the dashed average line",
+          "actual": "Our render shows a small pill where the text reads 'AVG' but it overlaps/collides with a bar and is partially obscured/clipped, looking broken"
+        },
+        {
+          "severity": "high",
+          "element": "'LEARN MORE' content section",
+          "expected": "WHOOP has a 'LEARN MORE' header with a 'VIEW ALL →' link and a horizontally scrolling carousel of media cards (ARTICLE 'The Science of Calorie Tracking', PODCAST 'Understanding the Science of Tracking Calories', a video card)",
+          "actual": "This entire section is missing from our render"
+        },
+        {
+          "severity": "medium",
+          "element": "Section order",
+          "expected": "WHOOP order is: chart → info note → LEARN MORE carousel → 'What are Calories?' explainer card",
+          "actual": "Our render goes chart → info note → 'What are Calories?' card directly (LEARN MORE block absent), so the explainer appears earlier in the scroll"
+        },
+        {
+          "severity": "medium",
+          "element": "'What are Calories?' body copy",
+          "expected": "WHOOP text: 'Calories measure the number of calories that you burn per day. This is calculated based on an estimate of your Basal Metabolic Rate (BMR) and your heart rate throughout the day.' plus BMR/weight-gain paragraphs",
+          "actual": "Our render uses different copy: 'Calories measure the total energy your body burns over the day — both your resting metabolism and the energy used during activity. WHOOP estimates burn continuously from your heart rate...' — no mention of BMR / Basal Metabolic Rate"
+        },
+        {
+          "severity": "medium",
+          "element": "Bar chart data distribution",
+          "expected": "WHOOP bars only appear from ~Jun 16 onward (left two-thirds empty), reflecting when the band was first worn",
+          "actual": "Our render fills the full month with bars of fairly uniform height (demo data) — acceptable as data differs, but the full-width uniform fill reads differently structurally"
+        },
+        {
+          "severity": "low",
+          "element": "Calories dropdown flame icon",
+          "expected": "WHOOP uses a thin monochrome (grey/white outline) flame glyph",
+          "actual": "Our render uses a full-color emoji flame (🔥 orange/red), not the monochrome line icon"
+        },
+        {
+          "severity": "low",
+          "element": "Header 'TREND VIEW' alignment",
+          "expected": "WHOOP centers the 'TREND VIEW' title in the nav bar with the back chevron at far left",
+          "actual": "Our render left-aligns 'TREND VIEW' under the back button"
+        },
+        {
+          "severity": "low",
+          "element": "W / M / 6M segmented control position",
+          "expected": "WHOOP places the W/M/6M toggle on its own row to the right of AVERAGE, with the date range ('JUN 1 - JUN 30, 26') on a separate row below spanning under the toggle",
+          "actual": "Our render stacks the big '2,030 Cals' value and the toggle on the same row, with date range below — close but the toggle sits higher/overlapping the value row"
+        },
+        {
+          "severity": "low",
+          "element": "Bar color",
+          "expected": "WHOOP bars are a bright sky-blue (#3 brand blue)",
+          "actual": "Our bars are a similar blue but appear slightly more saturated/lighter — minor shade difference"
+        }
+      ],
+      "_k": "Calories trend"
+    },
+    {
+      "screen": "Avg HR trend",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Chart Y-axis",
+          "expected": "WHOOP shows a Y-axis with gridlines and BPM value labels (40, 53, 66, 79, 92) up the left edge",
+          "actual": "Our render has no Y-axis labels and no horizontal gridlines at all"
+        },
+        {
+          "severity": "high",
+          "element": "AVG. reference line",
+          "expected": "WHOOP draws a horizontal dashed line across the chart at the average value, labeled with a white 'AVG.' pill badge on the left",
+          "actual": "Our render has no average reference line and no AVG. badge"
+        },
+        {
+          "severity": "high",
+          "element": "Chart line color",
+          "expected": "WHOOP uses a bright/saturated blue (#1F8EF1-ish) for the trend line",
+          "actual": "Our render uses a muted, desaturated light-blue/steel-blue line"
+        },
+        {
+          "severity": "high",
+          "element": "Chart area fill",
+          "expected": "WHOOP fills the region under the most recent data segment with a subtle blue gradient (highlighted recent window)",
+          "actual": "Our render has no area fill under the line"
+        },
+        {
+          "severity": "high",
+          "element": "Latest-value endpoint marker",
+          "expected": "WHOOP marks the final data point with a colored value label (e.g. '51') and an open circle dot at the line end",
+          "actual": "Our render has no endpoint value label or marker dot"
+        },
+        {
+          "severity": "medium",
+          "element": "'Average does not include today' note",
+          "expected": "WHOOP shows an info-icon row beneath the chart: 'Average does not include today (Jun 30)'",
+          "actual": "Missing entirely in our render"
+        },
+        {
+          "severity": "medium",
+          "element": "LEARN MORE / VIEW ALL section + video card",
+          "expected": "WHOOP has a 'LEARN MORE' header with a 'VIEW ALL ->' link and a 'Understanding Average Heart Rate' video thumbnail card",
+          "actual": "Our render jumps straight from chart to the 'What is Average Heart Rate?' text card; the LEARN MORE section and video card are missing"
+        },
+        {
+          "severity": "medium",
+          "element": "X-axis labels",
+          "expected": "WHOOP labels ticks as 'Jun 2 / Jun 9 / Jun 16 / Jun 23 / Jun 30' (weekly, two-line)",
+          "actual": "Our render labels them 'un 1 / Jun 6 / Jun 11 / Jun 16 / Jun 21 / Jun 26' (5-day spacing, single line, first label clipped to 'un 1')"
+        },
+        {
+          "severity": "medium",
+          "element": "Header bar layout",
+          "expected": "WHOOP centers 'TREND VIEW' title in the nav bar with the back chevron at far left",
+          "actual": "Our render shows the back chevron in a circular button at top-left and 'TREND VIEW' left-aligned below it (not a centered title bar)"
+        },
+        {
+          "severity": "low",
+          "element": "Heart icon in dropdown",
+          "expected": "WHOOP uses an outline heart icon",
+          "actual": "Our render uses a filled/solid heart icon"
+        },
+        {
+          "severity": "low",
+          "element": "'bpm' unit styling",
+          "expected": "WHOOP renders 'bpm' in white, same color family as the number",
+          "actual": "Our render renders 'bpm' in a teal/blue tint distinct from the white number"
+        },
+        {
+          "severity": "low",
+          "element": "Section order of explainer card",
+          "expected": "In WHOOP the 'What is Average Heart Rate?' card comes after the video/Learn More section",
+          "actual": "Our render shows it immediately after the chart (acceptable since video removed, but ordering context differs)"
+        }
+      ],
+      "_k": "Avg HR trend"
+    },
+    {
+      "screen": "Respiratory Rate trend (Trend View)",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Trend chart line color",
+          "expected": "Light blue (cyan-blue) line for the respiratory-rate trend, matching WHOOP's metric color",
+          "actual": "Bright green line"
+        },
+        {
+          "severity": "high",
+          "element": "Y-axis (vertical scale)",
+          "expected": "Visible Y-axis with numeric gridline labels (12.0, 14.0, 16.0, 18.0, 20.0) and faint horizontal gridlines",
+          "actual": "No Y-axis labels or gridlines at all; chart has no vertical scale"
+        },
+        {
+          "severity": "high",
+          "element": "TYPICAL RANGE band",
+          "expected": "A horizontal shaded grey band drawn across the chart around the ~15-16 rpm region (the actual 'typical range' the legend refers to)",
+          "actual": "Legend swatch 'TYPICAL RANGE' is present but no shaded range band is rendered on the chart"
+        },
+        {
+          "severity": "high",
+          "element": "Chart line shape / data style",
+          "expected": "A relatively flat segmented line hovering near 15-16 rpm with breaks/gaps where nights are missing, reflecting real stable nightly RR",
+          "actual": "A continuous smooth high-amplitude sine-like wave swinging across the full height (looks like decorative demo data, not RR values)"
+        },
+        {
+          "severity": "high",
+          "element": "End-of-line value label",
+          "expected": "Current/last value annotated at the line's end point (e.g. '15.4' in blue with a small circle marker on the endpoint)",
+          "actual": "No endpoint value label or marker on the trend line"
+        },
+        {
+          "severity": "medium",
+          "element": "LEARN MORE / articles section",
+          "expected": "A 'LEARN MORE' header with 'VIEW ALL ->' link and a horizontal carousel of ARTICLE cards (Understanding Respiratory Rate, What Does an Infection Do..., What is Respiratory Rate?)",
+          "actual": "Section entirely missing (acceptable only if community/AI removed intentionally; the article cards are editorial content, likely should remain)"
+        },
+        {
+          "severity": "medium",
+          "element": "Section order: 'What is Respiratory Rate?' card",
+          "expected": "The explanatory card appears BELOW the LEARN MORE article carousel, near the bottom of the screen",
+          "actual": "Card appears directly under the chart (article carousel absent), so relative ordering differs"
+        },
+        {
+          "severity": "medium",
+          "element": "X-axis date labels",
+          "expected": "Dates spaced as Jun 2 / Jun 9 / Jun 16 / Jun 23 / Jun 30 (weekly cadence ending Jun 30)",
+          "actual": "Dates shown as Jun 1 / Jun 6 / Jun 11 / Jun 16 / Jun 21 / Jun 26 (5-day cadence, first label clipped 'un 1')"
+        },
+        {
+          "severity": "low",
+          "element": "Lung icon in metric selector",
+          "expected": "Monochrome outline lungs icon (grey/white, matching app iconography)",
+          "actual": "Full-color red/pink anatomical lungs emoji"
+        },
+        {
+          "severity": "low",
+          "element": "Title bar layout",
+          "expected": "'TREND VIEW' centered in the header with back chevron at left edge",
+          "actual": "'TREND VIEW' left-aligned under the back button (back button is a circular outlined button, not a plain chevron)"
+        },
+        {
+          "severity": "low",
+          "element": "Back button style",
+          "expected": "Plain chevron '<' icon with no enclosing circle",
+          "actual": "Chevron enclosed in a circular bordered button"
+        },
+        {
+          "severity": "low",
+          "element": "Date range nav arrows position",
+          "expected": "Left/right arrows flank the 'JUN 1 - JUN 30, 26' range and sit to the right under the W/M/6M toggle",
+          "actual": "Arrows flank the range but the range block is centered under the AVERAGE value, layout differs slightly"
+        },
+        {
+          "severity": "low",
+          "element": "X-axis first label clipping",
+          "expected": "First date label fully visible",
+          "actual": "First label rendered as 'un 1' (clipped on left edge of plot area)"
+        }
+      ],
+      "_k": "Respiratory trend"
+    },
+    {
+      "screen": "Hours vs Needed (hours) trend",
+      "fidelity": "poor",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Chart Y-axis",
+          "expected": "Vertical axis with hour gridlines and labels 0, 3, 6, 9, 12 on the left, with horizontal gridlines across the plot",
+          "actual": "No Y-axis labels and no horizontal gridlines at all"
+        },
+        {
+          "severity": "high",
+          "element": "Chart data series",
+          "expected": "TWO distinct line series plotted per night: a green 'sleep need' line and a blue/cyan 'hours slept' line, each varying day to day",
+          "actual": "A single light-blue wavy line; the second (green need) series is entirely missing"
+        },
+        {
+          "severity": "high",
+          "element": "Chart shape / data",
+          "expected": "Real per-night line chart with sharp daily variation (peaks/dips), only covering the period with data (roughly second half of month)",
+          "actual": "A smooth low-amplitude sine-like ripple spanning the full width that does not represent real daily values"
+        },
+        {
+          "severity": "high",
+          "element": "AVG reference lines",
+          "expected": "Two horizontal dashed AVG lines across the chart (green dashed for avg need, blue dashed for avg hours) each with an 'AVG.' pill label at the left edge",
+          "actual": "No AVG reference lines or AVG pill labels are drawn"
+        },
+        {
+          "severity": "high",
+          "element": "Series endpoint value labels",
+          "expected": "Labelled endpoints at the right of the chart showing the latest values (e.g. '9:16' on the blue line and '8:31' on the green line) with marker dots",
+          "actual": "No endpoint value labels or marker dots on the line"
+        },
+        {
+          "severity": "high",
+          "element": "LEARN MORE / articles section",
+          "expected": "A 'LEARN MORE' header with 'VIEW ALL ->' link and a horizontal carousel of ARTICLE cards (sleep imagery, titles like 'What is Sleep Debt...')",
+          "actual": "Entire LEARN MORE articles carousel is missing"
+        },
+        {
+          "severity": "medium",
+          "element": "Section order",
+          "expected": "Order is: chart -> LEARN MORE articles -> 'What is Sleep Hours vs. Need?' explainer card",
+          "actual": "Order is chart -> 'What is Sleep Hours vs. Need?' explainer directly (articles section absent), so the explainer appears in the wrong position"
+        },
+        {
+          "severity": "medium",
+          "element": "X-axis labels",
+          "expected": "Five evenly spaced two-line labels (Jun 2 / Jun 9 / Jun 16 / Jun 23 / Jun 30), weekly cadence aligned to the data",
+          "actual": "Six single-line labels (un 1, Jun 6, Jun 11, Jun 16, Jun 21, Jun 26) with the first clipped ('un 1') and a 5-day cadence"
+        },
+        {
+          "severity": "medium",
+          "element": "Header layout",
+          "expected": "'TREND VIEW' title is centered at the top with the back chevron on the left",
+          "actual": "'TREND VIEW' is left-aligned under the back chevron"
+        },
+        {
+          "severity": "medium",
+          "element": "Metric / period-toggle layout",
+          "expected": "AVG NEED and AVG HOURS stacked on the left with their 'hr' unit and labels on separate lines; W/M/6M toggle on the upper right and the JUN 1 - JUN 30 date range with arrows on a separate row below the toggle",
+          "actual": "AVG NEED/AVG HOURS stacked tightly with the W/M/6M toggle beside them, and the date range row sits below both rather than alongside the toggle"
+        },
+        {
+          "severity": "low",
+          "element": "Dropdown chevron",
+          "expected": "Down chevron sits flush at the right edge of the 'HOURS VS. NEEDED (HOURS)' selector pill",
+          "actual": "Chevron is present but smaller/dimmer and positioned with extra right padding"
+        },
+        {
+          "severity": "low",
+          "element": "Selector icon",
+          "expected": "Moon/clock combined sleep icon inside the selector pill",
+          "actual": "Plain crescent moon glyph (close but not the clock-moon variant)"
+        }
+      ],
+      "_k": "Hours vs Needed trend"
+    },
+    {
+      "screen": "HR Zones 1-3 (Trend View)",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Zone-definition graphic in 'What is Heart Rate Zone Training?' section",
+          "expected": "A PYRAMID / triangle: zones stacked 5 (top, narrow) → 1 (bottom, wide), each tier coloured (5 orange/red, 4 amber, 3 teal/green, 2 blue, 1 grey) with the zone number centered in each tier.",
+          "actual": "Five HORIZONTAL BARS of decreasing width (5 widest at top → 1 narrowest at bottom), the opposite shape and orientation of the WHOOP pyramid."
+        },
+        {
+          "severity": "high",
+          "element": "Trend bar chart Y-axis & gridlines",
+          "expected": "Left-hand Y-axis with time tick labels (2:00, 1:30, 1:00, 0:30, 0:00) and horizontal gridlines spanning the plot.",
+          "actual": "No Y-axis, no tick labels, and no gridlines — bars float on a blank background."
+        },
+        {
+          "severity": "high",
+          "element": "Trend bar chart AVG reference line",
+          "expected": "A horizontal dashed 'AVG.' reference line drawn across the chart (with an 'AVG' pill label at the left edge).",
+          "actual": "No average reference line or AVG label is drawn."
+        },
+        {
+          "severity": "high",
+          "element": "'LEARN MORE' learning-content carousel",
+          "expected": "A 'LEARN MORE / VIEW ALL →' header followed by a horizontally scrolling card row (ARTICLE: 'HR Zones: Calculated for Precision & Accuracy', VIDEO: 'What is Zone 1?', etc.).",
+          "actual": "Entire LEARN MORE carousel section is missing."
+        },
+        {
+          "severity": "medium",
+          "element": "'ADD ACTIVITY' action button",
+          "expected": "An 'ADD ACTIVITY' row/button (with + icon and chevron) appears above 'SET A HR ZONES GOAL IN WEEKLY PLAN'.",
+          "actual": "ADD ACTIVITY button is missing; only the 'SET A HR ZONES GOAL IN WEEKLY PLAN' row is present."
+        },
+        {
+          "severity": "medium",
+          "element": "Zone legend swatch colours in 'What is HR Zone Training?' list",
+          "expected": "Per-zone bullet swatches coloured to match WHOOP's palette: Zone 5 orange, Zone 4 amber/gold, Zone 3 teal-green, Zone 2 blue, Zone 1 grey.",
+          "actual": "Swatch colours are close but Zone 4 reads as the same orange as Zone 5 (amber/gold tone not distinct), reducing the 5-step gradient WHOOP shows."
+        },
+        {
+          "severity": "low",
+          "element": "Section card layout for explanatory text",
+          "expected": "'What is Heart Rate Zone Training?' and 'Why Does Exercise Intensity Matter?' each sit in their own rounded dark card with generous padding.",
+          "actual": "Our cards are present but narrower/tighter padding and the zone-bullet/graphic block sits inside the same card, slightly different grouping than WHOOP."
+        },
+        {
+          "severity": "low",
+          "element": "Period selector / header chrome",
+          "expected": "Back chevron sits at the far left of the 'TREND VIEW' title bar; W/M/6M segmented control and date pager are full-width with comfortable spacing.",
+          "actual": "Header and selectors are present and correct in content, but tighter spacing; minor polish difference only."
+        }
+      ],
+      "_k": "HR Zones 1-3"
+    },
+    {
+      "screen": "HR Zones 4-5",
+      "fidelity": "good",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Trend chart (graph area between intro text and 'Zone time is derived...')",
+          "expected": "WHOOP shows a full line/bar chart panel with a Y-axis (labels 0:07, 0:15, 0:22, 0:30), horizontal gridlines, and a dashed AVG baseline with an 'AVG.' pill label at left",
+          "actual": "Our render shows an empty blank chart area with no Y-axis labels, no gridlines, and no AVG baseline/pill — only the x-axis week labels appear"
+        },
+        {
+          "severity": "high",
+          "element": "AVG baseline + 'AVG.' pill",
+          "expected": "A dashed horizontal AVG line spans the chart with a white rounded 'AVG.' label pill at the far left",
+          "actual": "Missing entirely"
+        },
+        {
+          "severity": "high",
+          "element": "Y-axis scale labels",
+          "expected": "Vertical axis ticks at 0:07 / 0:15 / 0:22 / 0:30 along the left edge of the chart",
+          "actual": "Missing entirely"
+        },
+        {
+          "severity": "medium",
+          "element": "Header title alignment",
+          "expected": "'TREND VIEW' title is centered in the top bar with the back chevron at the left edge",
+          "actual": "'TREND VIEW' is left-aligned under the back chevron, not centered"
+        },
+        {
+          "severity": "medium",
+          "element": "HR ZONES BREAKDOWN '(AVG. WEEKLY TOTAL)' subtitle",
+          "expected": "Subtitle stays inline on a single line next to the heading",
+          "actual": "Subtitle wraps to a second line ('TOTAL)' on its own line) due to narrower layout"
+        },
+        {
+          "severity": "low",
+          "element": "Breakdown summary bar (above Zone 4/5 rows)",
+          "expected": "A single full-width horizontal orange bar spanning the card width representing total zone time",
+          "actual": "Rendered as two short orange segment blocks at the left instead of a full-width bar"
+        },
+        {
+          "severity": "low",
+          "element": "Heart icon in selector pill",
+          "expected": "Outlined heart glyph",
+          "actual": "Heart appears as a filled/solid heart — slightly different icon weight"
+        },
+        {
+          "severity": "low",
+          "element": "Date range row layout",
+          "expected": "'JUN 3 - JUN 30, 26' with chevrons sits on its own row below the W/M/6M toggle, right-aligned area",
+          "actual": "Date range is centered directly under the big time value, with chevrons close to the text"
+        }
+      ],
+      "_k": "HR Zones 4-5"
+    },
+    {
+      "screen": "HR Zones All (Trend View)",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "HR Zones Breakdown legend — zone count",
+          "expected": "Six zones listed: Zone 0, Zone 1, Zone 2, Zone 3, Zone 4, Zone 5 (Zone 0 is the white/rest band and the largest)",
+          "actual": "Only five zones (Zone 1 through Zone 5); Zone 0 is missing entirely"
+        },
+        {
+          "severity": "high",
+          "element": "HR Zones Breakdown legend — layout",
+          "expected": "Two-column grid (Zone 0 | Zone 1, Zone 2 | Zone 3, Zone 4 | Zone 5)",
+          "actual": "Single vertical column, one zone per row"
+        },
+        {
+          "severity": "high",
+          "element": "Bar chart — Y-axis",
+          "expected": "Y-axis with time gridline labels (0:00, 1:15, 3:45, 5:00) and horizontal gridlines",
+          "actual": "No Y-axis labels and no gridlines"
+        },
+        {
+          "severity": "high",
+          "element": "Bar chart — average reference line",
+          "expected": "A horizontal dashed AVG line across the chart with a white 'AVG.' label pill on the left",
+          "actual": "No dashed average line and no AVG label"
+        },
+        {
+          "severity": "high",
+          "element": "Bar chart / breakdown — Zone 0 colour",
+          "expected": "Zone 0 rendered as WHITE (the dominant rest segment) in both the stacked legend bar and the column chart",
+          "actual": "No white Zone 0 segment; bars/breakdown bar are predominantly light-grey with no white band"
+        },
+        {
+          "severity": "medium",
+          "element": "Header title alignment",
+          "expected": "'TREND VIEW' centered in the header with back arrow at far left",
+          "actual": "'TREND VIEW' is left-aligned"
+        },
+        {
+          "severity": "medium",
+          "element": "W/M/6M toggle and date-range row",
+          "expected": "W/M/6M segmented toggle and the date range (JUN 3 - JUN 30, 26 with chevrons) sit side by side on the SAME row",
+          "actual": "Date range is on its own separate centered row below the toggle"
+        },
+        {
+          "severity": "medium",
+          "element": "LEARN MORE content carousel",
+          "expected": "A 'LEARN MORE / VIEW ALL' horizontal carousel of VIDEO/ARTICLE cards appears between the buttons and the 'What is HR Zone Training?' block",
+          "actual": "Section omitted (may be intentional if treated as content/community feature)"
+        },
+        {
+          "severity": "low",
+          "element": "Dropdown selector icon",
+          "expected": "Heart-with-clock outline icon next to 'HEART RATE ZONES ALL'",
+          "actual": "Solid filled heart icon"
+        },
+        {
+          "severity": "low",
+          "element": "Bar chart bar styling",
+          "expected": "Tall white-dominant stacked bars sitting on the baseline with thin coloured zone caps on top (clearly readable against gridlines)",
+          "actual": "Short light-grey bars with thin coloured caps, no baseline/gridline context"
+        }
+      ],
+      "_k": "HR Zones All"
+    },
+    {
+      "screen": "Health Monitor",
+      "fidelity": "good",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "HEART RATE section — chart/visualization",
+          "expected": "WHOOP shows a horizontal heart-rate gauge: a blue track line spanning the card with a filled white dot at the current position, plus a vertical dashed marker line on the right and a small segmented zone-tick bar under 'Zone 0'.",
+          "actual": "Our render shows only the big '54 BPM' number and 'Zone 0' text with a faint vertical-grid background — no blue gauge track line, no position dot, no dashed marker, no zone-tick segments."
+        },
+        {
+          "severity": "high",
+          "element": "HEART RATE — number/label layout",
+          "expected": "WHOOP left-aligns the section: heart icon, then '54' with 'BPM' stacked directly beneath it, then 'Zone 0' — all flush left.",
+          "actual": "Our render centers the heart-rate block: '54' with 'BPM' inline to the right and 'Zone 0' centered below; no heart icon shown above the number."
+        },
+        {
+          "severity": "medium",
+          "element": "Header title alignment",
+          "expected": "'HEALTH MONITOR' title is centered in the header with the back chevron floating at the far left.",
+          "actual": "Our 'HEALTH MONITOR' title is left-aligned and sits below a circular back button, not centered/inline with the chevron."
+        },
+        {
+          "severity": "medium",
+          "element": "Status pills (within range / low) styling",
+          "expected": "WHOOP renders each status as a green rounded pill/chip with a leading check-mark icon and a subtle filled background (e.g. '✓ within 15.4 - 15.9').",
+          "actual": "Our render shows the status as plain green text with no check icon and no pill/chip background."
+        },
+        {
+          "severity": "medium",
+          "element": "Metric card icons",
+          "expected": "WHOOP icons are monochrome/outline grey: outline lungs (Respiratory), outline droplet (Blood Oxygen), heart-with-down-arrow (RHR), an ECG/HRV squiggle line (HRV), outline thermometer (Skin Temp).",
+          "actual": "Our icons differ: filled pink/red lungs and a filled red droplet, a small heart glyph for RHR, and a '~' tilde character instead of the ECG-line glyph for HRV; thermometer is a plain down-arrow."
+        },
+        {
+          "severity": "low",
+          "element": "RESPIRATORY RATE / BLOOD OXYGEN card headers wrapping",
+          "expected": "WHOOP keeps 'RESPIRATORY RATE' and 'BLOOD OXYGEN (SPO2)' on a single line within the card.",
+          "actual": "Our render wraps both headers onto two lines ('RESPIRATORY / RATE' and 'BLOOD OXYGEN / (SpO2)')."
+        },
+        {
+          "severity": "low",
+          "element": "SHARE YOUR HEALTH REPORT button",
+          "expected": "WHOOP button is left-aligned with an outline up-arrow/share-box icon preceding the text.",
+          "actual": "Our button text is centered with a thin '�may' up-arrow glyph inline, giving a different icon and alignment."
+        },
+        {
+          "severity": "low",
+          "element": "Background grid",
+          "expected": "WHOOP heart-rate card sits on a faint square graph-paper grid (both horizontal and vertical lines).",
+          "actual": "Our background shows only faint vertical lines, no horizontal grid lines."
+        }
+      ],
+      "_k": "Health Monitor"
+    },
+    {
+      "screen": "Stress Monitor",
+      "fidelity": "fair",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Main stress score indicator",
+          "expected": "A semicircular radial GAUGE/dial with a sweeping color gradient arc (blue→green→yellow), a needle pointing to the value, the large score (e.g. 0.4) centered, the level label (LOW) below it, the timestamp (09:35) below that, and 0.0 / 3.0 endpoint labels at the arc ends.",
+          "actual": "A flat horizontal gradient slider bar (green→yellow→red) with a single dot marker, 'Low / Moderate / High' end labels, and text '1.4 / 3 · Moderate' plus a redundant 'MEDIUM · 1.4' line. Wrong chart type entirely."
+        },
+        {
+          "severity": "high",
+          "element": "Stress score gradient direction/colors",
+          "expected": "Gauge arc runs blue (low) on the left → green → yellow/orange (high) on the right; LOW is colored blue.",
+          "actual": "Slider runs green (low) → yellow → red (high); 'Low' end is green. Color semantics inverted vs WHOOP (WHOOP uses blue for low/calm, not green)."
+        },
+        {
+          "severity": "high",
+          "element": "STRESS · TODAY line chart axes",
+          "expected": "Chart has a labeled Y axis (0.0, 1.0, 2.0, 3.0) and labeled X axis with time ticks (09:35 / 18:00 / 02:00 / 09:35), plus horizontal gridlines.",
+          "actual": "Bare cyan line with no Y-axis labels, no X-axis time labels, and no gridlines."
+        },
+        {
+          "severity": "high",
+          "element": "Stress chart line coloring",
+          "expected": "Line is bi-colored: GREEN during elevated/active stress segments and BLUE during low/calm segments (encodes stress level along the day).",
+          "actual": "Single uniform cyan line; no green vs blue segmentation by stress level."
+        },
+        {
+          "severity": "high",
+          "element": "Stress chart sleep period",
+          "expected": "A shaded sleep window box spanning the night portion of the chart, topped by a moon/crescent icon, with a dashed 'now' line at the right edge.",
+          "actual": "No sleep-shaded region, no moon icon on the chart, no dashed now-line."
+        },
+        {
+          "severity": "medium",
+          "element": "Header sub-nav / date selector",
+          "expected": "Centered 'STRESS MONITOR' title with a settings gear icon top-right, and a '< TODAY >' day stepper below the title.",
+          "actual": "Left-aligned 'STRESS MONITOR' with a 'live · 0–3' caption top-right, a Monitor / Session / About tab row, and no date stepper or gear icon."
+        },
+        {
+          "severity": "medium",
+          "element": "Description copy under chart",
+          "expected": "For low stress: 'Your body is signaling low stress. This indicates your cardiovascular system is stable, calm, and near its resting state.'",
+          "actual": "'Your body is signaling medium stress. This indicates your cardiovascular system is responding to load.' (different wording; acceptable if score level genuinely differs, but the phrasing/structure differs from WHOOP's template)."
+        },
+        {
+          "severity": "medium",
+          "element": "Bottom 'Start a Stress Session' button vs SESSIONS gallery",
+          "expected": "A 'SESSIONS' section header followed by a horizontal gallery of image-thumbnail session cards (e.g. 'INCREASE ...') with photo backgrounds and small icons.",
+          "actual": "A single outlined 'Start a Stress Session' button; no SESSIONS thumbnail gallery."
+        },
+        {
+          "severity": "low",
+          "element": "Stat block percentage chips",
+          "expected": "Up/down triangle + percentage chips (e.g. ▲131%, ▼87%) — matches.",
+          "actual": "Present and matches; no issue."
+        },
+        {
+          "severity": "low",
+          "element": "HIGH legend swatch color",
+          "expected": "HIGH legend swatch is amber/orange-gold (matching the gold bar segment).",
+          "actual": "HIGH swatch appears orange — close but verify it matches WHOOP's muted gold tone rather than pure orange."
+        },
+        {
+          "severity": "low",
+          "element": "TOTAL DAY card date/subtitle layout",
+          "expected": "Card icon + 'TOTAL DAY' on one line, then 'TUE, JUN 30 STRESS vs. TYPICAL TUESDAY' on its own line below (left-aligned).",
+          "actual": "'TOTAL DAY' with the 'TUE, JUN 30 STRESS / vs. TYPICAL TUESDAY' pushed to the right of the title rather than as a left-aligned line beneath it."
+        }
+      ],
+      "_k": "Stress Monitor"
+    },
+    {
+      "screen": "Sleep Planner / Alarm",
+      "fidelity": "good",
+      "mismatches": [
+        {
+          "severity": "high",
+          "element": "Header layout & title alignment",
+          "expected": "WHOOP centers the 'SLEEP PLANNER' title with a '?' help icon to its right, an X close button on the left, and a circular calendar icon on the top-right (with a 'SCHEDULE' gradient badge below it).",
+          "actual": "Our render left-aligns 'SLEEP PLANNER' under a back-arrow (<) chevron; no centered title, no '?' help icon, no calendar icon, no SCHEDULE badge."
+        },
+        {
+          "severity": "high",
+          "element": "SCHEDULE badge (top-right)",
+          "expected": "A small pink-to-purple gradient pill labeled 'SCHEDULE' sits under the calendar icon.",
+          "actual": "Completely missing."
+        },
+        {
+          "severity": "high",
+          "element": "Time-in-bed bar / chart layout",
+          "expected": "WHOOP draws connected vertical tick lines dropping from '23:30' and '07:30' down to a hatched horizontal bar; the OPTIMAL bracket is a dashed bracket that visually connects under the bar with downward end-caps tying it to the bar endpoints (a unified timeline graphic).",
+          "actual": "Our hatched bar and OPTIMAL row are two separate stacked boxes with no connecting tick lines or bracket; the timeline graphic relationship is lost."
+        },
+        {
+          "severity": "medium",
+          "element": "OPTIMAL label format",
+          "expected": "OPTIMAL is a centered dashed bracket caption reading 'OPTIMAL' on one line with '00:00 - 08:25' below it, in muted blue, integrated into the timeline.",
+          "actual": "Rendered as a single bordered dashed box reading 'OPTIMAL · 00:00 - 08:25' on one line — wrong combined format and a full box rather than a bracket."
+        },
+        {
+          "severity": "medium",
+          "element": "TIME IN BED pill",
+          "expected": "'TIME IN BED' is a label above the bar, and the duration ('8:00') sits in a rounded white-bordered pill centered ON the hatched bar.",
+          "actual": "Combined into one dark pill reading 'TIME IN BED · 8:06' centered on the bar — label and value merged into a single pill instead of label-above + value-pill."
+        },
+        {
+          "severity": "medium",
+          "element": "ALARM card structure & toggle",
+          "expected": "ALARM row is centered with a watch icon on the left and an enabled/disabled toggle switch on the right.",
+          "actual": "'ALARM' is left-aligned with no watch icon and no toggle switch; instead a 'SET ALARM' button is added at the bottom (not present in WHOOP)."
+        },
+        {
+          "severity": "medium",
+          "element": "SET ALARM button",
+          "expected": "No 'SET ALARM' button exists on the WHOOP screen; alarm is controlled by the toggle.",
+          "actual": "An extra 'SET ALARM' button (with clock icon) was added below the two stat tiles."
+        },
+        {
+          "severity": "low",
+          "element": "Center logo icon",
+          "expected": "WHOOP shows its 'W' wordmark/logo inside the circle.",
+          "actual": "Our render shows a plain target/ring circle, not the W logo (acceptable as placeholder but differs)."
+        },
+        {
+          "severity": "low",
+          "element": "Header background gradient",
+          "expected": "The top hero area uses a subtle dark-blue gradient that fades into the page.",
+          "actual": "Our hero is a flat dark card with a hard rounded edge, no gradient fade."
+        },
+        {
+          "severity": "low",
+          "element": "Bold emphasis in tagline",
+          "expected": "WHOOP renders the tagline in uniform regular weight ('Go to bed at 23:30 ... 76% Sleep Consistency').",
+          "actual": "Our render bolds '23:24' and '76%' within the sentence — extra emphasis not in the reference."
+        },
+        {
+          "severity": "low",
+          "element": "Suggested/Wake time label wrapping",
+          "expected": "'SUGGESTED TIME TO BED' and 'YOUR WAKE TIME' are centered under their respective times.",
+          "actual": "Our labels are left/right edge-aligned ('SUGGESTED TIME TO BED' left, 'YOUR WAKE TIME' right) rather than centered under each number."
+        }
+      ],
+      "_k": "Sleep Planner / Alarm"
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Verify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "home (overview)",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "abb5d4f97d87ca7ba",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815306857,
+      "queuedAt": 1782815306835,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "home (overview)",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"home (overview)\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/overview.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/IMG_3870.PNG  ;  /home/user/WIOS/…",
+      "lastProgressAt": 1782815364207,
+      "tokens": 47451,
+      "toolCalls": 8,
+      "durationMs": 57349,
+      "resultPreview": "{\"screen\":\"home (overview)\",\"fidelity\":\"good\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Recovery ring color\",\"expected\":\"Recovery ring arc is GREEN for a recovered score (≥67%), data-driven by zone (green ≥67 / yellow 34-66 / red ≤33)\",\"actual\":\"Our Recovery ring arc is YELLOW even though it should be color-driven by the recovery zone\"},{\"severity\":\"high\",\"element\":\"'Set Up Your Journal' card\",\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "recovery",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "aa2769620a60b9be6",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815306858,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "recovery",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"recovery\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/recovery.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/recovery/IMG_3885.PNG  ;  /home/user/WIO…",
+      "lastProgressAt": 1782815340615,
+      "tokens": 43586,
+      "toolCalls": 6,
+      "durationMs": 33757,
+      "resultPreview": "{\"screen\":\"recovery\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Recovery dial - primary value/unit\",\"expected\":\"Large number with a '%' suffix (e.g. '67%') and label 'RECOVERY' below it; recovery is a percentage\",\"actual\":\"Bare number '64' with NO percent sign, and the label below is a qualitative word 'ADEQUATE' instead of 'RECOVERY'\"},{\"severity\":\"high\",\"element\":\"Recovery dia…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "sleep",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a0e3acd3bbade1789",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815340616,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "sleep",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"sleep\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/sleep.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/sleep/IMG_3875.PNG  ;  /home/user/WIOS/referen…",
+      "lastProgressAt": 1782815376992,
+      "tokens": 46016,
+      "toolCalls": 7,
+      "durationMs": 36375,
+      "resultPreview": "{\"screen\":\"sleep\",\"fidelity\":\"poor\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Sleep Performance ring center label\",\"expected\":\"Ring center shows a percent value with a '%' symbol (e.g. '86%') above the label 'SLEEP PERFORMANCE'\",\"actual\":\"Ring center shows a bare number '85' (no % sign) above label 'PERFORMANCE' (missing the word 'SLEEP')\"},{\"severity\":\"high\",\"element\":\"Sleep breakdown card (Hou…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "strain",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a240b8bcb6e208764",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815364208,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "strain",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"strain\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/strain.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/strain/IMG_3889.PNG  ;  /home/user/WIOS/refe…",
+      "lastProgressAt": 1782815403364,
+      "tokens": 46219,
+      "toolCalls": 7,
+      "durationMs": 39155,
+      "resultPreview": "{\"screen\":\"strain\",\"fidelity\":\"poor\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Day Strain primary visualization (ring vs bar)\",\"expected\":\"WHOOP shows a large circular RING DIAL with the strain number centered inside it, the word 'WHOOP' above the number inside the ring, and 'STRAIN' below it. The ring has colored tick/progress segments around its circumference.\",\"actual\":\"Our render uses a flat…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "HRV trend",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "ab60a4c5586b1ed48",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815376993,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "HRV trend (Trend View — Heart Rate Variability)",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"HRV trend\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/trend-hrv.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/hrv/IMG_3899.PNG  ;  /home/user/WIOS/r…",
+      "lastProgressAt": 1782815405290,
+      "tokens": 38332,
+      "toolCalls": 4,
+      "durationMs": 28296,
+      "resultPreview": "{\"screen\":\"HRV trend (Trend View — Heart Rate Variability)\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Trend chart line colour\",\"expected\":\"HRV trend line is BLUE (light/sky blue), WHOOP's standard HRV colour\",\"actual\":\"Trend line is rendered in green (Strain/recovery-style green)\"},{\"severity\":\"high\",\"element\":\"Chart Y-axis labels\",\"expected\":\"Left Y-axis shows numeric gridline…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "RHR trend",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a6362a1d014ef69d5",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815403367,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "RHR trend (Trend View — Resting Heart Rate)",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"RHR trend\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/trend-rhr.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/rhr/IMG_3901.PNG  ;  /home/user/WIOS/r…",
+      "lastProgressAt": 1782815429889,
+      "tokens": 38466,
+      "toolCalls": 4,
+      "durationMs": 26522,
+      "resultPreview": "{\"screen\":\"RHR trend (Trend View — Resting Heart Rate)\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Chart Y-axis\",\"expected\":\"Left-side numeric Y-axis labels (e.g. 39 / 53 / 67 / 81 bpm) with faint horizontal gridlines\",\"actual\":\"No Y-axis labels and no gridlines at all — chart floats with no scale reference\"},{\"severity\":\"high\",\"element\":\"Typical Range band\",\"expected\":\"A shaded…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 7,
+      "label": "Steps trend",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a075dd8a81af02cd6",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815405292,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Steps trend (Trend View)",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"Steps trend\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/trend-steps.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/steps/IMG_3903.PNG  ;  /home/user/…",
+      "lastProgressAt": 1782815443799,
+      "tokens": 39855,
+      "toolCalls": 5,
+      "durationMs": 38507,
+      "resultPreview": "{\"screen\":\"Steps trend (Trend View)\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Chart Y-axis\",\"expected\":\"Y-axis with numeric scale labels 0 / 5,000 / 10,000 / 15,000 and horizontal gridlines across the plot\",\"actual\":\"No Y-axis, no numeric scale labels, and no horizontal gridlines\"},{\"severity\":\"high\",\"element\":\"Chart X-axis date labels\",\"expected\":\"X-axis date tick labels unde…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 8,
+      "label": "Calories trend",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "acd9eeb37816ab3f7",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815429890,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Calories trend",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"Calories trend\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/trend-calories.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/calories/IMG_3911.PNG  ;  /h…",
+      "lastProgressAt": 1782815456899,
+      "tokens": 38475,
+      "toolCalls": 4,
+      "durationMs": 27008,
+      "resultPreview": "{\"screen\":\"Calories trend\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Chart Y-axis\",\"expected\":\"WHOOP shows a labeled Y-axis with gridlines and values (0, 1,000, 2,000, 3,000) and horizontal gridlines across the plot\",\"actual\":\"Our render has no Y-axis labels and no gridlines at all — bars float with no scale reference\"},{\"severity\":\"high\",\"element\":\"Chart X-axis\",\"expected\":\"WH…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 9,
+      "label": "Avg HR trend",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a3e63b8e53b5723d7",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815443800,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Avg HR trend",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"Avg HR trend\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/trend-average_hr.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/average hr/IMG_3917.PNG  ;  …",
+      "lastProgressAt": 1782815466295,
+      "tokens": 38653,
+      "toolCalls": 4,
+      "durationMs": 22495,
+      "resultPreview": "{\"screen\":\"Avg HR trend\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Chart Y-axis\",\"expected\":\"WHOOP shows a Y-axis with gridlines and BPM value labels (40, 53, 66, 79, 92) up the left edge\",\"actual\":\"Our render has no Y-axis labels and no horizontal gridlines at all\"},{\"severity\":\"high\",\"element\":\"AVG. reference line\",\"expected\":\"WHOOP draws a horizontal dashed line across the c…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 10,
+      "label": "Respiratory trend",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "ae32a26a47e8a339e",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815456902,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Respiratory Rate trend (Trend View)",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"Respiratory trend\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/trend-respiratory_rate.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/respiratory rate/…",
+      "lastProgressAt": 1782815484252,
+      "tokens": 38642,
+      "toolCalls": 4,
+      "durationMs": 27349,
+      "resultPreview": "{\"screen\":\"Respiratory Rate trend (Trend View)\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Trend chart line color\",\"expected\":\"Light blue (cyan-blue) line for the respiratory-rate trend, matching WHOOP's metric color\",\"actual\":\"Bright green line\"},{\"severity\":\"high\",\"element\":\"Y-axis (vertical scale)\",\"expected\":\"Visible Y-axis with numeric gridline labels (12.0, 14.0, 16.0, 18.…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 11,
+      "label": "Hours vs Needed trend",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "aa57506ee5b3f8ab1",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815466296,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Hours vs Needed (hours) trend",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"Hours vs Needed trend\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/trend-hours_vs_needed.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/hours vs neede…",
+      "lastProgressAt": 1782815492214,
+      "tokens": 38653,
+      "toolCalls": 4,
+      "durationMs": 25917,
+      "resultPreview": "{\"screen\":\"Hours vs Needed (hours) trend\",\"fidelity\":\"poor\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Chart Y-axis\",\"expected\":\"Vertical axis with hour gridlines and labels 0, 3, 6, 9, 12 on the left, with horizontal gridlines across the plot\",\"actual\":\"No Y-axis labels and no horizontal gridlines at all\"},{\"severity\":\"high\",\"element\":\"Chart data series\",\"expected\":\"TWO distinct line series plot…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 12,
+      "label": "HR Zones 1-3",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "ac37c20ab645492f3",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815484253,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "HR Zones 1-3 (Trend View)",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"HR Zones 1-3\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/zone-zones13.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/hr zones 1-3/IMG_3905.PNG  ;  /h…",
+      "lastProgressAt": 1782815516080,
+      "tokens": 42712,
+      "toolCalls": 6,
+      "durationMs": 31826,
+      "resultPreview": "{\"screen\":\"HR Zones 1-3 (Trend View)\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Zone-definition graphic in 'What is Heart Rate Zone Training?' section\",\"expected\":\"A PYRAMID / triangle: zones stacked 5 (top, narrow) → 1 (bottom, wide), each tier coloured (5 orange/red, 4 amber, 3 teal/green, 2 blue, 1 grey) with the zone number centered in each tier.\",\"actual\":\"Five HORIZONTAL …"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 13,
+      "label": "HR Zones 4-5",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "ae227c4caa9340998",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815492216,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "HR Zones 4-5",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"HR Zones 4-5\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/zone-zones45.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/hr zones 4-5/IMG_3909.PNG\n\nRead …",
+      "lastProgressAt": 1782815513404,
+      "tokens": 35339,
+      "toolCalls": 3,
+      "durationMs": 21188,
+      "resultPreview": "{\"screen\":\"HR Zones 4-5\",\"fidelity\":\"good\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Trend chart (graph area between intro text and 'Zone time is derived...')\",\"expected\":\"WHOOP shows a full line/bar chart panel with a Y-axis (labels 0:07, 0:15, 0:22, 0:30), horizontal gridlines, and a dashed AVG baseline with an 'AVG.' pill label at left\",\"actual\":\"Our render shows an empty blank chart area wit…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 14,
+      "label": "HR Zones All",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a6f7b242f5ad9758a",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815513407,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "HR Zones All (Trend View)",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"HR Zones All\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/zone-zonesall.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/hr zones all/IMG_3921.PNG  ;  /…",
+      "lastProgressAt": 1782815541874,
+      "tokens": 37839,
+      "toolCalls": 4,
+      "durationMs": 28467,
+      "resultPreview": "{\"screen\":\"HR Zones All (Trend View)\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"HR Zones Breakdown legend — zone count\",\"expected\":\"Six zones listed: Zone 0, Zone 1, Zone 2, Zone 3, Zone 4, Zone 5 (Zone 0 is the white/rest band and the largest)\",\"actual\":\"Only five zones (Zone 1 through Zone 5); Zone 0 is missing entirely\"},{\"severity\":\"high\",\"element\":\"HR Zones Breakdown legen…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 15,
+      "label": "Health Monitor",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a0b91ed83a8528a45",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815516081,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Health Monitor",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"Health Monitor\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/nav-healthmonitor.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/health monitor/IMG_3894.P…",
+      "lastProgressAt": 1782815539681,
+      "tokens": 35887,
+      "toolCalls": 3,
+      "durationMs": 23600,
+      "resultPreview": "{\"screen\":\"Health Monitor\",\"fidelity\":\"good\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"HEART RATE section — chart/visualization\",\"expected\":\"WHOOP shows a horizontal heart-rate gauge: a blue track line spanning the card with a filled white dot at the current position, plus a vertical dashed marker line on the right and a small segmented zone-tick bar under 'Zone 0'.\",\"actual\":\"Our render shows o…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 16,
+      "label": "Stress Monitor",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "a478acad7f727c6fe",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815539685,
+      "queuedAt": 1782815306836,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Stress Monitor",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"Stress Monitor\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/nav-stress.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/stress monitor/IMG_3895.PNG  ;  …",
+      "lastProgressAt": 1782815573479,
+      "tokens": 40607,
+      "toolCalls": 5,
+      "durationMs": 33794,
+      "resultPreview": "{\"screen\":\"Stress Monitor\",\"fidelity\":\"fair\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Main stress score indicator\",\"expected\":\"A semicircular radial GAUGE/dial with a sweeping color gradient arc (blue→green→yellow), a needle pointing to the value, the large score (e.g. 0.4) centered, the level label (LOW) below it, the timestamp (09:35) below that, and 0.0 / 3.0 endpoint labels at the arc ends.…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 17,
+      "label": "Sleep Planner / Alarm",
+      "phaseIndex": 1,
+      "phaseTitle": "Verify",
+      "agentId": "aa270d0e4f764747e",
+      "model": "claude-opus-4-8[1m]",
+      "state": "done",
+      "startedAt": 1782815541875,
+      "queuedAt": 1782815306837,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Sleep Planner / Alarm",
+      "promptPreview": "Compare our WEB-APP RENDER against the WHOOP reference for the \"Sleep Planner / Alarm\" screen and list every visual MISMATCH a developer should fix.\n\nOUR RENDER (what we built): /tmp/claude-0/-home-user-WIOS/3011d21f-778a-523a-b759-57fd2cc8d485/scratchpad/renders/nav-sleepplanner.png\nWHOOP REFERENCE (the target, scroll positions top→bottom): /home/user/WIOS/reference/whoop/home/alarm/IMG_3898.PNG\n…",
+      "lastProgressAt": 1782815565413,
+      "tokens": 35891,
+      "toolCalls": 3,
+      "durationMs": 23538,
+      "resultPreview": "{\"screen\":\"Sleep Planner / Alarm\",\"fidelity\":\"good\",\"mismatches\":[{\"severity\":\"high\",\"element\":\"Header layout & title alignment\",\"expected\":\"WHOOP centers the 'SLEEP PLANNER' title with a '?' help icon to its right, an X close button on the left, and a circular calendar icon on the top-right (with a 'SCHEDULE' gradient badge below it).\",\"actual\":\"Our render left-aligns 'SLEEP PLANNER' under a back…"
+    }
+  ],
+  "totalTokens": 682623,
+  "totalToolCalls": 81
+}
