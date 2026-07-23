@@ -538,14 +538,15 @@
   </section>
 
   <section class="screen" id="s-strain">
-    <div class="hd"><div class="t">Strain</div><span class="preview">preview · sample</span></div>
-    <div class="card" style="text-align:center">
-      <div id="str-val" style="font-size:58px;font-weight:700;color:var(--strain);line-height:1">—</div>
-      <div class="muted" style="letter-spacing:2px">DAY STRAIN</div>
-      <div class="scale"><div class="opt" id="str-opt"></div><div class="mk" id="str-mk"></div></div>
-      <div class="scaleticks"><span>0</span><span>7</span><span>14</span><span>21</span></div>
-      <div class="muted" id="str-optlbl" style="margin-top:8px;letter-spacing:1px">optimal —</div>
-      <p class="vow" id="str-vow"></p>
+    <div class="hd"><div class="t" id="str-title">TODAY</div><span class="preview">preview · sample</span></div>
+    <div style="text-align:center;margin:6px 0 10px">
+      <div class="ringwrap"><svg class="ring" viewBox="0 0 200 200">
+        <circle class="ring-bg" cx="100" cy="100" r="88"></circle>
+        <circle class="ring-fg" id="str-arc" cx="100" cy="100" r="88" style="stroke:var(--strain)"></circle></svg>
+        <div class="ringtxt"><div class="rec-mark">WHOOP</div><div class="big" id="str-val">—</div><div class="lbl">STRAIN</div></div>
+      </div>
+      <div class="muted" id="str-optlbl" style="letter-spacing:1px">optimal —</div>
+      <p class="vow" id="str-vow" style="max-width:320px;margin:8px auto 0"></p>
     </div>
     <div class="card"><div class="hd"><div class="t">Heart rate · today</div><span class="muted" id="str-hrnow">live —</span></div>
       <div id="str-hrcurve"></div>

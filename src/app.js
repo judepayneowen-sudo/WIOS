@@ -645,8 +645,7 @@ function renderStrain(){
 function renderStrainWith(S){
   const live=state.strainAcc?state.strainAcc.strain:null;
   setField('str-val', S.day.toFixed(1));
-  const mk=$('str-mk'); if(mk) mk.style.left=(S.day/21*100)+'%';
-  const opt=$('str-opt'); if(opt){ opt.style.left=(S.optLo/21*100)+'%'; opt.style.width=((S.optHi-S.optLo)/21*100)+'%'; }
+  setRing('str-arc', S.day/21*100, 'var(--strain)');   // 0–21 scale → ring fill
   setField('str-optlbl', `optimal ${S.optLo}–${S.optHi}`);
   setField('str-vow', S.vow);
   setField('str-hrnow', state.hr!=null?('live '+state.hr+' bpm'):(live!=null?('live strain '+live.toFixed(1)):'live —'));
