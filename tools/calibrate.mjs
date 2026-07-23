@@ -217,6 +217,41 @@ console.log('\nCaptures:');
 const hrSamples = collectHr();
 if(!hrSamples.length) console.log('  (none decoded — strain scale will be skipped; recovery still fits from the API)');
 
+/* ------------------- DATA COVERAGE: app-captured hours vs WHOOP cloud hours ------------------- *
+ * Calibration pairs OUR band-derived scores against WHOOP's full-day cloud scores. If our capture for a day is
+ * partial, that pairing is wrong — so before fitting, report per-day how many hours we captured vs how many WHOOP
+ * recorded, for BOTH the overnight sleep window (vs WHOOP's in-bed time) and the wake→wake cycle (vs its span).
+ * Low-coverage days are flagged (and the fits below already exclude them) so the calibration stays accurate. */
+function capturedHours(samples, startMs, endMs){
+  let prev=null, sec=0;
+  for(const s of samples){ if(s.t<startMs) continue; if(s.t>=endMs) break;
+    const dt = prev==null?1:Math.min(MAX_DT,(s.t-prev)/1000); if(dt>0) sec+=dt; prev=s.t; }
+  return sec/3600;
+}
+const hh=(h)=>{ if(h==null) return '—'; const m=Math.round(h*60); return Math.floor(m/60)+'h'+String(m%60).padStart(2,'0'); };   // minute-rollover safe
+const SLEEP_OK=0.90, DAY_OK=0.60;   // coverage thresholds for calibration-grade data
+const coverage = [];   // exposed for the fits: { date, sleepCov, dayCov }
+if(hrSamples.length){
+  console.log('\n— Data coverage (app captured vs WHOOP cloud) —');
+  console.log('  date          sleep: app / whoop (cov)      day: app / whoop (cov)');
+  console.log('  -----------   ---------------------------   ---------------------------');
+  let partS=0, partD=0, okS=0, okD=0;
+  for(const d of answers){
+    let sCol='—'.padEnd(27), dCol='—', sc=null, dc=null;
+    if(d.sleepStart && d.sleepEnd && d.inBedMin!=null){
+      const appH=capturedHours(hrSamples, Date.parse(d.sleepStart), Date.parse(d.sleepEnd)), whoopH=d.inBedMin/60;
+      if(appH>0.05){ sc=whoopH>0?appH/whoopH:0; sCol=`${hh(appH)} / ${hh(whoopH)} (${(sc*100).toFixed(0)}%)`.padEnd(27); sc>=SLEEP_OK?okS++:partS++; } }
+    if(d.cycleStart){
+      const s=Date.parse(d.cycleStart), e=d.cycleEnd?Date.parse(d.cycleEnd):s+24*3600e3;
+      const appH=capturedHours(hrSamples,s,e), whoopH=(e-s)/3600e3;
+      if(appH>0.05){ dc=whoopH>0?appH/whoopH:0; dCol=`${hh(appH)} / ${hh(whoopH)} (${(dc*100).toFixed(0)}%)`; dc>=DAY_OK?okD++:partD++; } }
+    coverage.push({ date:d.date, sleepCov:sc, dayCov:dc });
+    if(sc!=null || dc!=null) console.log(`  ${d.date}    ${sCol}   ${dCol}`);
+  }
+  console.log(`  ⓘ sleep calibration-grade (≥${SLEEP_OK*100}%): ${okS} night(s), ${partS} partial · day/strain grade (≥${DAY_OK*100}%): ${okD} day(s), ${partD} partial.`);
+  if(partS||partD) console.log('  → Re-sync the partial nights/days fully (or FORCE_TRIM back to them) so calibration only uses complete data.');
+}
+
 const fitted = { recovery: { ...RECOVERY_WEIGHTS }, strainScale: STRAIN_SCALE, sleepNeed: { ...SLEEP_NEED } };
 
 /* ----------------------------- RECOVERY ----------------------------------- */
@@ -359,10 +394,16 @@ const trimToWindow = (epochs, d)=>{
   if(w){ const t = epochs.slice(w.startIdx, w.endIdx+1); if(t.length>=20) return t; }
   return epochs;
 };
+// Only fit stages on nights our capture actually covers (≥SLEEP_OK of WHOOP's in-bed time) — a partial night's
+// stage minutes can't match WHOOP's full-night summary, so including it would bias the thresholds.
+const covByDate = Object.fromEntries(coverage.map(c=>[c.date,c]));
+const lowCov = [];
 const stageRows = answers
   .filter(d=> d.remMin!=null && d.swsMin!=null && d.lightMin!=null && stageNights[d.date]?.length>=20)
+  .filter(d=>{ const c=covByDate[d.date]; if(c && c.sleepCov!=null && c.sleepCov<SLEEP_OK){ lowCov.push(d.date); return false; } return true; })
   .map(d=> ({ date:d.date, epochs:trimToWindow(stageNights[d.date], d),
               whoop:{ rem:d.remMin, sws:d.swsMin, light:d.lightMin, awake:d.awakeMin||0 } }));
+if(lowCov.length) console.log(`  (excluded ${lowCov.length} partial-coverage night(s) from the stage fit: ${lowCov.join(', ')})`);
 if(!stageRows.length){
   console.log('  no night has BOTH a decoded overnight epoch stream AND WHOOP stage minutes yet.');
   console.log('  Get one: wear it overnight → "Sync full history" → Send to laptop → re-run. (Then this fits');
