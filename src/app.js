@@ -16,6 +16,7 @@ import { SplashScreen } from '@capacitor/splash-screen';
 import { makeStrainAccumulator, maxHeartRate, sleepNeedMinutes, rollingStats, recoveryScore } from './scores.js';
 import * as store from './store.js';
 import { bisectSeek } from './seek.js';
+import { findGaps } from './gaps.js';
 
 /* ----------------------------- GATT map ----------------------------------- */
 const SVC    = 'fd4b0001-cce1-4033-93ce-002d5875f58a';   // custom command service
@@ -1677,7 +1678,7 @@ function parseHexData(s){ s=(s||'').trim(); if(!s) return [];
 const CRITICAL_COMMANDS = { 36:'start_firmware_load',37:'load_firmware_data',38:'process_firmware_image',
   39:'set_led_drive',41:'set_tia_gain',43:'set_bias_offset' };
 function enableDev(on){
-  for(const id of ['dailysync','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','showoldest','imurt','imuraw','imuprobe','hifreq','speedoff','speedon','hifreqtog','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
+  for(const id of ['dailysync','fillgaps','hello','battery','range','rthr','synchist','fullsync','bandcheck','forcetrim','showoldest','imurt','imuraw','imuprobe','hifreq','speedoff','speedon','hifreqtog','gattbtn','disconnect','csend']){ const el=$(id); if(el) el.disabled=!on; }
   const c=$('connect'); if(c) c.disabled=on;
 }
 // cmd 3 = toggle_realtime_hr: data [01] starts the REALTIME_DATA(40) stream, [00] stops it.
@@ -2266,6 +2267,70 @@ async function dailySync(){
   }
 }
 
+// ── SCAN & FILL GAPS (last 30 days) ──────────────────────────────────────────────────────────────────
+// Self-heal the on-phone history: look back over the last 30 days of stored data, classify every hour as
+// covered / off-wrist / missing (src/gaps.js, from the per-hour HR histograms), then decide what to re-pull.
+//   • MISSING = we never pulled it. If the band's flash still holds that time (get_data_range, read-only), it's
+//     RECOVERABLE → we FORCE_TRIM back to the oldest recoverable gap and drain forward, which sweeps up every
+//     newer gap in one pass (dedup makes re-reading covered stretches harmless). Older than retention = gone.
+//   • OFF-WRIST = the band logged frames but no heartbeat (taken off / charging). There's no physiology to
+//     recover, so we REPORT it and never retry — re-pulling would only re-fetch empty frames.
+// Reuses dailySync for the actual pull (it already does seek→drain→store→forward-passes + its own confirm).
+function fmtGapWin(g){ const h=(t)=>new Date(t*1000).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  const dur = g.hours>=24 ? `${(g.hours/24).toFixed(g.hours%24?1:0)}d` : `${g.hours}h`;
+  return `${h(g.startTs)} → ${h(g.endTs)} (${dur})`; }
+async function fillGaps(){
+  if(!deviceId){ log('connect first','err'); return; }
+  if(pulling){ log('a sync is already running — let it finish or stop it first.','dim'); return; }
+  const out=$('gapsout'); const setOut=(html)=>{ if(out) out.innerHTML=html; };
+  setOut('Scanning the last 30 days…');
+  log('🔍 Scanning stored history for gaps (last 30 days)…','cmd');
+  const rows = await store.listDays();
+  if(!rows.length){ setOut('Nothing stored yet — pull a night first, then scan.'); log('no stored data — nothing to scan. Pull a night first.','dim'); return; }
+  const res = findGaps(rows, { now:Date.now(), windowDays:30, minGapHours:2 });
+  if(!res.missing.length && !res.offwrist.length){
+    setOut('<b style="color:#5ad18f">No gaps</b> — your last 30 days are fully covered. 🎉');
+    log('✅ no gaps in the last 30 days — history is complete.','ok'); return; }
+
+  // Classify each MISSING gap against what the band still physically holds (read-only get_data_range).
+  log('→ reading the band’s flash range (get_data_range, read-only)…','dim');
+  const range = await readDataRange();
+  const nowS = Math.floor(Date.now()/1000);
+  const retentionFloor = nowS - 60*86400;                    // ~flash retention backstop (matches forceTrimSeek)
+  const newest = range.newestTs || nowS;
+  // A missing gap is recoverable if any of it is at/after the retention floor AND before the newest data on flash.
+  const recoverable = res.missing.filter(g => g.endTs > retentionFloor && g.startTs < newest-60);
+  const tooOld     = res.missing.filter(g => !(g.endTs > retentionFloor && g.startTs < newest-60));
+
+  // Build the report.
+  const lines=[];
+  lines.push(`<b>${res.missing.length}</b> missing gap${res.missing.length===1?'':'s'} (${res.totalMissingHours.toFixed(0)}h), <b>${res.offwrist.length}</b> off-wrist (${res.totalOffWristHours.toFixed(0)}h).`);
+  if(recoverable.length){ lines.push(`<div style="margin-top:6px;color:#cfd9df"><b style="color:#5ad18f">Recoverable</b> (band still holds these — will re-pull):</div>`);
+    for(const g of recoverable.slice(0,8)) lines.push(`<div style="font-size:12px;color:var(--dim)">• ${fmtGapWin(g)}</div>`);
+    if(recoverable.length>8) lines.push(`<div style="font-size:12px;color:var(--dimmer)">…and ${recoverable.length-8} more</div>`); }
+  if(tooOld.length) lines.push(`<div style="margin-top:6px;font-size:12px;color:#e0a34a">${tooOld.length} gap${tooOld.length===1?'':'s'} rolled off flash (beyond retention) — unrecoverable.</div>`);
+  if(res.offwrist.length){ lines.push(`<div style="margin-top:6px;font-size:12px;color:var(--dimmer)">Off-wrist (not worn — nothing to recover):</div>`);
+    for(const g of res.offwrist.slice(0,4)) lines.push(`<div style="font-size:12px;color:var(--dimmer)">• ${fmtGapWin(g)}</div>`); }
+  setOut(lines.join(''));
+  log(`found ${res.missing.length} missing (${recoverable.length} recoverable, ${tooOld.length} too old) · ${res.offwrist.length} off-wrist.`,'ok');
+
+  if(!recoverable.length){ log('nothing recoverable to re-pull — off-wrist/too-old gaps are left as-is.','dim'); return; }
+
+  // Fill the OLDEST recoverable gap by seeking there and draining forward to now (dailySync). One forward
+  // sweep fills every newer gap too; the store dedups the already-covered stretches in between.
+  const oldest = recoverable.reduce((a,g)=> g.startTs<a.startTs?g:a, recoverable[0]);
+  // Seek ~15 min BEFORE the gap start so a seek overshoot can't leave the gap's leading edge unfilled (dedup absorbs the overlap).
+  const seekTs = Math.max(range.oldestTs||0, oldest.startTs) - 15*60;
+  $('seekdt').value = toLocalInput(new Date(seekTs*1000));
+  log(`🩹 Filling from the oldest recoverable gap (${fmtGapWin(oldest)}). Seeking to ${tsStr(seekTs)} then draining forward…`,'cmd');
+  await dailySync();                                          // handles the confirm, seek, multi-pass drain, and store
+  // Re-scan so the panel reflects what’s left after the pull.
+  const after = findGaps(await store.listDays(), { now:Date.now(), windowDays:30, minGapHours:2 });
+  const still = after.missing.filter(g => g.endTs > (Math.floor(Date.now()/1000)-60*86400));
+  if(!still.length) setOut('<b style="color:#5ad18f">Gaps filled</b> — no recoverable holes remain in the last 30 days. ✅');
+  else setOut(`Re-pulled. <b>${still.length}</b> recoverable gap${still.length===1?'':'s'} still show — tap again to continue, or they may need the WHOOP app to sync them first.`);
+}
+
 // Read-only: report the band's SYNC CURSOR (oldest not-yet-committed point). IMPORTANT: this is only a
 // logical marker, NOT what's physically stored — the band keeps days of records in its NOR flash and a
 // full "Sync full history" reads them from the start regardless of this cursor (proven 2026-06-21: pulled
@@ -2656,6 +2721,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   $('range').onclick      = ()=>send(34,[],'get_data_range');
   $('rthr').onclick       = toggleRealtimeHr;
   $('dailysync').onclick  = dailySync;
+  { const a=$('fillgaps'); if(a) a.onclick=fillGaps; }
   $('synchist').onclick   = syncHistory;
   $('fullsync').onclick    = ()=>drainHistory();
   $('bandcheck').onclick   = checkBandBuffer;

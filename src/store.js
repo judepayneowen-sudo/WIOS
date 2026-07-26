@@ -75,10 +75,13 @@ export function computeDaySummary(rec, profile = {}) {
 
   const hrs = [], skins = [], spo2s = [], rrs = [], mags = [];
   const hours = new Array(24).fill(0);                       // record count per LOCAL hour-of-day (which hours have data)
+  const hrHours = new Array(24).fill(0);                     // of those, how many carried a real heartbeat (HR>0) — off-wrist hours log frames but no HR
   for (let i = 0; i < n; i++) {
-    hours[new Date(ts[i] * 1000).getHours()]++;
+    const hod = new Date(ts[i] * 1000).getHours();
+    hours[hod]++;
     const h = hr[i];
     if (h > 0) {
+      hrHours[hod]++;
       hrs.push(h);
       const dt = i + 1 < n ? Math.min(60, Math.max(1, ts[i + 1] - ts[i])) : 1; // gap to next sample, clamped
       strainAcc.add(h, dt);
@@ -115,6 +118,7 @@ export function computeDaySummary(rec, profile = {}) {
     strain: strainAcc.strain,
     zoneSeconds: strainAcc.zoneSeconds,
     hours,
+    hrHours,
     sleep,
   };
 }

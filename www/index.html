@@ -644,6 +644,8 @@
       <label class="fl" style="margin-top:12px">Date &amp; time to pull from <span style="color:var(--dimmer)">(defaults to last night)</span>
         <input class="in" id="seekdt" type="datetime-local" style="min-width:200px"></label>
       <button class="act" id="dailysync" disabled style="display:block;width:100%;margin-top:10px;font-size:15px;padding:14px">Trim to date &amp; sync to app</button>
+      <button class="act" id="fillgaps" disabled style="display:block;width:100%;margin-top:8px;font-size:14px;padding:12px">🩹 Scan &amp; fill gaps (30 days)</button>
+      <div class="muted" id="gapsout" style="margin-top:8px;font-size:12px;line-height:1.5">Scans your last 30 days, tells off-wrist stretches from truly missing data, and re-pulls what the band still holds.</div>
       <div class="row" style="margin-top:10px">
         <input class="in" id="laphost" placeholder="laptop IP:port (optional copy)" style="flex:1">
       </div>
