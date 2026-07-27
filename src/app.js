@@ -152,7 +152,7 @@ let histDays = [];                                            // newest-first da
 function computeRecoveryTrend(){
   const asc=[...histDays].reverse();                          // oldest→newest for trailing baselines
   for(let i=0;i<asc.length;i++){ const d=asc[i];
-    const prior=asc.slice(Math.max(0,i-14),i).filter(x=>x.hrvMs&&x.restHr);
+    const prior=asc.slice(Math.max(0,i-30),i).filter(x=>x.hrvMs&&x.restHr);   // 30-day personal baseline (matches WHOOP + the calibrator; UI labels it "vs 30-day")
     if(d.hrvMs&&d.restHr&&prior.length>=3){
       // HRV z-score is computed on ln(RMSSD): RMSSD is right-skewed, so the log is more normally distributed →
       // a stabler personal baseline (geniemax/my-whoop/Altini all log-transform). zScore is scale-invariant, so
@@ -1584,6 +1584,24 @@ async function renderStorage(){
   let html=`<div class="card"><div class="kv"><span class="k">Nights stored</span><span class="v">${days.length}</span></div>`
     +`<div class="kv"><span class="k">Total records</span><span class="v">${totalRecords.toLocaleString()}</span></div>`
     +`<div class="kv"><span class="k">Storage used</span><span class="v">${mb(use.usedBytes)}</span></div></div>`;
+  // ── Calibration readiness — a gapless-month tracker for the free-trial calibration. Reuses findGaps (src/gaps.js).
+  {
+    const nowMs=Date.now(), winMs=nowMs-30*86400e3;
+    const inWin=days.filter(d=>{ const [y,m,dd]=d.day.split('-'); return new Date(+y,+m-1,+dd).getTime()>=winMs; });
+    const gap=findGaps(days,{ now:nowMs, windowDays:30, minGapHours:2 });
+    const missH=gap.totalMissingHours, offH=gap.totalOffWristHours;
+    const onTrack = missH < 2;
+    const status = onTrack ? '<b style="color:#5ad18f">On track</b>' : `<b style="color:#e0a34a">${missH.toFixed(0)}h of gaps to fill</b>`;
+    html+=`<div class="card"><div class="hd" style="margin-bottom:8px"><div class="t">Calibration readiness</div><span class="muted">last 30 days</span></div>`
+      +`<div class="kv"><span class="k">Days collected (of 30)</span><span class="v">${inWin.length} / 30</span></div>`
+      +`<div class="kv"><span class="k">Status</span><span class="v">${status}</span></div>`
+      +`<div class="kv"><span class="k">Missing (re-pullable)</span><span class="v">${gap.missing.length} gap${gap.missing.length===1?'':'s'} · ${missH.toFixed(0)}h</span></div>`
+      +`<div class="kv"><span class="k">Off-wrist (not worn)</span><span class="v">${gap.offwrist.length} · ${offH.toFixed(0)}h</span></div>`
+      +`<div class="muted" style="margin-top:8px;font-size:12px;line-height:1.5">${onTrack
+        ? 'No meaningful gaps — keep wearing 24/7 and sync daily. WHOOP’s own scores settle ~30 days in, so the fit tightens over the trial.'
+        : 'Open Setup → <b>Scan &amp; fill gaps</b> to re-pull what the band still holds. ⚠️ Let the WHOOP app sync first (the pull frees records), and re-pull within ~2 weeks before flash rolls off.'}</div>`
+      +`</div>`;
+  }
   for(const d of days){
     html+=`<div class="card">`
       +`<div class="hd"><div class="t">${fmtDay(d.day)}</div><span class="preview">${d.spanH||0}h · ${(d.n||0).toLocaleString()} rec</span></div>`

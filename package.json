@@ -1,6 +1,6 @@
 {
   "name": "whoop-core-ios",
-  "version": "2.32.0",
+  "version": "2.33.0",
   "private": true,
   "type": "module",
   "description": "Standalone iOS app that reads a WHOOP 5.0 directly over Bluetooth (CoreBluetooth via Capacitor). Independent of ARC Home.",
@@ -11,7 +11,7 @@
     "altstore": "node tools/make-altstore-source.mjs --ipa dist/WHOOP-Core.ipa --out dist/apps.json",
     "whoop:api": "node tools/whoop-api.mjs",
     "calibrate": "node tools/calibrate.mjs",
-    "calibrate:all": "node tools/whoop-api.mjs 14 && node tools/calibrate.mjs",
+    "calibrate:all": "node tools/whoop-api.mjs 30 && node tools/calibrate.mjs",
     "add:ios": "npm run build:web && cap add ios",
     "sync": "npm run build:web && cap sync ios",
     "open": "cap open ios",

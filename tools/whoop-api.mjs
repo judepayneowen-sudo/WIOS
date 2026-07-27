@@ -148,6 +148,7 @@ async function pull(days){
   for(const c of (cycles.records||[])){
     const r=row(day(c.start)), s=c.score||{};
     r.strain=s.strain; r.avgHr=s.average_heart_rate; r.maxHr=s.max_heart_rate; r.kilojoule=s.kilojoule;
+    if(s.zone_duration) r.zones=s.zone_duration;    // z0–z5 milli IF exposed on the cycle score (forward-compatible; per-workout zones live on /activity/workout — a follow-up)
     r.cycleStart=c.start; r.cycleEnd=c.end||null;   // end is null for the still-open current cycle
   }
   // Recovery → recovery%, HRV, RHR, SpO2, skin temp

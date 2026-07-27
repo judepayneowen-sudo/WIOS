@@ -99,3 +99,30 @@ npm run sync      # rebuild www/app.js for the iOS app
 ```
 
 Re-run whenever you've gathered more days/captures — more data, tighter fit.
+
+## Free-trial routine — a gapless month, settling-aware
+
+WHOOP **personalizes over ~30 days**: Recovery/Strain are scored against your own rolling baselines, and
+during the first month the API flags days `user_calibrating=true` — WHOOP's *own* scores are still provisional
+there. So two things matter for a trial calibration: (1) collect a **gapless** month, and (2) fit to
+**settled** days. The tooling now handles (2) for you (`calibrate.mjs` prefers `calibrating=false` days and
+prints the settled-vs-calibrating split); your job is (1).
+
+**Daily (each morning):**
+1. **Wear the band 24/7** — including sleep (that's where HRV/RHR/stages come from).
+2. **Let the official WHOOP app sync FIRST.** It creates the cloud answer-key AND is required before our pull
+   (our sync's ack *frees* records — see the destructive-read note). Open the WHOOP app, let it finish.
+3. **Open WHOOP Core → tap the sync pill** (or Setup → *Trim to date & sync*) to store the night on the phone.
+4. Glance at **Health → Stored data → Calibration readiness**: it shows days collected (of 30) and any
+   missing-vs-off-wrist gaps. If it flags gaps, tap **Scan & fill gaps** — but re-pull **within ~2 weeks**
+   before flash rolls off. Off-wrist stretches are expected (not worn) and need no action.
+
+**Weekly:**
+```sh
+npm run calibrate:all      # pulls 30 days of answer-key, then fits (prefers WHOOP-settled days)
+```
+
+**End of trial:** do a final `calibrate:all` once you have the most settled days you can, adopt the constants
+(Step 4). The archive in `calibration/whoop-data.json` is permanent — after the trial the API is gone, so the
+days you banked are all you'll ever have. The recovery fit stays flagged **PROVISIONAL** until it has enough
+settled days; that flag clearing is your signal the fit is trustworthy.

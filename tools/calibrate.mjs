@@ -246,7 +246,8 @@ if(hrSamples.length){
       const appH=capturedHours(hrSamples,s,e), whoopH=(e-s)/3600e3;
       if(appH>0.05){ dc=whoopH>0?appH/whoopH:0; dCol=`${hh(appH)} / ${hh(whoopH)} (${(dc*100).toFixed(0)}%)`; dc>=DAY_OK?okD++:partD++; } }
     coverage.push({ date:d.date, sleepCov:sc, dayCov:dc });
-    if(sc!=null || dc!=null) console.log(`  ${d.date}    ${sCol}   ${dCol}`);
+    const settled = d.recovery!=null ? (d.calibrating ? ' ⏳ WHOOP calibrating' : ' ✓ settled') : '';
+    if(sc!=null || dc!=null) console.log(`  ${d.date}    ${sCol}   ${dCol}${settled}`);
   }
   console.log(`  ⓘ sleep calibration-grade (≥${SLEEP_OK*100}%): ${okS} night(s), ${partS} partial · day/strain grade (≥${DAY_OK*100}%): ${okD} day(s), ${partD} partial.`);
   if(partS||partD) console.log('  → Re-sync the partial nights/days fully (or FORCE_TRIM back to them) so calibration only uses complete data.');
@@ -261,11 +262,12 @@ const fitted = { recovery: { ...RECOVERY_WEIGHTS }, strainScale: STRAIN_SCALE, s
 console.log('\n— Recovery —');
 const BASE_WIN = 30;
 const haveResp = answers.some(d=> d.resp!=null);
-const buildRecRows = (minBase)=>{
+const buildRecRows = (minBase, settledOnly)=>{
   const rows=[];
   for(let i=0;i<answers.length;i++){
     const d=answers[i];
     if(d.recovery==null || d.hrv==null || d.rhr==null) continue;
+    if(settledOnly && d.calibrating) continue;            // skip days WHOOP was still calibrating (its score is provisional)
     const prior = answers.slice(Math.max(0,i-BASE_WIN), i).filter(x=>x.hrv!=null && x.rhr!=null);
     if(prior.length < minBase) continue;
     const respPrior = prior.filter(x=>x.resp!=null).map(x=>x.resp);
@@ -280,14 +282,22 @@ const buildRecRows = (minBase)=>{
   }
   return rows;
 };
-// Ideal baseline is 5+ prior days; if a short trial hasn't built that, fall back to a 3-day baseline so we can still
-// extract a PROVISIONAL fit (flagged) rather than nothing — the membership/trial may end before 30 days accrue.
-let minBase = 5, recRows = buildRecRows(minBase);
-if(recRows.length < 6){ const r3 = buildRecRows(3); if(r3.length > recRows.length){ minBase = 3; recRows = r3; } }
-const recProvisional = minBase < 5 || recRows.length < 10;
+// WHOOP personalizes over ~30 days; during that window it flags days user_calibrating=true and its OWN scores are
+// provisional. Fitting to those chases a moving target, so PREFER settled days (calibrating=false), only falling back
+// to including calibrating days if too few settled exist. Within each, use a 5-day personal baseline, else a 3-day one.
+const nRec = answers.filter(d=>d.recovery!=null).length;
+const nCalib = answers.filter(d=>d.recovery!=null && d.calibrating).length;
+console.log(`  WHOOP answer-key: ${nRec-nCalib} settled day(s), ${nCalib} still-calibrating (user_calibrating=true).`);
+let minBase = 5, settledOnly = true, recRows = buildRecRows(5, true);
+if(recRows.length < 6){ const r3 = buildRecRows(3, true); if(r3.length > recRows.length){ minBase = 3; recRows = r3; } }
+if(recRows.length < 6){                                   // too few settled days → include calibrating days (fit is flagged provisional)
+  settledOnly = false; minBase = 5; recRows = buildRecRows(5, false);
+  if(recRows.length < 6){ const r3 = buildRecRows(3, false); if(r3.length > recRows.length){ minBase = 3; recRows = r3; } }
+}
+const recProvisional = !settledOnly || minBase < 5 || recRows.length < 10;
 if(recRows.length < 6){
-  console.log(`  only ${recRows.length} day(s) have HRV+RHR+baseline. Keep wearing + let the WHOOP app sync, re-pull daily before`);
-  console.log('  the trial ends (the archive accumulates). Recovery keeps its peer-derived defaults until then.');
+  console.log(`  only ${recRows.length} day(s) have HRV+RHR+baseline. Keep wearing + let the WHOOP app sync, re-pull daily.`);
+  console.log("  WHOOP's own scores settle ~30 days in, so re-pull LATE in the trial for the truest fit. Recovery keeps its peer-derived defaults until then.");
 } else {
   // params: [hrv, rhr, resp, sleep, bias]
   const predict = (w)=> (r)=> recoveryScore({
@@ -301,7 +311,7 @@ if(recRows.length < 6){
   const before = rmse(recRows, predict(x0));
   const w = coordDescent(loss, x0, ranges);
   fitted.recovery = { hrv:+w[0].toFixed(3), rhr:+w[1].toFixed(3), resp:+w[2].toFixed(3), sleep:+w[3].toFixed(3), bias:+w[4].toFixed(3) };
-  console.log(`  fit on ${recRows.length} days (${minBase}-day baseline) · RMSE ${fix(before,1)}% → ${fix(loss(w),1)}% recovery${recProvisional?'   ⚠ PROVISIONAL — few days; re-pull as more accrue':''}`);
+  console.log(`  fit on ${recRows.length} ${settledOnly?'WHOOP-settled ':''}days (${minBase}-day baseline) · RMSE ${fix(before,1)}% → ${fix(loss(w),1)}% recovery${recProvisional?'   ⚠ PROVISIONAL — '+(settledOnly?'few days':'INCLUDES still-calibrating WHOOP days; re-pull settled days late in the trial')+'; re-pull as more accrue':''}`);
   console.log(`  weights: hrv ${fix(w[0],2)}  rhr ${fix(w[1],2)}  resp ${haveResp?fix(w[2],2):'(no data — kept '+RECOVERY_WEIGHTS.resp+')'}  sleep ${fix(w[3],2)}  bias ${fix(w[4],2)}`);
 }
 

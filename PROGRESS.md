@@ -4,6 +4,25 @@ Standalone iOS app that reads a **WHOOP 5.0** directly over Bluetooth. Independe
 other project. This file is the portable context: read it on your phone (GitHub) or hand it
 to Claude on `claude.ai/code` pointed at this repo to continue with full context.
 
+## ⭐ WHOOP personalizes over time — calibration made settling-aware (v2.33.0, 2026-07-27)
+**Confirmed finding (the user's question):** WHOOP's Recovery/Strain are NOT absolute — they're computed
+relative to the individual's OWN rolling baselines (HRV ≈30-day, RHR, resp), anchored near a ~58% population
+mean. During roughly the **first 30 days WHOOP is "still calibrating"**: the API flags those days
+`user_calibrating=true` and its own scores are provisional until the personal baseline settles (~4 nights to
+start, ~30 days to settle). **Implication:** fitting our `scores.js` to WHOOP scores from the early trial fits
+a *moving target*. What we did about it:
+- **Calibrator prefers WHOOP-settled days.** `tools/calibrate.mjs` now reads `d.calibrating`; the recovery fit
+  uses `user_calibrating=false` days when enough exist (falls back to all, flagged PROVISIONAL). Prints the
+  settled-vs-calibrating split and marks each day in the coverage table (`✓ settled` / `⏳ WHOOP calibrating`).
+- **Pull the full trial.** `calibrate:all` now pulls **30 days**, not 14 (which sat entirely inside the
+  calibrating window). `whoop-api.mjs` already captures `calibrating`; also now banks `zone_duration` if the
+  cycle score exposes it (forward-compat; per-workout zones via `/activity/workout` is a follow-up).
+- **Runtime baseline aligned to 30 days.** `computeRecoveryTrend` (`src/app.js`) widened its personal HRV/RHR
+  window 14→30 to match WHOOP + the calibrator (the Recovery UI already labels it "vs 30-day"). Still a flat
+  rolling mean/SD; EWMA (half-life ~14) is a deferred option.
+- **In-app "Calibration readiness"** card on the Stored-data screen (reuses `findGaps`): days collected (of 30),
+  missing-vs-off-wrist gaps, and a re-pull nudge — so a gapless trial month is visible at a glance.
+
 ## FORCE_TRIM seek undershoot — fixed (v2.5.1, 2026-06-24)
 A real pull (target Jun-22 17:26 night) was diagnosed from a capture: FORCE_TRIM rewound from "now"
 (Jun-24) only back to **Jun-23 07:26** — ~14 h SHORT of the target — so the drain read forward through
